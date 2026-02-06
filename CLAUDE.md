@@ -65,3 +65,10 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - ルール: `.claude/docs.md`
 
 <!-- MANUAL ADDITIONS END -->
+
+## Active Technologies
+- Python 3.13+ + pydantic ≥2.12.5（バリデーション）, tomllib（Python 標準ライブラリ、TOML パース）, importlib.resources（ビルトイン定義のパッケージ内配置）, fnmatch（ファイルパターンマッチング）, re（コンテンツパターンマッチング） (003-agent-definition)
+- ファイルシステム（TOML 定義ファイル） (003-agent-definition)
+
+## Recent Changes
+- 003-agent-definition: Added Python 3.13+ + pydantic ≥2.12.5（バリデーション）, tomllib（Python 標準ライブラリ、TOML パース）, importlib.resources（ビルトイン定義のパッケージ内配置）, fnmatch（ファイルパターンマッチング）, re（コンテンツパターンマッチング）
