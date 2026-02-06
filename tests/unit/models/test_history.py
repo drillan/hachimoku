@@ -620,7 +620,14 @@ class TestReviewHistoryRecordRoundTrip:
         assert restored == original
 
     def test_file_json_round_trip(self) -> None:
-        """FileReviewRecord の model_dump_json → model_validate_json ラウンドトリップ。"""
+        """FileReviewRecord の JSON 経由ラウンドトリップ（JSONL 永続化シナリオ）。
+
+        frozenset は JSON にネイティブで存在しないため、
+        model_dump_json() → json.loads() → validate_python() の経路で
+        JSON array（list）から frozenset への復元を検証する。
+        """
+        import json
+
         original = FileReviewRecord(
             file_paths=frozenset({"src/main.py", "src/utils.py"}),
             reviewed_at=VALID_REVIEWED_AT,
@@ -629,6 +636,10 @@ class TestReviewHistoryRecordRoundTrip:
             summary=VALID_SUMMARY,
         )
         json_str = original.model_dump_json()
-        restored = FileReviewRecord.model_validate_json(json_str)
-        assert restored == original
+        json_dict = json.loads(json_str)
+        # JSON 経由で list に変換されていることを確認
+        assert isinstance(json_dict["file_paths"], list)
+        restored = history_adapter.validate_python(json_dict)
+        assert isinstance(restored, FileReviewRecord)
         assert isinstance(restored.file_paths, frozenset)
+        assert restored == original
