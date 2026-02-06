@@ -161,6 +161,19 @@ class TestLoadPyprojectConfigNoToolSection:
         assert result is None
 
 
+class TestLoadPyprojectConfigNonDictHachimoku:
+    """tool.hachimoku が辞書でない場合。"""
+
+    def test_returns_none_when_hachimoku_is_string(self, tmp_path: Path) -> None:
+        """tool.hachimoku が文字列 → None。"""
+        path = _write_toml(
+            tmp_path / "pyproject.toml",
+            '[tool]\nhachimoku = "not-a-dict"\n',
+        )
+        result = load_pyproject_config(path)
+        assert result is None
+
+
 class TestLoadPyprojectConfigSyntaxError:
     """TOML 構文エラー。"""
 
@@ -169,3 +182,31 @@ class TestLoadPyprojectConfigSyntaxError:
         path = _write_toml(tmp_path / "pyproject.toml", "[invalid\n")
         with pytest.raises(tomllib.TOMLDecodeError):
             load_pyproject_config(path)
+
+
+class TestLoadPyprojectConfigFileNotFound:
+    """ファイル不在。"""
+
+    def test_raises_file_not_found_error(self, tmp_path: Path) -> None:
+        """ファイル不在 → FileNotFoundError。"""
+        path = tmp_path / "nonexistent.toml"
+        with pytest.raises(FileNotFoundError):
+            load_pyproject_config(path)
+
+
+class TestLoadPyprojectConfigPermissionError:
+    """読み取り権限なし。"""
+
+    @_SKIP_PERMISSION
+    def test_raises_permission_error(self, tmp_path: Path) -> None:
+        """読み取り権限なし → PermissionError。"""
+        path = _write_toml(
+            tmp_path / "pyproject.toml",
+            '[tool.hachimoku]\nmodel = "opus"\n',
+        )
+        path.chmod(0o000)
+        try:
+            with pytest.raises(PermissionError):
+                load_pyproject_config(path)
+        finally:
+            path.chmod(0o644)
