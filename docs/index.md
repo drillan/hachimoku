@@ -39,7 +39,15 @@ TOML ベースの階層的な設定をサポートします。
 
 - CLI オプション > `.hachimoku/config.toml` > `pyproject.toml [tool.hachimoku]` > `~/.config/hachimoku/config.toml` > デフォルト
 
+### ドメインモデル
+
+レビュー結果は型安全なドメインモデルで管理されます。
+Severity（4段階重大度）、ReviewIssue（問題の統一表現）、AgentResult（判別共用体による成功/エラー/タイムアウト）、ReviewReport（結果集約レポート）を提供します。
+詳細は [ドメインモデル](models.md) を参照してください。
+
 ```{toctree}
 :maxdepth: 2
 :caption: Contents
+
+models
 ```
