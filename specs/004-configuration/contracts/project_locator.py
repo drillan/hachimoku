@@ -29,7 +29,10 @@ def find_project_root(start: Path) -> Path | None:
 
 
 def find_config_file(start: Path) -> Path | None:
-    """プロジェクトルートから .hachimoku/config.toml のパスを返す。
+    """探索開始ディレクトリから .hachimoku/ を探索し config.toml のパスを返す。
+
+    内部で find_project_root() を呼び出してプロジェクトルートを特定し、
+    config.toml の存在チェックは行わない（パスのみ構築）。
 
     Args:
         start: 探索開始ディレクトリ。

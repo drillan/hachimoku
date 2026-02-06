@@ -32,7 +32,7 @@
 | Art.3 CLI Design | データ駆動型 | ✅ PASS | 設定は `.hachimoku/config.toml` で一元管理 |
 | Art.4 Simplicity | 最大3プロジェクト | ✅ PASS | 既存構造（src/, tests/, specs/）のみ使用 |
 | Art.5 Code Quality | ruff + mypy | ✅ PASS | コミット前に品質チェック実行 |
-| Art.6 Data Accuracy | ハードコード禁止 | ✅ PASS | デフォルト値は名前付き定数で定義 |
+| Art.6 Data Accuracy | ハードコード禁止 | ✅ PASS | デフォルト値は Pydantic フィールドのデフォルト引数として定義 |
 | Art.7 DRY | 重複禁止 | ✅ PASS | 既存の TOML ロードパターン（agents/loader.py）を参考に統一的な設計 |
 | Art.8 Refactoring | 既存修正優先 | ✅ PASS | 新規モジュール追加（設定は新機能のため） |
 | Art.9 Type Safety | 全関数型注釈 | ✅ PASS | mypy strict 準拠 |
@@ -46,7 +46,7 @@
 | Art.3 CLI Design | 設定一元管理 | ✅ PASS | ConfigResolver が全ソースを統合 |
 | Art.4 Simplicity | 不要ラッパー禁止 | ✅ PASS | Pydantic バリデーション直接使用。不要な抽象化なし |
 | Art.6 Data Accuracy | 名前付き定数 | ✅ PASS | デフォルト値はモデルフィールドのデフォルト引数として定義 |
-| Art.7 DRY | TOML ロードパターン | ✅ PASS | agents/loader.py と同じ `tomllib.load` パターンを使用 |
+| Art.7 DRY | TOML ロードパターン | ✅ PASS | agents/loader.py と同じ `tomllib.load` パターンを使用。`AGENT_NAME_PATTERN` は `agents.models` から参照（再定義しない） |
 
 ## Project Structure
 
@@ -73,9 +73,9 @@ src/hachimoku/
 │   └── config.py               # NEW: HachimokuConfig, AgentConfig, OutputFormat
 ├── config/
 │   ├── __init__.py             # Public API: resolve_config, find_project_root
-│   ├── _locator.py             # ProjectLocator: .hachimoku/ ディレクトリ探索
+│   ├── _locator.py             # .hachimoku/ ディレクトリ探索関数群
 │   ├── _loader.py              # TOML ファイル読み込み（config.toml, pyproject.toml）
-│   └── _resolver.py            # ConfigResolver: 5層マージロジック
+│   └── _resolver.py            # 5層マージロジック関数群
 └── ...
 
 tests/unit/

@@ -8,21 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hachimoku.models._base import HachimokuBaseModel
-
-# 前方参照: 実装時に models/config.py から import
-# from hachimoku.models.config import HachimokuConfig
-
-
-class ConfigSource(HachimokuBaseModel):
-    """設定ソースの読み込み結果を表す。
-
-    TOML ファイルから読み込まれた生の辞書データを保持する。
-    バリデーションは最終マージ後に HachimokuConfig で一括実行する。
-    """
-
-    data: dict[str, object]
-    source_path: Path | None = None
+# 実装時に hachimoku.models.config.HachimokuConfig を import する
 
 
 def load_toml_config(path: Path) -> dict[str, object]:
@@ -100,6 +86,9 @@ def resolve_config(
 
     FR-CF-001: CLI > .hachimoku/config.toml > pyproject.toml [tool.hachimoku]
               > ~/.config/hachimoku/config.toml > デフォルト値
+
+    設定ファイルが存在しない場合は該当レイヤーをスキップし、次のレイヤーに進む。
+    全ファイルが存在しない場合はデフォルト値のみで HachimokuConfig を構築する。
 
     Args:
         start_dir: 探索開始ディレクトリ。None の場合はカレントディレクトリ。

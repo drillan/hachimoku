@@ -12,10 +12,11 @@ from enum import StrEnum
 
 from pydantic import Field, field_validator
 
+from hachimoku.agents.models import AGENT_NAME_PATTERN
 from hachimoku.models._base import HachimokuBaseModel
 
-# エージェント名バリデーションパターン（003-agent-definition と共通）
-_AGENT_NAME_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9-]+$")
+# 既存の AGENT_NAME_PATTERN (str) をコンパイル済み正規表現として使用
+_AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
 
 
 class OutputFormat(StrEnum):
@@ -28,11 +29,13 @@ class OutputFormat(StrEnum):
 class AgentConfig(HachimokuBaseModel):
     """エージェント個別設定。FR-CF-002 エージェント個別設定セクション.
 
-    全フィールドはオプショナル。None の場合はグローバル設定値が適用される（FR-CF-008）。
+    enabled はデフォルト True の必須フィールド。
+    model, timeout, max_turns はオプショナル（None 可）で、
+    None の場合はグローバル設定値が適用される（FR-CF-008）。
     """
 
     enabled: bool = True
-    model: str | None = None
+    model: str | None = Field(default=None, min_length=1)
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
 
@@ -44,11 +47,11 @@ class HachimokuConfig(HachimokuBaseModel):
     """
 
     # 実行設定
-    model: str = "sonnet"
+    model: str = Field(default="sonnet", min_length=1)
     timeout: int = Field(default=300, gt=0)
     max_turns: int = Field(default=10, gt=0)
     parallel: bool = False
-    base_branch: str = "main"
+    base_branch: str = Field(default="main", min_length=1)
 
     # 出力設定
     output_format: OutputFormat = OutputFormat.MARKDOWN
@@ -68,7 +71,7 @@ class HachimokuConfig(HachimokuBaseModel):
     ) -> dict[str, AgentConfig]:
         """エージェント名の形式を検証する。FR-CF-004."""
         for name in v:
-            if not _AGENT_NAME_PATTERN.match(name):
+            if not _AGENT_NAME_RE.match(name):
                 msg = (
                     f"Invalid agent name '{name}': "
                     f"must match pattern [a-z0-9-]+"

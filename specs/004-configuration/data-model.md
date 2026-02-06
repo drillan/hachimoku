@@ -21,14 +21,15 @@
 | Field | Type | Default | Constraints | Description |
 |-------|------|---------|-------------|-------------|
 | `enabled` | `bool` | `True` | - | エージェントの有効/無効 |
-| `model` | `str \| None` | `None` | - | エージェント固有モデル上書き。`None` でグローバル値を使用 |
+| `model` | `str \| None` | `None` | `min_length=1` | エージェント固有モデル上書き。`None` でグローバル値を使用 |
 | `timeout` | `int \| None` | `None` | `> 0` | エージェント固有タイムアウト上書き。`None` でグローバル値を使用 |
 | `max_turns` | `int \| None` | `None` | `> 0` | エージェント固有最大ターン数上書き。`None` でグローバル値を使用 |
 
 - `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
-- 全オプショナルフィールドの組み合わせで柔軟な部分上書きを実現
+- `enabled` はデフォルト `True` の必須フィールド。`model`, `timeout`, `max_turns` はオプショナル（`None` 可）で、`None` の場合はグローバル設定値が適用される
 
 **Validation Rules**:
+- `model` が非 `None` の場合、空文字列でないこと（`min_length=1`）
 - `timeout` が非 `None` の場合、正の整数であること
 - `max_turns` が非 `None` の場合、正の整数であること
 
@@ -38,11 +39,11 @@
 
 | Field | Type | Default | Constraints | CLI Option | Description |
 |-------|------|---------|-------------|------------|-------------|
-| `model` | `str` | `"sonnet"` | - | `--model` | 使用する LLM モデル名 |
+| `model` | `str` | `"sonnet"` | `min_length=1` | `--model` | 使用する LLM モデル名 |
 | `timeout` | `int` | `300` | `> 0` | `--timeout` | エージェント実行タイムアウト（秒） |
 | `max_turns` | `int` | `10` | `> 0` | `--max-turns` | エージェント最大ターン数 |
 | `parallel` | `bool` | `False` | - | `--parallel` | 並列実行モード |
-| `base_branch` | `str` | `"main"` | - | `--base-branch` | diff 比較対象ブランチ |
+| `base_branch` | `str` | `"main"` | `min_length=1` | `--base-branch` | diff 比較対象ブランチ |
 | `output_format` | `OutputFormat` | `OutputFormat.MARKDOWN` | enum | `--format` | 出力形式 |
 | `save_reviews` | `bool` | `True` | - | `--save-reviews` | レビュー結果蓄積の有効/無効 |
 | `show_cost` | `bool` | `False` | - | `--show-cost` | コスト表示の有効/無効 |
