@@ -27,7 +27,14 @@ from hachimoku.models.schemas import (
     get_schema,
     register_schema,
 )
-from hachimoku.models.severity import SEVERITY_ORDER, Severity
+from hachimoku.models.severity import (
+    EXIT_CODE_CRITICAL,
+    EXIT_CODE_IMPORTANT,
+    EXIT_CODE_SUCCESS,
+    SEVERITY_ORDER,
+    Severity,
+    determine_exit_code,
+)
 
 __all__ = [
     "AgentError",
@@ -40,6 +47,9 @@ __all__ = [
     "CoverageGap",
     "DimensionScore",
     "DuplicateSchemaError",
+    "EXIT_CODE_CRITICAL",
+    "EXIT_CODE_IMPORTANT",
+    "EXIT_CODE_SUCCESS",
     "FileLocation",
     "HachimokuBaseModel",
     "ImprovementItem",
@@ -55,6 +65,7 @@ __all__ = [
     "Severity",
     "SeverityClassified",
     "TestGapAssessment",
+    "determine_exit_code",
     "get_schema",
     "register_schema",
 ]
