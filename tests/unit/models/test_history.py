@@ -376,6 +376,17 @@ class TestFileReviewRecordConstraints:
                 summary=VALID_SUMMARY,
             )
 
+    def test_mixed_valid_and_empty_string_in_file_paths_rejected(self) -> None:
+        """有効なパスと空文字列の混在は拒否される。"""
+        with pytest.raises(ValidationError, match="file_paths"):
+            FileReviewRecord(
+                file_paths=frozenset({"valid.py", ""}),
+                reviewed_at=VALID_REVIEWED_AT,
+                working_directory="/tmp",
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
     def test_empty_file_paths_rejected(self) -> None:
         """file_paths 空集合は拒否される。"""
         with pytest.raises(ValidationError, match="file_paths"):
@@ -498,10 +509,10 @@ class TestReviewHistoryRecordDiscriminator:
         assert result.review_mode == "pr"
 
     def test_file_variant_selected(self) -> None:
-        """review_mode="file" で FileReviewRecord が選択される。"""
+        """review_mode="file" で FileReviewRecord が選択される（list 入力→frozenset 変換）。"""
         data = {
             "review_mode": "file",
-            "file_paths": frozenset({"src/app.py"}),
+            "file_paths": ["src/app.py"],
             "reviewed_at": VALID_REVIEWED_AT.isoformat(),
             "working_directory": "/home/user/project",
             "results": [],
@@ -510,6 +521,7 @@ class TestReviewHistoryRecordDiscriminator:
         result = history_adapter.validate_python(data)
         assert isinstance(result, FileReviewRecord)
         assert result.review_mode == "file"
+        assert result.file_paths == frozenset({"src/app.py"})
 
     def test_invalid_review_mode_rejected(self) -> None:
         """不正な review_mode は拒否される。"""
@@ -606,3 +618,17 @@ class TestReviewHistoryRecordRoundTrip:
         restored = history_adapter.validate_python(original.model_dump())
         assert isinstance(restored, FileReviewRecord)
         assert restored == original
+
+    def test_file_json_round_trip(self) -> None:
+        """FileReviewRecord の model_dump_json → model_validate_json ラウンドトリップ。"""
+        original = FileReviewRecord(
+            file_paths=frozenset({"src/main.py", "src/utils.py"}),
+            reviewed_at=VALID_REVIEWED_AT,
+            working_directory="/home/user/project",
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        json_str = original.model_dump_json()
+        restored = FileReviewRecord.model_validate_json(json_str)
+        assert restored == original
+        assert isinstance(restored.file_paths, frozenset)
