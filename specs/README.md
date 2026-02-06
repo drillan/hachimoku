@@ -11,7 +11,7 @@ hachimoku（8moku）のアーキテクチャ仕様と機能仕様を管理する
 
 - **P0**: 全仕様の共通基盤。P1-P3 すべてが依存する前提レイヤー
 - **P1**: 基本レビュー実行（US1）に必須
-- **P2**: 並列実行（US2）・カスタマイズ（US3）・PR 連携（US6）・初期化（US8）に必須
+- **P2**: 並列実行（US2）・カスタマイズ（US3）・PR 連携（US6）・初期化（US8）・ファイルパスレビュー（US9）に必須
 - **P3**: CI/CD 統合（US4）・設定管理（US5）・管理コマンド（US7）に必須
 
 ## 仕様間の依存関係
@@ -43,7 +43,7 @@ graph TD
 | 007-output-format | 出力フォーマット・レビュー蓄積 | 未着手 | P1-P3 | Markdown/JSON フォーマッター、JSONL 蓄積、コスト集計表示 |
 | 008-github-integration | GitHub PR・Issue 連携 | 未着手 | P2 | PR メタデータ取得、PR 差分取得、`--issue` コンテキスト注入、GitHub API エラー処理 |
 
-> **006-cli-interface の優先度内訳**: P1 = 基本 CLI・レビュー実行（FR-008, FR-009, FR-017, FR-018, FR-021）、P2 = `init` コマンド（FR-027, FR-028）、P3 = `agents` 管理コマンド（FR-016）
+> **006-cli-interface の優先度内訳**: P1 = 基本 CLI・レビュー実行（FR-008, FR-009, FR-017, FR-018, FR-021）、P2 = `init` コマンド（FR-027, FR-028）・file モード（FR-029, FR-031, FR-032）、P3 = `agents` 管理コマンド（FR-016）
 
 ## 子仕様と親仕様の対応
 
@@ -54,9 +54,9 @@ graph TD
 | 002-domain-models | FR-004 | - |
 | 003-agent-definition | FR-003, FR-005, FR-011, FR-014 | US3 |
 | 004-configuration | FR-010, FR-012 | US5 |
-| 005-review-engine | FR-001, FR-002, FR-006, FR-007, FR-013 | US1, US2 |
-| 006-cli-interface | FR-008, FR-009, FR-016, FR-017, FR-018, FR-021, FR-027, FR-028 | US7, US8 |
-| 007-output-format | FR-008, FR-015, FR-025, FR-026 | US4 |
+| 005-review-engine | FR-001, FR-002, FR-006, FR-007, FR-013 | US1, US2, US9 |
+| 006-cli-interface | FR-008, FR-009, FR-016, FR-017, FR-018, FR-021, FR-027, FR-028, FR-029, FR-031, FR-032 | US7, US8, US9 |
+| 007-output-format | FR-008, FR-015, FR-025, FR-026, FR-030 | US4, US9 |
 | 008-github-integration | FR-019, FR-020, FR-022, FR-023, FR-024 | US6 |
 
 > **FR-004 の責務境界について**: FR-004（出力スキーマによる型検証）はスキーマ定義（002）とバリデーション実行（005）に跨る。002 はスキーマモデルの定義を担当し、005 は pydantic-ai の `result_type` を通じた実行時バリデーションを担当する。
