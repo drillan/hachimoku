@@ -14,7 +14,7 @@
 - 親仕様 FR-004 に基づき、出力スキーマは6種（ScoredIssues, SeverityClassified, TestGapAssessment, MultiDimensionalAnalysis, CategoryClassification, ImprovementSuggestions）とする
 - README.md の「スキーマの所属境界」に基づき、SCHEMA_REGISTRY と各エージェントの出力スキーマはすべて 002-domain-models に含める。出力フォーマット（007）はフォーマッター・ストレージのみを担当する
 - Severity のマッピング（重大度の定義と対応する終了コード）は 002 で定義する
-- Q: ドメインモデルの実装技術に制約はあるか？ → A: エージェント実行基盤として pydantic-ai を採用しており、`result_type` による構造化出力制御に Pydantic モデルを必要とする。このアーキテクチャ制約により、ドメインモデル・出力スキーマは Pydantic モデルとして実装される
+- Q: ドメインモデルの実装技術に制約はあるか？ → A: エージェント実行基盤として pydantic-ai を採用しており、`output_type` による構造化出力制御に Pydantic モデルを必要とする。このアーキテクチャ制約により、ドメインモデル・出力スキーマは Pydantic モデルとして実装される
 - Q: AgentResult のステータス（成功/エラー/タイムアウト）をどのパターンで表現するか？ → A: 判別共用体（Discriminated Union）パターンを採用する。成功（AgentSuccess）・エラー（AgentError）・タイムアウト（AgentTimeout）を個別モデルとして定義し、判別キー（status フィールドの固定値）で型を一意に特定する。AgentResult はこれら3型の Union 型とする。これにより不可能な状態を型レベルで排除し、パターンマッチングによる型安全な分岐を可能にする
 - Q: 6種の出力スキーマに共通ベースモデルを設けるか？ → A: 共通ベースモデル（ReviewIssue リスト）を定義し、全スキーマが継承する。ReviewReport への集約時に共通インターフェースでアクセスでき、新スキーマ追加時も一貫性が保証される
 
@@ -159,7 +159,7 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 
 ## Assumptions
 
-- pydantic-ai の `result_type` が Pydantic モデルを要求するため、本仕様の全モデル・スキーマは Pydantic 互換である必要がある。これは実装上の選択ではなくフレームワークによるアーキテクチャ制約である
+- pydantic-ai の `output_type` が Pydantic モデルを要求するため、本仕様の全モデル・スキーマは Pydantic 互換である必要がある。これは実装上の選択ではなくフレームワークによるアーキテクチャ制約である
 - 出力スキーマの具体的なフィールド構成は、各ビルトインエージェント（003-agent-definition で定義予定）の要件に基づいて最終確定する。本仕様では親仕様の Key Entities と6種のスキーマ分類に基づくフレームワークを定義する
 - BaseAgentOutput のサマリーテキスト属性の要否は、003-agent-definition で各エージェントの出力要件が確定した段階で再検討する。現時点では ReviewIssue リストのみを共通属性とする
 - コスト情報（AgentSuccess・ReviewReport に含む）はオプショナル属性とする。LLM プロバイダによっては取得できない場合があるため。構造は最小限の共通構造（入力トークン数、出力トークン数、合計コスト）とする

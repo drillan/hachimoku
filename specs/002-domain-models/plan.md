@@ -5,7 +5,7 @@
 
 ## Summary
 
-全レイヤーの基盤となる共通ドメインモデルと出力スキーマを Pydantic v2 モデルとして定義する。Severity 列挙型、ReviewIssue、AgentResult 判別共用体（AgentSuccess/AgentError/AgentTimeout）、ReviewReport、6種の出力スキーマ（BaseAgentOutput 継承）、SCHEMA_REGISTRY、ReviewHistoryRecord 判別共用体（DiffReviewRecord/PRReviewRecord/FileReviewRecord）を実装する。pydantic-ai の `result_type` 制約により全モデルは Pydantic モデルとして実装される。
+全レイヤーの基盤となる共通ドメインモデルと出力スキーマを Pydantic v2 モデルとして定義する。Severity 列挙型、ReviewIssue、AgentResult 判別共用体（AgentSuccess/AgentError/AgentTimeout）、ReviewReport、6種の出力スキーマ（BaseAgentOutput 継承）、SCHEMA_REGISTRY、ReviewHistoryRecord 判別共用体（DiffReviewRecord/PRReviewRecord/FileReviewRecord）を実装する。pydantic-ai の `output_type` 制約により全モデルは Pydantic モデルとして実装される。
 
 ## Technical Context
 
@@ -16,7 +16,7 @@
 **Target Platform**: Linux / macOS CLI ツール
 **Project Type**: single（`src/hachimoku/` パッケージ）
 **Performance Goals**: モデルのバリデーションはミリ秒以下（Pydantic v2 の Rust バックエンドに依存）
-**Constraints**: pydantic-ai の `result_type` が Pydantic モデルを要求するアーキテクチャ制約
+**Constraints**: pydantic-ai の `output_type` が Pydantic モデルを要求するアーキテクチャ制約
 **Scale/Scope**: 約15モデルクラス + 1レジストリ
 
 ## Constitution Check
