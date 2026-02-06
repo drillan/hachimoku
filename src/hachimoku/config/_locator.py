@@ -7,6 +7,7 @@ FR-CF-006: ユーザーグローバル設定パス
 
 from __future__ import annotations
 
+import stat as stat_module
 from pathlib import Path
 
 _PROJECT_DIR_NAME: str = ".hachimoku"
@@ -15,7 +16,7 @@ _PYPROJECT_FILE_NAME: str = "pyproject.toml"
 
 
 def find_project_root(start: Path) -> Path | None:
-    """カレントディレクトリから親方向に .hachimoku/ を探索しプロジェクトルートを返す。
+    """start ディレクトリから親方向に .hachimoku/ を探索しプロジェクトルートを返す。
 
     FR-CF-003: ファイルシステムルートまで遡っても見つからない場合は None を返す。
 
@@ -24,11 +25,20 @@ def find_project_root(start: Path) -> Path | None:
 
     Returns:
         .hachimoku/ ディレクトリを含むパス。見つからなければ None。
+
+    Raises:
+        OSError: 探索パス上のアクセス権限エラー等。
     """
     current = start.resolve()
     while True:
-        if (current / _PROJECT_DIR_NAME).is_dir():
-            return current
+        candidate = current / _PROJECT_DIR_NAME
+        try:
+            st = candidate.stat()
+        except FileNotFoundError:
+            pass
+        else:
+            if stat_module.S_ISDIR(st.st_mode):
+                return current
         parent = current.parent
         if parent == current:
             return None
@@ -36,9 +46,9 @@ def find_project_root(start: Path) -> Path | None:
 
 
 def find_config_file(start: Path) -> Path | None:
-    """探索開始ディレクトリから .hachimoku/ を探索し config.toml のパスを返す。
+    """start ディレクトリから .hachimoku/ を探索し config.toml のパスを返す。
 
-    内部で find_project_root() を呼び出してプロジェクトルートを特定し、
+    FR-CF-003: 内部で find_project_root() を呼び出してプロジェクトルートを特定し、
     config.toml の存在チェックは行わない（パスのみ構築）。
 
     Args:
@@ -46,6 +56,9 @@ def find_config_file(start: Path) -> Path | None:
 
     Returns:
         config.toml のフルパス。プロジェクトルートが見つからなければ None。
+
+    Raises:
+        OSError: 探索パス上のアクセス権限エラー等。
     """
     project_root = find_project_root(start)
     if project_root is None:
@@ -54,9 +67,9 @@ def find_config_file(start: Path) -> Path | None:
 
 
 def find_pyproject_toml(start: Path) -> Path | None:
-    """カレントディレクトリから親方向に pyproject.toml を探索する。
+    """start ディレクトリから親方向に pyproject.toml を探索する。
 
-    FR-CF-005: pyproject.toml はカレントディレクトリから親ディレクトリへ遡って探索する。
+    FR-CF-005: pyproject.toml は start ディレクトリから親ディレクトリへ遡って探索する。
     pyproject.toml が存在しない場合は None を返す。
 
     Args:
@@ -64,12 +77,20 @@ def find_pyproject_toml(start: Path) -> Path | None:
 
     Returns:
         最初に見つかった pyproject.toml のフルパス。見つからなければ None。
+
+    Raises:
+        OSError: 探索パス上のアクセス権限エラー等。
     """
     current = start.resolve()
     while True:
         candidate = current / _PYPROJECT_FILE_NAME
-        if candidate.is_file():
-            return candidate
+        try:
+            st = candidate.stat()
+        except FileNotFoundError:
+            pass
+        else:
+            if stat_module.S_ISREG(st.st_mode):
+                return candidate
         parent = current.parent
         if parent == current:
             return None
@@ -83,5 +104,8 @@ def get_user_config_path() -> Path:
 
     Returns:
         ユーザーグローバル設定ファイルのパス（存在チェックは行わない）。
+
+    Raises:
+        RuntimeError: ホームディレクトリを特定できない場合。
     """
     return Path.home() / ".config" / "hachimoku" / _CONFIG_FILE_NAME

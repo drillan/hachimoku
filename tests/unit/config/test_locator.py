@@ -8,7 +8,10 @@ T013: get_user_config_path — ~/.config/hachimoku/config.toml
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+import pytest
 
 from hachimoku.config._locator import (
     find_config_file,
@@ -22,6 +25,11 @@ from hachimoku.config._locator import (
 # =============================================================================
 
 _PROJECT_DIR_NAME = ".hachimoku"
+
+_SKIP_PERMISSION = pytest.mark.skipif(
+    os.name == "nt" or os.getuid() == 0,
+    reason="POSIX permissions required and not running as root",
+)
 
 
 def _create_project_dir(base: Path) -> Path:
@@ -71,6 +79,53 @@ class TestFindProjectRootNotFound:
         """ルートまで見つからない → None。"""
         result = find_project_root(tmp_path)
         assert result is None
+
+
+class TestFindProjectRootNestedProjects:
+    """ネストされたプロジェクトの場合、最も近いものが返される。"""
+
+    def test_returns_nearest_project_root(self, tmp_path: Path) -> None:
+        """親子両方に .hachimoku/ → 最も近い（子）を返す。"""
+        _create_project_dir(tmp_path)
+        inner = tmp_path / "inner"
+        inner.mkdir()
+        _create_project_dir(inner)
+
+        child = inner / "src"
+        child.mkdir()
+
+        result = find_project_root(child)
+        assert result == inner.resolve()
+
+
+class TestFindProjectRootSkipsFile:
+    """.hachimoku がファイルの場合はスキップする。"""
+
+    def test_file_is_not_treated_as_project_dir(self, tmp_path: Path) -> None:
+        """.hachimoku がファイル → スキップして None を返す。"""
+        (tmp_path / _PROJECT_DIR_NAME).write_text("", encoding="utf-8")
+        result = find_project_root(tmp_path)
+        assert result is None
+
+
+class TestFindProjectRootPermissionError:
+    """アクセス権限がないディレクトリで PermissionError が伝播するケース。"""
+
+    @_SKIP_PERMISSION
+    def test_raises_permission_error(self, tmp_path: Path) -> None:
+        """stat() が PermissionError → そのまま伝播。"""
+        restricted = tmp_path / "restricted"
+        restricted.mkdir()
+        (restricted / _PROJECT_DIR_NAME).mkdir()
+        child = restricted / "child"
+        child.mkdir()
+
+        restricted.chmod(0o000)
+        try:
+            with pytest.raises(PermissionError):
+                find_project_root(child)
+        finally:
+            restricted.chmod(0o755)
 
 
 # =============================================================================
@@ -165,6 +220,26 @@ class TestFindPyprojectTomlIndependentSearch:
         assert find_pyproject_toml(child) == grandparent.resolve() / "pyproject.toml"
 
 
+class TestFindPyprojectTomlPermissionError:
+    """アクセス権限がないディレクトリで PermissionError が伝播するケース。"""
+
+    @_SKIP_PERMISSION
+    def test_raises_permission_error(self, tmp_path: Path) -> None:
+        """stat() が PermissionError → そのまま伝播。"""
+        restricted = tmp_path / "restricted"
+        restricted.mkdir()
+        _create_pyproject_toml(restricted)
+        child = restricted / "child"
+        child.mkdir()
+
+        restricted.chmod(0o000)
+        try:
+            with pytest.raises(PermissionError):
+                find_pyproject_toml(child)
+        finally:
+            restricted.chmod(0o755)
+
+
 # =============================================================================
 # T013: get_user_config_path()
 # =============================================================================
@@ -178,8 +253,3 @@ class TestGetUserConfigPath:
         result = get_user_config_path()
         expected = Path.home() / ".config" / "hachimoku" / "config.toml"
         assert result == expected
-
-    def test_return_type_is_path(self) -> None:
-        """戻り値が Path インスタンスであること。"""
-        result = get_user_config_path()
-        assert isinstance(result, Path)
