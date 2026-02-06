@@ -332,7 +332,7 @@ class FileReviewRecord(HachimokuBaseModel):
     """file レビューの履歴レコード。判別キー: review_mode="file"。"""
 
     review_mode: Literal["file"] = "file"
-    file_paths: list[str] = Field(min_length=1)  # 重複排除バリデータで保証
+    file_paths: frozenset[str]  # field_validator で空集合・空文字列を検証
     reviewed_at: datetime
     working_directory: str  # 絶対パスバリデータで検証
     results: list[AgentResult]
