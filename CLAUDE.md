@@ -69,6 +69,8 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 ## Active Technologies
 - Python 3.13+ + pydantic ≥2.12.5（バリデーション）, tomllib（Python 標準ライブラリ、TOML パース）, importlib.resources（ビルトイン定義のパッケージ内配置）, fnmatch（ファイルパターンマッチング）, re（コンテンツパターンマッチング） (003-agent-definition)
 - ファイルシステム（TOML 定義ファイル） (003-agent-definition)
+- Python 3.13+ + pydantic ≥2.12.5（バリデーション）, tomllib（Python 標準ライブラリ、TOML パース）, pathlib（ファイルシステム操作） (004-configuration)
+- ファイルシステム（TOML 設定ファイル） (004-configuration)
 
 ## Recent Changes
 - 003-agent-definition: Added Python 3.13+ + pydantic ≥2.12.5（バリデーション）, tomllib（Python 標準ライブラリ、TOML パース）, importlib.resources（ビルトイン定義のパッケージ内配置）, fnmatch（ファイルパターンマッチング）, re（コンテンツパターンマッチング）
