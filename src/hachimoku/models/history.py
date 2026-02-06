@@ -78,7 +78,7 @@ class FileReviewRecord(HachimokuBaseModel):
     """
 
     review_mode: Literal["file"] = "file"
-    file_paths: frozenset[str]
+    file_paths: frozenset[Annotated[str, Field(min_length=1)]]
     reviewed_at: datetime
     working_directory: str
     results: list[AgentResult]
@@ -86,12 +86,10 @@ class FileReviewRecord(HachimokuBaseModel):
 
     @field_validator("file_paths", mode="after")
     @classmethod
-    def validate_file_paths(cls, v: frozenset[str]) -> frozenset[str]:
-        """file_paths が空でなく、各要素が非空であることを検証する。"""
+    def validate_file_paths_non_empty(cls, v: frozenset[str]) -> frozenset[str]:
+        """file_paths が空でないことを検証する。"""
         if len(v) == 0:
             raise ValueError("file_paths must contain at least one element")
-        if any(not s for s in v):
-            raise ValueError("file_paths must not contain empty strings")
         return v
 
     @field_validator("working_directory", mode="after")
