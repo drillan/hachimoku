@@ -162,7 +162,7 @@ classDiagram
 
     class FileReviewRecord {
         +review_mode: Literal["file"] = "file"
-        +file_paths: list[str] (1要素以上, 重複排除済み)
+        +file_paths: frozenset[str] (1要素以上, 各要素非空)
         +reviewed_at: datetime
         +working_directory: str (絶対パス)
         +results: list[AgentResult]
@@ -339,7 +339,7 @@ ReviewHistoryRecord = Annotated[
 | フィールド | 型 | 必須 | 制約 |
 |-----------|---|------|------|
 | review_mode | Literal["file"] | Yes | 固定値 "file"（判別キー） |
-| file_paths | list[str] | Yes | 1要素以上（`min_length=1`）、重複排除済み（バリデータで保証） |
+| file_paths | frozenset[str] | Yes | 1要素以上、各要素非空（field_validator で検証） |
 | reviewed_at | datetime | Yes | - |
 | working_directory | str | Yes | 絶対パス（バリデータで検証） |
 | results | list[AgentResult] | Yes | - |

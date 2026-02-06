@@ -307,20 +307,20 @@ class TestFileReviewRecordValid:
     def test_valid_file_record(self) -> None:
         """全必須フィールド設定で review_mode="file" のインスタンスが生成される。"""
         record = FileReviewRecord(
-            file_paths=["src/main.py"],
+            file_paths=frozenset({"src/main.py"}),
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/home/user/project",
             results=[],
             summary=VALID_SUMMARY,
         )
         assert record.review_mode == "file"
-        assert record.file_paths == ["src/main.py"]
+        assert record.file_paths == frozenset({"src/main.py"})
         assert record.working_directory == "/home/user/project"
 
     def test_multiple_file_paths_accepted(self) -> None:
         """複数のファイルパスが受け入れられる。"""
         record = FileReviewRecord(
-            file_paths=["a.py", "b.py", "c.py"],
+            file_paths=frozenset({"a.py", "b.py", "c.py"}),
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/tmp",
             results=[],
@@ -328,32 +328,21 @@ class TestFileReviewRecordValid:
         )
         assert len(record.file_paths) == 3
 
-    def test_duplicate_file_paths_deduplicated(self) -> None:
-        """重複するファイルパスは自動排除される（順序保持）。"""
+    def test_frozenset_deduplicates_structurally(self) -> None:
+        """リスト入力の重複は frozenset により構造的に排除される。"""
         record = FileReviewRecord(
-            file_paths=["a.py", "b.py", "a.py", "c.py", "b.py"],
+            file_paths=["a.py", "b.py", "a.py"],  # type: ignore[arg-type]
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/tmp",
             results=[],
             summary=VALID_SUMMARY,
         )
-        assert record.file_paths == ["a.py", "b.py", "c.py"]
-
-    def test_all_duplicates_deduplicated_to_single(self) -> None:
-        """全要素が同一の場合、重複排除後1要素になる（min_length=1 通過）。"""
-        record = FileReviewRecord(
-            file_paths=["a.py", "a.py", "a.py"],
-            reviewed_at=VALID_REVIEWED_AT,
-            working_directory="/tmp",
-            results=[],
-            summary=VALID_SUMMARY,
-        )
-        assert record.file_paths == ["a.py"]
+        assert record.file_paths == frozenset({"a.py", "b.py"})
 
     def test_absolute_working_directory_accepted(self) -> None:
         """絶対パスの working_directory が受け入れられる。"""
         record = FileReviewRecord(
-            file_paths=["test.py"],
+            file_paths=frozenset({"test.py"}),
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/var/lib/app",
             results=[],
@@ -364,7 +353,7 @@ class TestFileReviewRecordValid:
     def test_results_with_agent_success(self) -> None:
         """AgentSuccess を含む results でインスタンス生成が成功する。"""
         record = FileReviewRecord(
-            file_paths=["src/main.py"],
+            file_paths=frozenset({"src/main.py"}),
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/home/user/project",
             results=[VALID_AGENT_SUCCESS],
@@ -380,7 +369,7 @@ class TestFileReviewRecordConstraints:
         """file_paths に空文字列を含むと拒否される。"""
         with pytest.raises(ValidationError, match="file_paths"):
             FileReviewRecord(
-                file_paths=[""],
+                file_paths=frozenset({""}),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="/tmp",
                 results=[],
@@ -388,10 +377,10 @@ class TestFileReviewRecordConstraints:
             )
 
     def test_empty_file_paths_rejected(self) -> None:
-        """file_paths 空リストは拒否される (min_length=1)。"""
+        """file_paths 空集合は拒否される。"""
         with pytest.raises(ValidationError, match="file_paths"):
             FileReviewRecord(
-                file_paths=[],
+                file_paths=frozenset(),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="/tmp",
                 results=[],
@@ -402,7 +391,7 @@ class TestFileReviewRecordConstraints:
         """相対パスの working_directory は拒否される。"""
         with pytest.raises(ValidationError, match="working_directory"):
             FileReviewRecord(
-                file_paths=["test.py"],
+                file_paths=frozenset({"test.py"}),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="relative/path",
                 results=[],
@@ -413,7 +402,7 @@ class TestFileReviewRecordConstraints:
         """ドット相対パス "." は拒否される。"""
         with pytest.raises(ValidationError, match="working_directory"):
             FileReviewRecord(
-                file_paths=["test.py"],
+                file_paths=frozenset({"test.py"}),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory=".",
                 results=[],
@@ -424,7 +413,7 @@ class TestFileReviewRecordConstraints:
         """ドット相対パス ".." は拒否される。"""
         with pytest.raises(ValidationError, match="working_directory"):
             FileReviewRecord(
-                file_paths=["test.py"],
+                file_paths=frozenset({"test.py"}),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="..",
                 results=[],
@@ -435,7 +424,7 @@ class TestFileReviewRecordConstraints:
         """空文字列の working_directory は拒否される。"""
         with pytest.raises(ValidationError, match="working_directory"):
             FileReviewRecord(
-                file_paths=["test.py"],
+                file_paths=frozenset({"test.py"}),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="",
                 results=[],
@@ -446,7 +435,7 @@ class TestFileReviewRecordConstraints:
         """extra フィールドは拒否される。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
             FileReviewRecord(
-                file_paths=["test.py"],
+                file_paths=frozenset({"test.py"}),
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="/tmp",
                 results=[],
@@ -457,7 +446,7 @@ class TestFileReviewRecordConstraints:
     def test_frozen(self) -> None:
         """frozen=True で属性変更が拒否される。"""
         record = FileReviewRecord(
-            file_paths=["test.py"],
+            file_paths=frozenset({"test.py"}),
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/tmp",
             results=[],
@@ -512,7 +501,7 @@ class TestReviewHistoryRecordDiscriminator:
         """review_mode="file" で FileReviewRecord が選択される。"""
         data = {
             "review_mode": "file",
-            "file_paths": ["src/app.py"],
+            "file_paths": frozenset({"src/app.py"}),
             "reviewed_at": VALID_REVIEWED_AT.isoformat(),
             "working_directory": "/home/user/project",
             "results": [],
@@ -608,7 +597,7 @@ class TestReviewHistoryRecordRoundTrip:
     def test_file_round_trip(self) -> None:
         """FileReviewRecord の model_dump → validate_python ラウンドトリップ。"""
         original = FileReviewRecord(
-            file_paths=["src/main.py", "src/utils.py"],
+            file_paths=frozenset({"src/main.py", "src/utils.py"}),
             reviewed_at=VALID_REVIEWED_AT,
             working_directory="/home/user/project",
             results=[],
