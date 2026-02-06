@@ -1,10 +1,21 @@
 """設定リゾルバー。
 
+FR-CF-001: 5層の設定ソースの階層解決
 FR-CF-007: 項目単位のマージ
 R-005: CLI オプションの None 除外
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+
+from hachimoku.config._loader import load_pyproject_config, load_toml_config
+from hachimoku.config._locator import (
+    find_config_file,
+    find_pyproject_toml,
+    get_user_config_path,
+)
+from hachimoku.models.config import HachimokuConfig
 
 _AGENTS_KEY: str = "agents"
 
@@ -94,3 +105,62 @@ def filter_cli_overrides(cli_options: dict[str, object]) -> dict[str, object]:
         None 値を除外した辞書。
     """
     return {k: v for k, v in cli_options.items() if v is not None}
+
+
+def resolve_config(
+    start_dir: Path | None = None,
+    cli_overrides: dict[str, object] | None = None,
+) -> HachimokuConfig:
+    """5層の設定ソースを解決し HachimokuConfig を構築する。
+
+    FR-CF-001: CLI > .hachimoku/config.toml > pyproject.toml [tool.hachimoku]
+              > ~/.config/hachimoku/config.toml > デフォルト値
+
+    設定ファイルが存在しない場合は該当レイヤーをスキップし、次のレイヤーに進む。
+    全ファイルが存在しない場合はデフォルト値のみで HachimokuConfig を構築する。
+
+    Args:
+        start_dir: 探索開始ディレクトリ。None の場合はカレントディレクトリ。
+        cli_overrides: CLI オプションの辞書。None 値は未指定扱い。
+
+    Returns:
+        解決済みの HachimokuConfig インスタンス。
+
+    Raises:
+        pydantic.ValidationError: マージ後の設定が不正な場合。
+        tomllib.TOMLDecodeError: 設定ファイルの TOML 構文が不正な場合。
+        PermissionError: 設定ファイルの読み取り権限がない場合。
+    """
+    effective_start = start_dir if start_dir is not None else Path.cwd()
+
+    # Layer 1 (最低優先): ユーザーグローバル設定
+    user_layer: dict[str, object] | None = None
+    try:
+        user_layer = load_toml_config(get_user_config_path())
+    except FileNotFoundError:
+        pass
+
+    # Layer 2: pyproject.toml [tool.hachimoku]
+    pyproject_layer: dict[str, object] | None = None
+    pyproject_path = find_pyproject_toml(effective_start)
+    if pyproject_path is not None:
+        pyproject_layer = load_pyproject_config(pyproject_path)
+
+    # Layer 3: .hachimoku/config.toml
+    config_layer: dict[str, object] | None = None
+    config_path = find_config_file(effective_start)
+    if config_path is not None:
+        try:
+            config_layer = load_toml_config(config_path)
+        except FileNotFoundError:
+            pass
+
+    # Layer 4 (最高優先): CLI overrides
+    cli_layer: dict[str, object] | None = None
+    if cli_overrides is not None:
+        cli_layer = filter_cli_overrides(cli_overrides)
+
+    # マージ (低優先度 → 高優先度の順)
+    merged = merge_config_layers(user_layer, pyproject_layer, config_layer, cli_layer)
+
+    return HachimokuConfig(**merged)  # type: ignore[arg-type]
