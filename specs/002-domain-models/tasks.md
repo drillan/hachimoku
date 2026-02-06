@@ -51,7 +51,7 @@
 
 ## Phase 3: User Story 1 - 共通ドメインモデルによるエージェント結果の型安全な表現 (Priority: P1) 🎯 MVP
 
-**Goal**: Severity, FileLocation, ReviewIssue, CostInfo, AgentResult（判別共用体）、ReviewSummary, ReviewReport を実装し、エージェント結果を型安全に表現可能にする
+**Goal**: FileLocation, ReviewIssue, CostInfo, AgentResult（判別共用体）、ReviewSummary, ReviewReport を実装し、Phase 2 で構築した Severity を基盤としてエージェント結果を型安全に表現可能にする
 
 **Independent Test**: モデルクラスをインポートし、各フィールドの型検証・制約検証・判別共用体のデシリアライズが正しく動作する
 
@@ -61,7 +61,7 @@
 
 - [ ] T010 [P] [US1] Write tests for `FileLocation` and `ReviewIssue` in `tests/unit/models/test_review.py`: FileLocation の制約（file_path 空文字不可、line_number >= 1）、ReviewIssue の必須フィールド検証（agent_name/severity/description）、オプションフィールド（location/suggestion/category）のデフォルト None、Severity の大文字小文字非依存入力（`field_validator` 経由）、extra="forbid" による追加フィールド拒否
 - [ ] T011 [P] [US1] Write tests for `CostInfo`, `AgentSuccess`, `AgentError`, `AgentTimeout`, `AgentResult` in `tests/unit/models/test_agent_result.py`: CostInfo の制約（非負値）、AgentSuccess の制約（elapsed_time > 0, cost オプション）、AgentError の制約（error_message 空文字不可）、AgentTimeout の制約（timeout_seconds > 0）、AgentResult の判別共用体デシリアライズ（status フィールドによる型自動選択）、extra="forbid" 検証
-- [ ] T012 [P] [US1] Write tests for `ReviewSummary` and `ReviewReport` in `tests/unit/models/test_report.py`: ReviewSummary の制約（total_issues >= 0, total_elapsed_time >= 0.0, max_severity None 許容）、ReviewReport の results 空リスト許容（SC-006）、extra="forbid" 検証
+- [ ] T012 [P] [US1] Write tests for `ReviewSummary` and `ReviewReport` in `tests/unit/models/test_report.py`: ReviewSummary の制約（total_issues >= 0, total_elapsed_time >= 0.0, max_severity None 許容）、ReviewReport の results 空リスト許容（親仕様 SC-006）、extra="forbid" 検証
 
 ### Implementation for User Story 1
 

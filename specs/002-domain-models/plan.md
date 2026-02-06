@@ -67,7 +67,7 @@ src/hachimoku/
     ├── severity.py          # Severity 列挙型、終了コードマッピング
     ├── review.py            # FileLocation, ReviewIssue
     ├── agent_result.py      # AgentSuccess, AgentError, AgentTimeout, AgentResult
-    ├── report.py            # ReviewReport
+    ├── report.py            # ReviewSummary, ReviewReport
     ├── schemas/
     │   ├── __init__.py      # SCHEMA_REGISTRY, スキーマ公開 API
     │   ├── _base.py         # BaseAgentOutput
