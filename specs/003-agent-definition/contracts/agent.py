@@ -12,9 +12,8 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.schemas import BaseAgentOutput, get_schema
@@ -78,9 +77,7 @@ class ApplicabilityRule(HachimokuBaseModel):
             try:
                 re.compile(pattern)
             except re.error as e:
-                raise ValueError(
-                    f"Invalid regex pattern '{pattern}': {e}"
-                ) from None
+                raise ValueError(f"Invalid regex pattern '{pattern}': {e}") from None
         return v
 
 
