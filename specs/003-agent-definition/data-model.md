@@ -27,8 +27,8 @@ erDiagram
 
     ApplicabilityRule {
         bool always "常時適用フラグ（デフォルト: false）"
-        list_str file_patterns "fnmatch グロブパターン"
-        list_str content_patterns "Python re 正規表現"
+        tuple_str file_patterns "fnmatch グロブパターン"
+        tuple_str content_patterns "Python re 正規表現"
     }
 
     Phase {
@@ -73,8 +73,8 @@ erDiagram
 | Field | Type | Default | Constraints | Description |
 |-------|------|---------|-------------|-------------|
 | `always` | `bool` | `False` | - | 常時適用フラグ |
-| `file_patterns` | `list[str]` | `[]` | fnmatch 互換グロブ | ファイル名パターン |
-| `content_patterns` | `list[str]` | `[]` | Python re 互換正規表現 | コンテンツパターン |
+| `file_patterns` | `tuple[str, ...]` | `()` | fnmatch 互換グロブ | ファイル名パターン |
+| `content_patterns` | `tuple[str, ...]` | `()` | Python re 互換正規表現 | コンテンツパターン |
 
 **Validation Rules**:
 - `content_patterns` の各要素は有効な正規表現であること（`re.compile()` で検証、失敗時は `ValueError`）
