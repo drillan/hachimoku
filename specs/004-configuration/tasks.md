@@ -35,13 +35,17 @@
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 - [ ] T003 Write tests for `OutputFormat` enum (`"markdown"`, `"json"`, invalid values) in `tests/unit/models/test_config.py`
-- [ ] T004 [P] Write tests for `AgentConfig` model (defaults, validation: enabled, model min_length, timeout/max_turns gt=0, extra="forbid") in `tests/unit/models/test_config.py`
+- [ ] T004 [P] Write tests for `AgentConfig` model in `tests/unit/models/test_config.py`:
+  - デフォルト値: enabled=True, model=None, timeout=None, max_turns=None
+  - validation: model が非 None 時 min_length=1（空文字列で ValidationError）, timeout/max_turns gt=0
+  - extra="forbid" (未知キー拒否)
 - [ ] T005 [P] Write tests for `HachimokuConfig` model in `tests/unit/models/test_config.py`:
   - デフォルト値のみでインスタンス構築可能
   - 各フィールドのデフォルト値（model="sonnet", timeout=300, max_turns=10, parallel=False, base_branch="main", output_format=MARKDOWN, save_reviews=True, show_cost=False, max_files_per_review=100, agents={})
   - バリデーション: timeout/max_turns/max_files_per_review > 0, model/base_branch min_length=1, output_format enum, parallel に非 boolean 値（例: 文字列 "abc"）で ValidationError
   - agents キーの名前パターン検証（`^[a-z0-9-]+$`、不正名でエラー）
-  - extra="forbid" (未知キー拒否), frozen=True (不変性)
+  - extra="forbid": 未知キー拒否で `ValidationError`（`match=` で未知キー名を含むことを検証）
+  - frozen=True (不変性)
 
 ### Implementation
 
@@ -76,12 +80,13 @@
   - 親ディレクトリに `.hachimoku/` あり → 親パスを返す
   - ルートまで見つからない → None
 - [ ] T011 [P] [US4] Write tests for `find_config_file()` in `tests/unit/config/test_locator.py`:
-  - プロジェクトルートあり → `.hachimoku/config.toml` のパスを返す
+  - プロジェクトルートあり → `.hachimoku/config.toml` のパスを返す（config.toml が実際に存在しなくてもパスを構築する）
   - プロジェクトルートなし → None
 - [ ] T012 [P] [US4] Write tests for `find_pyproject_toml()` in `tests/unit/config/test_locator.py`:
   - カレントに pyproject.toml あり → そのパスを返す
   - 親に pyproject.toml あり → そのパスを返す
   - 見つからない → None
+  - `.hachimoku/` と `pyproject.toml` が異なるディレクトリにあるケース → それぞれ独立に検出（FR-CF-005 独立探索）
 - [ ] T013 [P] [US4] Write test for `get_user_config_path()` in `tests/unit/config/test_locator.py`:
   - `~/.config/hachimoku/config.toml` のパスを返す
 
@@ -125,6 +130,7 @@
   - 読み取り権限なし → `PermissionError`
 - [ ] T021 [P] [US2] Write tests for `load_pyproject_config()` in `tests/unit/config/test_loader.py`:
   - `[tool.hachimoku]` セクションあり → そのセクションの辞書
+  - `[tool.hachimoku]` セクションあるが空 → 空辞書（Edge Case）
   - `[tool.hachimoku]` セクションなし → None
   - `[tool]` セクション自体なし → None
   - TOML 構文エラー → `TOMLDecodeError`
@@ -172,8 +178,10 @@
   - .hachimoku/config.toml のみ → 反映
   - 5層の優先順位テスト（cli_overrides > config.toml > pyproject.toml > user global > default）
   - cli_overrides の None 値は無視される
-  - 不正な設定値 → `ValidationError`
+  - 不正な設定値 → `ValidationError`（`match=` でフィールド名を含むことを検証: US2 AS2/AS3）
   - start_dir=None → カレントディレクトリ（Path.cwd()）から探索
+  - config.toml の TOML 構文エラー → `TOMLDecodeError` が伝播
+  - config.toml の読み取り権限なし → `PermissionError` が伝播
 
 ### Implementation for User Story 1
 
