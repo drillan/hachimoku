@@ -37,7 +37,7 @@ graph TD
 | [001-architecture-spec](./001-architecture-spec/spec.md) | アーキテクチャ仕様（親） | Draft | - | 全体アーキテクチャ、ユーザーストーリー、機能要件、成功基準を定義する親仕様 |
 | [002-domain-models](./002-domain-models/spec.md) | ドメインモデル・出力スキーマ | Draft | P0 | Severity, ReviewIssue, AgentResult, ReviewReport 等の共通モデル、6種の出力スキーマ、SCHEMA_REGISTRY、Severity マッピング |
 | 003-agent-definition | エージェント定義・ローダー | 未着手 | P1 | TOML 定義フォーマット、AgentDefinition、ApplicabilityRule、ビルトイン6エージェント、ローダー・セレクター |
-| 004-configuration | 設定管理 | 未着手 | P2 | HachimokuConfig、4層階層解決、CLAUDE.md 検出・注入 |
+| [004-configuration](./004-configuration/spec.md) | 設定管理 | Draft | P2 | HachimokuConfig、5層階層解決、エージェント個別設定、プロジェクトディレクトリ探索 |
 | 005-review-engine | レビュー実行エンジン | 未着手 | P1 | 逐次・並列実行、二段階タイムアウト、部分失敗許容、結果集約、シグナルハンドリング |
 | 006-cli-interface | CLI インターフェース・初期化 | 未着手 | P1-P3 | Typer app、`8moku`/`hachimoku` デュアルコマンド、`init`・`agents` サブコマンド、終了コード |
 | 007-output-format | 出力フォーマット・レビュー蓄積 | 未着手 | P1-P3 | Markdown/JSON フォーマッター、JSONL 蓄積、コスト集計表示 |
@@ -53,13 +53,15 @@ graph TD
 |--------|---------|------------------|
 | 002-domain-models | FR-004 | - |
 | 003-agent-definition | FR-003, FR-005, FR-011, FR-014 | US3 |
-| 004-configuration | FR-010, FR-012 | US5 |
+| 004-configuration | FR-010 | US5 |
 | 005-review-engine | FR-001, FR-002, FR-006, FR-007, FR-013 | US1, US2, US9 |
 | 006-cli-interface | FR-008, FR-009, FR-016, FR-017, FR-018, FR-021, FR-027, FR-028, FR-029, FR-031, FR-032 | US7, US8, US9 |
 | 007-output-format | FR-008, FR-015, FR-025, FR-026, FR-030 | US4, US9 |
 | 008-github-integration | FR-019, FR-020, FR-022, FR-023, FR-024 | US6 |
 
 > **FR-004 の責務境界について**: FR-004（出力スキーマによる型検証）はスキーマ定義（002）とバリデーション実行（005）に跨る。002 はスキーマモデルの定義を担当し、005 は pydantic-ai の `output_type` を通じた実行時バリデーションを担当する。
+
+> **FR-012 の充足について**: FR-012（CLAUDE.md 検出・注入）は hachimoku がエージェント実行に `claude` CLI（Claude Code）を使用するため、Claude Code の実行環境が自動的に CLAUDE.md を読み込み・適用する。hachimoku 側での明示的な検出・注入は不要であり、どの子仕様にも割り当てない（アーキテクチャにより自動充足）。
 
 ## 推奨実装順序
 

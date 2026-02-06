@@ -165,7 +165,7 @@
   - `output_format` の列挙値（`"markdown"` または `"json"`）
   - エージェント個別設定のエージェント名形式（アルファベット小文字・数字・ハイフンのみ）
 
-- **FR-CF-005**: システムは `pyproject.toml` の `[tool.hachimoku]` セクションを設定ソースとして読み込めなければならない。`pyproject.toml` が存在しない場合、または `[tool.hachimoku]` セクションが存在しない場合はスキップする
+- **FR-CF-005**: システムは `pyproject.toml` の `[tool.hachimoku]` セクションを設定ソースとして読み込めなければならない。`pyproject.toml` はカレントディレクトリから親ディレクトリへ遡って探索する。`pyproject.toml` が存在しない場合、または `[tool.hachimoku]` セクションが存在しない場合はスキップする
 
 - **FR-CF-006**: システムは `~/.config/hachimoku/config.toml` をユーザーグローバル設定として読み込めなければならない。ファイルまたはディレクトリが存在しない場合はスキップする
 
