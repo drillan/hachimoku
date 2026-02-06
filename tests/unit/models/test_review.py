@@ -153,6 +153,24 @@ class TestReviewIssueSeverityCaseInsensitive:
                 description="test",
             )
 
+    def test_non_string_severity_rejected(self) -> None:
+        """int 等の非 str 型は Severity 変換に失敗して ValidationError。"""
+        with pytest.raises(ValidationError):
+            ReviewIssue(
+                agent_name="test",
+                severity=42,  # type: ignore[arg-type]
+                description="test",
+            )
+
+    def test_none_severity_rejected(self) -> None:
+        """None は ValidationError。"""
+        with pytest.raises(ValidationError):
+            ReviewIssue(
+                agent_name="test",
+                severity=None,  # type: ignore[arg-type]
+                description="test",
+            )
+
     def test_severity_enum_value_accepted(self) -> None:
         """Severity enum インスタンスも受け入れる。"""
         issue = ReviewIssue(

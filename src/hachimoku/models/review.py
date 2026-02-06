@@ -43,7 +43,8 @@ class ReviewIssue(HachimokuBaseModel):
         """Severity 入力を PascalCase に正規化する。
 
         大文字小文字非依存で Severity メンバーとマッチし、
-        PascalCase の値に変換する。str 以外の入力はそのまま返す。
+        PascalCase の値に変換する。マッチしない str や
+        str 以外の入力はそのまま返し、後続のバリデーションに委ねる。
         """
         if isinstance(v, str):
             for member in Severity:

@@ -9,4 +9,4 @@ from pydantic import BaseModel, ConfigDict
 class HachimokuBaseModel(BaseModel):
     """全ドメインモデルの基底クラス。extra="forbid" で厳格モードを一元管理。"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)

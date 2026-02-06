@@ -25,7 +25,7 @@ class CostInfo(HachimokuBaseModel):
 
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
-    total_cost: float = Field(ge=0.0)
+    total_cost: float = Field(ge=0.0, allow_inf_nan=False)
 
 
 class AgentSuccess(HachimokuBaseModel):
@@ -42,7 +42,7 @@ class AgentSuccess(HachimokuBaseModel):
     status: Literal["success"] = "success"
     agent_name: str = Field(min_length=1)
     issues: list[ReviewIssue]
-    elapsed_time: float = Field(gt=0)
+    elapsed_time: float = Field(gt=0, allow_inf_nan=False)
     cost: CostInfo | None = None
 
 
@@ -71,7 +71,7 @@ class AgentTimeout(HachimokuBaseModel):
 
     status: Literal["timeout"] = "timeout"
     agent_name: str = Field(min_length=1)
-    timeout_seconds: float = Field(gt=0)
+    timeout_seconds: float = Field(gt=0, allow_inf_nan=False)
 
 
 AgentResult = Annotated[

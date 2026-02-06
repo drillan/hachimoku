@@ -21,7 +21,7 @@ hachimoku のドメインモデルは `hachimoku.models` パッケージで定�
 
 順序関係: `Critical > Important > Suggestion > Nitpick`
 
-Pydantic モデルのフィールドとして使用する場合、大文字小文字を区別せずに入力を受け付けます（`"critical"`, `"CRITICAL"`, `"Critical"` いずれも有効）。
+ReviewIssue の severity フィールドでは、大文字小文字を区別せずに入力を受け付けます（`"critical"`, `"CRITICAL"`, `"Critical"` いずれも有効）。
 
 ## FileLocation（ファイル位置）
 

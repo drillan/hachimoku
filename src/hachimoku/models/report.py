@@ -5,7 +5,7 @@ FR-DM-004: ReviewReport による結果集約。
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import AgentResult, CostInfo
@@ -15,7 +15,7 @@ from hachimoku.models.severity import Severity
 class ReviewSummary(HachimokuBaseModel):
     """レビュー結果の全体サマリー。
 
-    ReviewReport および ReviewHistoryRecord で共有される。
+    ReviewReport で使用される。
 
     Attributes:
         total_issues: 検出された問題の総数（非負）。
@@ -26,8 +26,21 @@ class ReviewSummary(HachimokuBaseModel):
 
     total_issues: int = Field(ge=0)
     max_severity: Severity | None
-    total_elapsed_time: float = Field(ge=0.0)
+    total_elapsed_time: float = Field(ge=0.0, allow_inf_nan=False)
     total_cost: CostInfo | None = None
+
+    @model_validator(mode="after")
+    def check_severity_consistency(self) -> ReviewSummary:
+        """total_issues と max_severity の整合性を検証する。
+
+        - total_issues=0 なら max_severity は None でなければならない。
+        - total_issues>0 なら max_severity は None であってはならない。
+        """
+        if self.total_issues == 0 and self.max_severity is not None:
+            raise ValueError("max_severity must be None when total_issues is 0")
+        if self.total_issues > 0 and self.max_severity is None:
+            raise ValueError("max_severity must not be None when total_issues > 0")
+        return self
 
 
 class ReviewReport(HachimokuBaseModel):

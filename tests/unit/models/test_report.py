@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
+    AgentTimeout,
     CostInfo,
 )
 from hachimoku.models.report import ReviewReport, ReviewSummary
@@ -88,6 +89,15 @@ class TestReviewSummaryConstraints:
                 total_elapsed_time=-1.0,
             )
 
+    def test_infinity_total_elapsed_time_rejected(self) -> None:
+        """float('inf') は拒否する。"""
+        with pytest.raises(ValidationError, match="total_elapsed_time"):
+            ReviewSummary(
+                total_issues=0,
+                max_severity=None,
+                total_elapsed_time=float("inf"),
+            )
+
     def test_missing_total_issues_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ReviewSummary(max_severity=None, total_elapsed_time=0.0)  # type: ignore[call-arg]
@@ -108,6 +118,48 @@ class TestReviewSummaryConstraints:
                 max_severity=None,
                 total_elapsed_time=0.0,
                 avg_time=1.0,  # type: ignore[call-arg]
+            )
+
+
+class TestReviewSummaryConsistency:
+    """ReviewSummary の total_issues と max_severity の整合性を検証。"""
+
+    def test_issues_with_severity_accepted(self) -> None:
+        """total_issues > 0 かつ max_severity 指定で成功。"""
+        summary = ReviewSummary(
+            total_issues=5,
+            max_severity=Severity.CRITICAL,
+            total_elapsed_time=10.0,
+        )
+        assert summary.total_issues == 5
+        assert summary.max_severity == Severity.CRITICAL
+
+    def test_no_issues_with_no_severity_accepted(self) -> None:
+        """total_issues=0 かつ max_severity=None で成功。"""
+        summary = ReviewSummary(
+            total_issues=0,
+            max_severity=None,
+            total_elapsed_time=0.0,
+        )
+        assert summary.total_issues == 0
+        assert summary.max_severity is None
+
+    def test_issues_without_severity_rejected(self) -> None:
+        """total_issues > 0 なのに max_severity=None は矛盾。"""
+        with pytest.raises(ValidationError, match="max_severity"):
+            ReviewSummary(
+                total_issues=5,
+                max_severity=None,
+                total_elapsed_time=10.0,
+            )
+
+    def test_no_issues_with_severity_rejected(self) -> None:
+        """total_issues=0 なのに max_severity 指定は矛盾。"""
+        with pytest.raises(ValidationError, match="max_severity"):
+            ReviewSummary(
+                total_issues=0,
+                max_severity=Severity.CRITICAL,
+                total_elapsed_time=0.0,
             )
 
 
@@ -179,6 +231,30 @@ class TestReviewReportValid:
         )
         assert isinstance(report.results[0], AgentSuccess)
         assert isinstance(report.results[1], AgentError)
+
+    def test_all_three_variants_accepted(self) -> None:
+        """AgentSuccess, AgentError, AgentTimeout の3種混在で成功する。"""
+        success = AgentSuccess(
+            agent_name="reviewer-a",
+            issues=[],
+            elapsed_time=1.0,
+        )
+        error = AgentError(
+            agent_name="reviewer-b",
+            error_message="Connection failed",
+        )
+        timeout = AgentTimeout(
+            agent_name="reviewer-c",
+            timeout_seconds=30.0,
+        )
+        report = ReviewReport(
+            results=[success, error, timeout],
+            summary=self._make_summary(total_elapsed_time=1.0),
+        )
+        assert len(report.results) == 3
+        assert isinstance(report.results[0], AgentSuccess)
+        assert isinstance(report.results[1], AgentError)
+        assert isinstance(report.results[2], AgentTimeout)
 
 
 class TestReviewReportConstraints:

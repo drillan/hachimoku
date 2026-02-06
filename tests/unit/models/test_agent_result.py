@@ -50,6 +50,16 @@ class TestCostInfoConstraints:
         with pytest.raises(ValidationError, match="total_cost"):
             CostInfo(input_tokens=0, output_tokens=0, total_cost=-0.01)
 
+    def test_infinity_total_cost_rejected(self) -> None:
+        """float('inf') は JSON で表現不可能なため拒否する。"""
+        with pytest.raises(ValidationError, match="total_cost"):
+            CostInfo(input_tokens=0, output_tokens=0, total_cost=float("inf"))
+
+    def test_nan_total_cost_rejected(self) -> None:
+        """float('nan') は拒否する。"""
+        with pytest.raises(ValidationError, match="total_cost"):
+            CostInfo(input_tokens=0, output_tokens=0, total_cost=float("nan"))
+
     def test_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):
             CostInfo(input_tokens=0, output_tokens=0, total_cost=0.0, currency="USD")  # type: ignore[call-arg]
@@ -148,6 +158,11 @@ class TestAgentSuccessConstraints:
         with pytest.raises(ValidationError, match="elapsed_time"):
             AgentSuccess(agent_name="test", issues=[], elapsed_time=-1.0)
 
+    def test_infinity_elapsed_time_rejected(self) -> None:
+        """float('inf') は拒否する。"""
+        with pytest.raises(ValidationError, match="elapsed_time"):
+            AgentSuccess(agent_name="test", issues=[], elapsed_time=float("inf"))
+
     def test_missing_agent_name_rejected(self) -> None:
         with pytest.raises(ValidationError):
             AgentSuccess(issues=[], elapsed_time=1.0)  # type: ignore[call-arg]
@@ -243,6 +258,11 @@ class TestAgentTimeoutConstraints:
         with pytest.raises(ValidationError, match="timeout_seconds"):
             AgentTimeout(agent_name="test", timeout_seconds=-1.0)
 
+    def test_infinity_timeout_seconds_rejected(self) -> None:
+        """float('inf') は拒否する。"""
+        with pytest.raises(ValidationError, match="timeout_seconds"):
+            AgentTimeout(agent_name="test", timeout_seconds=float("inf"))
+
     def test_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):
             AgentTimeout(agent_name="test", timeout_seconds=10.0, reason="slow")  # type: ignore[call-arg]
@@ -315,3 +335,55 @@ class TestAgentResultDiscriminatedUnion:
                     "elapsed_time": 1.0,
                 }
             )
+
+    def test_success_status_with_error_fields_rejected(self) -> None:
+        """status="success" に error_message のみ渡すと ValidationError。"""
+        with pytest.raises(ValidationError):
+            self.adapter.validate_python(
+                {
+                    "status": "success",
+                    "agent_name": "test",
+                    "error_message": "fail",
+                }
+            )
+
+    def test_error_status_with_success_fields_rejected(self) -> None:
+        """status="error" に issues/elapsed_time を渡すと ValidationError。"""
+        with pytest.raises(ValidationError):
+            self.adapter.validate_python(
+                {
+                    "status": "error",
+                    "agent_name": "test",
+                    "issues": [],
+                    "elapsed_time": 1.0,
+                }
+            )
+
+    def test_round_trip_success(self) -> None:
+        """AgentSuccess の model_dump → validate_python ラウンドトリップ。"""
+        original = AgentSuccess(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.5,
+        )
+        data = original.model_dump()
+        restored = self.adapter.validate_python(data)
+        assert isinstance(restored, AgentSuccess)
+        assert restored.agent_name == original.agent_name
+        assert restored.elapsed_time == original.elapsed_time
+
+    def test_round_trip_error(self) -> None:
+        """AgentError の model_dump → validate_python ラウンドトリップ。"""
+        original = AgentError(agent_name="test", error_message="fail")
+        data = original.model_dump()
+        restored = self.adapter.validate_python(data)
+        assert isinstance(restored, AgentError)
+        assert restored.error_message == original.error_message
+
+    def test_round_trip_timeout(self) -> None:
+        """AgentTimeout の model_dump → validate_python ラウンドトリップ。"""
+        original = AgentTimeout(agent_name="test", timeout_seconds=30.0)
+        data = original.model_dump()
+        restored = self.adapter.validate_python(data)
+        assert isinstance(restored, AgentTimeout)
+        assert restored.timeout_seconds == original.timeout_seconds
