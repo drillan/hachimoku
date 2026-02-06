@@ -9,6 +9,8 @@ import tomllib
 from importlib.resources import as_file, files
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 
 
@@ -23,7 +25,7 @@ def _load_single_agent(path: Path) -> AgentDefinition:
 
     Raises:
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        ValidationError: バリデーションエラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
         FileNotFoundError: ファイルが存在しない場合。
     """
     with path.open("rb") as f:
@@ -35,8 +37,11 @@ def load_builtin_agents() -> LoadResult:
     """ビルトインエージェント定義をパッケージリソースから読み込む。
 
     Returns:
-        ビルトイン定義の読み込み結果。エラーは LoadResult.errors に収集され、
-        例外は送出しない。
+        ビルトイン定義の読み込み結果。個々のファイルの読み込みエラーは
+        LoadResult.errors に収集される。
+
+    Raises:
+        ModuleNotFoundError: ビルトインパッケージが見つからない場合。
     """
     builtin_package = files("hachimoku.agents._builtin")
     agents: list[AgentDefinition] = []
@@ -49,7 +54,12 @@ def load_builtin_agents() -> LoadResult:
             with as_file(resource) as path:
                 agent = _load_single_agent(path)
             agents.append(agent)
-        except Exception as e:
-            errors.append(LoadError(source=resource.name, message=str(e)))
+        except (tomllib.TOMLDecodeError, ValidationError, OSError) as e:
+            errors.append(
+                LoadError(
+                    source=resource.name,
+                    message=f"{type(e).__name__}: {e}",
+                )
+            )
 
     return LoadResult(agents=tuple(agents), errors=tuple(errors))
