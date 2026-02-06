@@ -1,6 +1,7 @@
 """設定リゾルバー。
 
 FR-CF-007: 項目単位のマージ
+R-005: CLI オプションの None 除外
 """
 
 from __future__ import annotations
@@ -14,13 +15,26 @@ def _merge_agents(
 ) -> dict[str, object]:
     """agents セクションをエージェント名→フィールド単位でマージする。
 
+    返却値はシャローコピー。各エージェント設定の内部辞書は新規作成されるが、
+    スカラー値自体は元の辞書と共有される。
+
     Args:
         base: 既存の agents 辞書。None の場合は空として扱う。
         override: 上書きする agents 辞書。
 
     Returns:
         マージ済みの agents 辞書。
+
+    Raises:
+        TypeError: エージェント設定が dict でない場合。
     """
+    for agent_name, agent_config in override.items():
+        if not isinstance(agent_config, dict):
+            msg = (
+                f"Agent config for '{agent_name}' must be a dict, "
+                f"got {type(agent_config).__name__}"
+            )
+            raise TypeError(msg)
     if base is None:
         return dict(override)
     merged: dict[str, object] = dict(base)
@@ -55,7 +69,10 @@ def merge_config_layers(
         if layer is None:
             continue
         for key, value in layer.items():
-            if key == _AGENTS_KEY and isinstance(value, dict):
+            if key == _AGENTS_KEY:
+                if not isinstance(value, dict):
+                    msg = f"'{_AGENTS_KEY}' must be a dict, got {type(value).__name__}"
+                    raise TypeError(msg)
                 result[_AGENTS_KEY] = _merge_agents(
                     result.get(_AGENTS_KEY, None),  # type: ignore[arg-type]
                     value,

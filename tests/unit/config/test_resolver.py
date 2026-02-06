@@ -6,9 +6,13 @@ T026: filter_cli_overrides — None 除外, 非 None 保持, 空辞書
 
 from __future__ import annotations
 
-from hachimoku.config._resolver import filter_cli_overrides, merge_config_layers
+import pytest
 
-_AGENTS_KEY: str = "agents"
+from hachimoku.config._resolver import (
+    _AGENTS_KEY,
+    filter_cli_overrides,
+    merge_config_layers,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +77,7 @@ class TestMergeConfigLayersNoneSkipped:
 
 
 class TestMergeConfigLayersAgentsMerge:
-    """agents セクションのフィールド単位マージ (R-006)。"""
+    """agents セクションのフィールド単位マージ (004-config R-006)。"""
 
     def test_agents_field_level_merge(self) -> None:
         """同一エージェントの異なるフィールドがマージされる。"""
@@ -140,6 +144,46 @@ class TestMergeConfigLayersAgentsMerge:
             "timeout": 600,
             _AGENTS_KEY: {"code-reviewer": {"model": "opus"}},
         }
+
+    def test_three_layers_agents_progressive_merge(self) -> None:
+        """3レイヤーで agents が段階的にマージされる。"""
+        layer1: dict[str, object] = {
+            _AGENTS_KEY: {"code-reviewer": {"timeout": 600}},
+        }
+        layer2: dict[str, object] = {
+            _AGENTS_KEY: {"code-reviewer": {"model": "haiku"}},
+        }
+        layer3: dict[str, object] = {
+            _AGENTS_KEY: {"code-reviewer": {"enabled": False}},
+        }
+        result = merge_config_layers(layer1, layer2, layer3)
+        assert result == {
+            _AGENTS_KEY: {
+                "code-reviewer": {
+                    "timeout": 600,
+                    "model": "haiku",
+                    "enabled": False,
+                },
+            },
+        }
+
+
+class TestMergeConfigLayersAgentsTypeError:
+    """agents セクションの非 dict 値に対する TypeError。"""
+
+    def test_agents_value_not_dict_raises_type_error(self) -> None:
+        """agents キーの値が dict でない場合は TypeError。"""
+        layer: dict[str, object] = {_AGENTS_KEY: "invalid"}
+        with pytest.raises(TypeError, match="'agents' must be a dict"):
+            merge_config_layers(layer)
+
+    def test_agent_config_not_dict_raises_type_error(self) -> None:
+        """個別エージェント設定が dict でない場合は TypeError。"""
+        layer: dict[str, object] = {
+            _AGENTS_KEY: {"code-reviewer": "invalid"},
+        }
+        with pytest.raises(TypeError, match="Agent config for 'code-reviewer'"):
+            merge_config_layers(layer)
 
 
 class TestMergeConfigLayersDoesNotMutateInput:
