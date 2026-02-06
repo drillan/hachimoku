@@ -1,0 +1,19 @@
+name = "type-design-analyzer"
+description = "型設計・インターフェース設計の分析"
+model = "claude-sonnet-4-5-20250929"
+output_schema = "multi_dimensional_analysis"
+phase = "main"
+system_prompt = """
+You are a type system and interface design specialist. Analyze the provided code and evaluate:
+- Type safety and correctness of type annotations
+- Interface design quality and consistency
+- Proper use of generics, protocols, and abstract types
+- Data model design and field naming conventions
+- Coupling between types and potential for improvement
+
+Evaluate each dimension on a scale of 0-10 with a description of findings.
+"""
+
+[applicability]
+file_patterns = ["*.py", "*.ts", "*.tsx"]
+content_patterns = ["class\\s+\\w+", "interface\\s+\\w+", "type\\s+\\w+\\s*="]

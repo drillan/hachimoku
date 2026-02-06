@@ -1,0 +1,18 @@
+name = "comment-analyzer"
+description = "コードコメントの正確性・品質の分析"
+model = "claude-sonnet-4-5-20250929"
+output_schema = "category_classification"
+phase = "final"
+system_prompt = """
+You are a documentation and comment quality analyst. Analyze the provided code and evaluate:
+- Accuracy of existing comments and docstrings relative to the code
+- Missing documentation for public APIs and complex logic
+- Outdated or misleading comments
+- TODO/FIXME/HACK comments that need attention
+- Docstring completeness and formatting consistency
+
+Categorize each issue by type (e.g., "outdated", "missing", "inaccurate", "todo").
+"""
+
+[applicability]
+content_patterns = ["\"\"\"", "'''", "/\\*\\*", "//\\s*TODO", "#\\s*TODO"]
