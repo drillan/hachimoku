@@ -26,7 +26,7 @@ def _load_single_agent(path: Path) -> AgentDefinition:
     Raises:
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
-        FileNotFoundError: ファイルが存在しない場合。
+        OSError: ファイルが存在しない場合やアクセスエラーの場合。
     """
     with path.open("rb") as f:
         data = tomllib.load(f)
@@ -47,7 +47,7 @@ def load_builtin_agents() -> LoadResult:
     agents: list[AgentDefinition] = []
     errors: list[LoadError] = []
 
-    for resource in builtin_package.iterdir():
+    for resource in sorted(builtin_package.iterdir(), key=lambda r: r.name):
         if not resource.name.endswith(".toml"):
             continue
         try:
@@ -63,3 +63,73 @@ def load_builtin_agents() -> LoadResult:
             )
 
     return LoadResult(agents=tuple(agents), errors=tuple(errors))
+
+
+def load_custom_agents(custom_dir: Path) -> LoadResult:
+    """カスタムエージェント定義を指定ディレクトリから読み込む。
+
+    Args:
+        custom_dir: カスタム定義ファイルのディレクトリパス。
+            存在しない場合は空の LoadResult を返す。
+
+    Returns:
+        カスタム定義の読み込み結果。個々のファイルの読み込みエラーは
+        LoadResult.errors に収集される。
+
+    Raises:
+        NotADirectoryError: custom_dir がファイルパスの場合。
+    """
+    if not custom_dir.exists():
+        return LoadResult(agents=(), errors=())
+    if not custom_dir.is_dir():
+        raise NotADirectoryError(
+            f"custom_dir はディレクトリではありません: {custom_dir}"
+        )
+
+    agents: list[AgentDefinition] = []
+    errors: list[LoadError] = []
+
+    for toml_path in sorted(custom_dir.iterdir()):
+        if not toml_path.name.endswith(".toml"):
+            continue
+        try:
+            agent = _load_single_agent(toml_path)
+            agents.append(agent)
+        except (tomllib.TOMLDecodeError, ValidationError, OSError) as e:
+            errors.append(
+                LoadError(
+                    source=toml_path.name,
+                    message=f"{type(e).__name__}: {e}",
+                )
+            )
+
+    return LoadResult(agents=tuple(agents), errors=tuple(errors))
+
+
+def load_agents(custom_dir: Path | None = None) -> LoadResult:
+    """ビルトインとカスタムを統合してエージェント定義を読み込む。
+
+    カスタム定義がビルトイン定義と同名の場合、カスタム定義がビルトインを上書きする。
+    カスタム定義の読み込みに失敗した場合（TOML 構文エラー、バリデーションエラー等）、
+    上書きは行われずビルトイン定義がそのまま使用される。
+
+    Args:
+        custom_dir: カスタム定義ファイルのディレクトリパス。
+            None の場合はビルトインのみ読み込む。
+
+    Returns:
+        統合された読み込み結果。
+    """
+    builtin = load_builtin_agents()
+    if custom_dir is None:
+        return builtin
+
+    custom = load_custom_agents(custom_dir)
+
+    custom_names = {a.name for a in custom.agents}
+    merged_agents = [a for a in builtin.agents if a.name not in custom_names]
+    merged_agents.extend(custom.agents)
+
+    merged_errors = list(builtin.errors) + list(custom.errors)
+
+    return LoadResult(agents=tuple(merged_agents), errors=tuple(merged_errors))
