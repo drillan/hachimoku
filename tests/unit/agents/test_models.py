@@ -3,6 +3,8 @@
 T004: Phase StrEnum — 列挙値(early/main/final)、PHASE_ORDER ソート順検証
 T005: ApplicabilityRule — デフォルト値、正規表現バリデーション、frozen、extra=forbid
 T007: LoadError — フィールドバリデーション、frozen、extra=forbid
+
+NOTE: T006 (AgentDefinition) / T007 の LoadResult は AgentDefinition と密結合のため次 Issue で実装。
 """
 
 import pytest
@@ -106,8 +108,8 @@ class TestApplicabilityRuleValid:
         """デフォルト値でインスタンス生成が成功する。"""
         rule = ApplicabilityRule()
         assert rule.always is False
-        assert rule.file_patterns == []
-        assert rule.content_patterns == []
+        assert rule.file_patterns == ()
+        assert rule.content_patterns == ()
 
     def test_always_true(self) -> None:
         """always=True でインスタンス生成が成功する。"""
@@ -116,13 +118,13 @@ class TestApplicabilityRuleValid:
 
     def test_file_patterns(self) -> None:
         """file_patterns 指定でインスタンス生成が成功する。"""
-        rule = ApplicabilityRule(file_patterns=["*.py", "*.ts"])
-        assert rule.file_patterns == ["*.py", "*.ts"]
+        rule = ApplicabilityRule(file_patterns=("*.py", "*.ts"))
+        assert rule.file_patterns == ("*.py", "*.ts")
 
     def test_content_patterns_valid_regex(self) -> None:
         r"""有効な正規表現の content_patterns でインスタンス生成が成功する。"""
-        rule = ApplicabilityRule(content_patterns=[r"class\s+\w+", r"def\s+\w+"])
-        assert rule.content_patterns == [r"class\s+\w+", r"def\s+\w+"]
+        rule = ApplicabilityRule(content_patterns=(r"class\s+\w+", r"def\s+\w+"))
+        assert rule.content_patterns == (r"class\s+\w+", r"def\s+\w+")
 
     def test_isinstance_hachimoku_base_model(self) -> None:
         """HachimokuBaseModel のインスタンスである。"""
@@ -141,17 +143,17 @@ class TestApplicabilityRuleConstraints:
     def test_invalid_regex_rejected(self) -> None:
         """無効な正規表現がバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="Invalid regex pattern"):
-            ApplicabilityRule(content_patterns=["[invalid"])
+            ApplicabilityRule(content_patterns=("[invalid",))
 
     def test_invalid_regex_error_contains_pattern(self) -> None:
         r"""エラーメッセージに無効なパターンが含まれる。"""
         with pytest.raises(ValidationError, match=r"\[invalid"):
-            ApplicabilityRule(content_patterns=["[invalid"])
+            ApplicabilityRule(content_patterns=("[invalid",))
 
     def test_mixed_valid_and_invalid_regex_rejected(self) -> None:
         """有効と無効が混在する場合もバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="Invalid regex pattern"):
-            ApplicabilityRule(content_patterns=[r"valid\d+", "(unclosed"])
+            ApplicabilityRule(content_patterns=(r"valid\d+", "(unclosed"))
 
     def test_frozen_assignment_rejected(self) -> None:
         """frozen=True によりフィールド変更が拒否される。"""

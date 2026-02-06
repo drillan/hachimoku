@@ -66,12 +66,12 @@ class ApplicabilityRule(HachimokuBaseModel):
     """
 
     always: bool = False
-    file_patterns: list[str] = Field(default_factory=list)
-    content_patterns: list[str] = Field(default_factory=list)
+    file_patterns: tuple[str, ...] = ()
+    content_patterns: tuple[str, ...] = ()
 
     @field_validator("content_patterns")
     @classmethod
-    def validate_regex_patterns(cls, v: list[str]) -> list[str]:
+    def validate_regex_patterns(cls, v: tuple[str, ...]) -> tuple[str, ...]:
         """各パターンが有効な正規表現であることを検証する。"""
         for pattern in v:
             try:

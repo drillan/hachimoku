@@ -33,12 +33,17 @@ class Phase(StrEnum):
     FINAL = "final"
 
 
+# Phase の順序定義（数値が小さいほど先に実行）
 PHASE_ORDER: Final[Mapping[Phase, int]] = MappingProxyType(
     {
         Phase.EARLY: 0,
         Phase.MAIN: 1,
         Phase.FINAL: 2,
     }
+)
+
+assert set(PHASE_ORDER.keys()) == set(Phase), (
+    "PHASE_ORDER keys must match Phase members"
 )
 
 
@@ -60,12 +65,12 @@ class ApplicabilityRule(HachimokuBaseModel):
     """
 
     always: bool = False
-    file_patterns: list[str] = Field(default_factory=list)
-    content_patterns: list[str] = Field(default_factory=list)
+    file_patterns: tuple[str, ...] = ()
+    content_patterns: tuple[str, ...] = ()
 
     @field_validator("content_patterns")
     @classmethod
-    def validate_regex_patterns(cls, v: list[str]) -> list[str]:
+    def validate_regex_patterns(cls, v: tuple[str, ...]) -> tuple[str, ...]:
         """各パターンが有効な正規表現であることを検証する。"""
         for pattern in v:
             try:
