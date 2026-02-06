@@ -155,3 +155,159 @@ report = ReviewReport(
     ),
 )
 ```
+
+## 出力スキーマ
+
+エージェントの出力形式を規定するスキーマです。全スキーマは `BaseAgentOutput` を継承し、共通属性として `issues: list[ReviewIssue]` を持ちます。
+
+### BaseAgentOutput（出力ベースモデル）
+
+全出力スキーマの共通ベースモデルです。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+
+### ScoredIssues（スコア付き問題）
+
+数値スコアとレビュー問題を組み合わせた出力スキーマです。code-reviewer 等が使用します。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+| `overall_score` | `float` | Yes | 0.0 以上 10.0 以下 |
+
+```{code-block} python
+from hachimoku.models import ScoredIssues, ReviewIssue, Severity
+
+scored = ScoredIssues(
+    issues=[
+        ReviewIssue(
+            agent_name="code-reviewer",
+            severity=Severity.IMPORTANT,
+            description="Missing error handling",
+        ),
+    ],
+    overall_score=7.5,
+)
+```
+
+### SeverityClassified（重大度分類問題）
+
+重大度別に分類された問題リストを持つ出力スキーマです。silent-failure-hunter 等が使用します。
+
+`issues` フィールドは4つの分類リストから自動導出されます。入力時は4つの分類リストのみを指定します。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `critical_issues` | `list[ReviewIssue]` | Yes | - |
+| `important_issues` | `list[ReviewIssue]` | Yes | - |
+| `suggestion_issues` | `list[ReviewIssue]` | Yes | - |
+| `nitpick_issues` | `list[ReviewIssue]` | Yes | - |
+| `issues` | `list[ReviewIssue]` | - | 自動導出（読み取り専用） |
+
+```{code-block} python
+from hachimoku.models import SeverityClassified, ReviewIssue, Severity
+
+classified = SeverityClassified(
+    critical_issues=[
+        ReviewIssue(
+            agent_name="silent-failure-hunter",
+            severity=Severity.CRITICAL,
+            description="Silent exception swallowed",
+        ),
+    ],
+    important_issues=[],
+    suggestion_issues=[],
+    nitpick_issues=[],
+)
+
+# issues は4リストの結合から自動導出される
+assert len(classified.issues) == 1
+```
+
+### TestGapAssessment（テストギャップ評価）
+
+テストカバレッジの欠落を評価する出力スキーマです。pr-test-analyzer が使用します。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+| `coverage_gaps` | `list[CoverageGap]` | Yes | 空リスト許容 |
+| `risk_level` | `Severity` | Yes | - |
+
+CoverageGap は以下のフィールドを持ちます。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `file_path` | `str` | Yes | 空文字列不可 |
+| `description` | `str` | Yes | 空文字列不可 |
+| `priority` | `Severity` | Yes | - |
+
+### MultiDimensionalAnalysis（多次元分析）
+
+複数の評価軸でスコアリングする出力スキーマです。type-design-analyzer が使用します。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+| `dimensions` | `list[DimensionScore]` | Yes | 空リスト許容 |
+
+DimensionScore は以下のフィールドを持ちます。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `name` | `str` | Yes | 空文字列不可 |
+| `score` | `float` | Yes | 0.0 以上 10.0 以下 |
+| `description` | `str` | Yes | 空文字列不可 |
+
+### CategoryClassification（カテゴリ分類）
+
+カテゴリ別に問題を分類する出力スキーマです。comment-analyzer が使用します。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+| `categories` | `dict[str, list[ReviewIssue]]` | Yes | 空辞書許容 |
+
+### ImprovementSuggestions（改善提案）
+
+具体的な改善提案のリストを提供する出力スキーマです。code-simplifier が使用します。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+| `suggestions` | `list[ImprovementItem]` | Yes | 空リスト許容 |
+
+ImprovementItem は以下のフィールドを持ちます。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `title` | `str` | Yes | 空文字列不可 |
+| `description` | `str` | Yes | 空文字列不可 |
+| `priority` | `Severity` | Yes | - |
+| `location` | `FileLocation \| None` | No | デフォルト `None` |
+
+## SCHEMA_REGISTRY（スキーマレジストリ）
+
+スキーマ名から対応するスキーマクラスを解決するレジストリです。エージェント定義ファイルの `output_schema` フィールドからスキーマを特定する際に使用します。
+
+登録済みスキーマ:
+
+| 名前 | スキーマクラス |
+|------|-------------|
+| `scored_issues` | `ScoredIssues` |
+| `severity_classified` | `SeverityClassified` |
+| `test_gap_assessment` | `TestGapAssessment` |
+| `multi_dimensional_analysis` | `MultiDimensionalAnalysis` |
+| `category_classification` | `CategoryClassification` |
+| `improvement_suggestions` | `ImprovementSuggestions` |
+
+```{code-block} python
+from hachimoku.models import get_schema, ScoredIssues
+
+schema_cls = get_schema("scored_issues")
+assert schema_cls is ScoredIssues
+```
+
+未登録のスキーマ名を指定すると `SchemaNotFoundError` が発生します。`register_schema` で新しいスキーマを追加登録でき、同名のスキーマを重複登録すると `DuplicateSchemaError` が発生します。
