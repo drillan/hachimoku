@@ -5,7 +5,14 @@ FR-DM-001: 重大度を4段階で定義し、順序関係を持つ。
 
 import pytest
 
-from hachimoku.models.severity import SEVERITY_ORDER, Severity
+from hachimoku.models.severity import (
+    EXIT_CODE_CRITICAL,
+    EXIT_CODE_IMPORTANT,
+    EXIT_CODE_SUCCESS,
+    SEVERITY_ORDER,
+    Severity,
+    determine_exit_code,
+)
 
 
 class TestSeverityEnumValues:
@@ -181,3 +188,53 @@ class TestSeverityComparisonWithNonSeverity:
     def test_gt_with_int_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="'>' not supported"):
             Severity.CRITICAL > 0  # type: ignore[operator]  # noqa: B015
+
+
+class TestExitCodeConstants:
+    """終了コード定数の値を検証。"""
+
+    def test_exit_code_success_is_zero(self) -> None:
+        assert EXIT_CODE_SUCCESS == 0
+
+    def test_exit_code_critical_is_one(self) -> None:
+        assert EXIT_CODE_CRITICAL == 1
+
+    def test_exit_code_important_is_two(self) -> None:
+        assert EXIT_CODE_IMPORTANT == 2
+
+    def test_constants_are_int(self) -> None:
+        """終了コード定数はすべて int 型である。"""
+        assert isinstance(EXIT_CODE_SUCCESS, int)
+        assert isinstance(EXIT_CODE_CRITICAL, int)
+        assert isinstance(EXIT_CODE_IMPORTANT, int)
+
+
+class TestDetermineExitCode:
+    """determine_exit_code() の終了コード決定ロジックを検証。
+
+    Acceptance Scenarios (spec.md US3):
+      AS1: Critical → 1
+      AS2: Important → 2
+      AS3: Suggestion/Nitpick → 0
+      AS4: 問題なし (None) → 0
+    """
+
+    def test_critical_returns_exit_code_critical(self) -> None:
+        """AS1: Critical の問題 → 終了コード 1。"""
+        assert determine_exit_code(Severity.CRITICAL) == EXIT_CODE_CRITICAL
+
+    def test_important_returns_exit_code_important(self) -> None:
+        """AS2: Important のみ → 終了コード 2。"""
+        assert determine_exit_code(Severity.IMPORTANT) == EXIT_CODE_IMPORTANT
+
+    def test_suggestion_returns_exit_code_success(self) -> None:
+        """AS3: Suggestion → 終了コード 0。"""
+        assert determine_exit_code(Severity.SUGGESTION) == EXIT_CODE_SUCCESS
+
+    def test_nitpick_returns_exit_code_success(self) -> None:
+        """AS3: Nitpick → 終了コード 0。"""
+        assert determine_exit_code(Severity.NITPICK) == EXIT_CODE_SUCCESS
+
+    def test_none_returns_exit_code_success(self) -> None:
+        """AS4: 問題なし (None) → 終了コード 0。"""
+        assert determine_exit_code(None) == EXIT_CODE_SUCCESS
