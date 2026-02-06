@@ -1,4 +1,4 @@
-"""設定管理モデルの型契約。
+"""設定管理モデル。
 
 FR-CF-002: 設定項目の定義
 FR-CF-004: バリデーション仕様
@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 
-from pydantic import Field, field_validator
+from pydantic import Field, StrictBool, field_validator
 
 from hachimoku.agents.models import AGENT_NAME_PATTERN
 from hachimoku.models._base import HachimokuBaseModel
@@ -34,7 +34,7 @@ class AgentConfig(HachimokuBaseModel):
     None の場合はグローバル設定値が適用される（FR-CF-008）。
     """
 
-    enabled: bool = True
+    enabled: StrictBool = True
     model: str | None = Field(default=None, min_length=1)
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
@@ -50,13 +50,13 @@ class HachimokuConfig(HachimokuBaseModel):
     model: str = Field(default="sonnet", min_length=1)
     timeout: int = Field(default=300, gt=0)
     max_turns: int = Field(default=10, gt=0)
-    parallel: bool = False
+    parallel: StrictBool = False
     base_branch: str = Field(default="main", min_length=1)
 
     # 出力設定
     output_format: OutputFormat = OutputFormat.MARKDOWN
-    save_reviews: bool = True
-    show_cost: bool = False
+    save_reviews: StrictBool = True
+    show_cost: StrictBool = False
 
     # ファイルモード設定
     max_files_per_review: int = Field(default=100, gt=0)
@@ -69,7 +69,7 @@ class HachimokuConfig(HachimokuBaseModel):
     def validate_agent_names(cls, v: dict[str, AgentConfig]) -> dict[str, AgentConfig]:
         """エージェント名の形式を検証する。FR-CF-004."""
         for name in v:
-            if not _AGENT_NAME_RE.match(name):
+            if not _AGENT_NAME_RE.fullmatch(name):
                 msg = (
                     f"Invalid agent name '{name}': "
                     f"must match pattern {AGENT_NAME_PATTERN}"
