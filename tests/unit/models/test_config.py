@@ -124,6 +124,26 @@ class TestAgentConfigValidation:
         with pytest.raises(ValidationError, match="extra_forbidden"):
             AgentConfig(unknown_key="value")  # type: ignore[call-arg]
 
+    def test_enabled_string_true_rejected(self) -> None:
+        """enabled に文字列 "true" を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="enabled"):
+            AgentConfig(enabled="true")  # type: ignore[arg-type]
+
+    def test_enabled_int_one_rejected(self) -> None:
+        """enabled に整数 1 を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="enabled"):
+            AgentConfig(enabled=1)  # type: ignore[arg-type]
+
+
+class TestAgentConfigFrozen:
+    """AgentConfig の frozen=True テスト。"""
+
+    def test_field_assignment_rejected(self) -> None:
+        """構築後のフィールド代入で ValidationError が発生すること。"""
+        config = AgentConfig()
+        with pytest.raises(ValidationError, match="frozen"):
+            config.enabled = False  # type: ignore[misc]
+
 
 # =============================================================================
 # T005: HachimokuConfig
@@ -213,6 +233,26 @@ class TestHachimokuConfigValidation:
         """parallel に非 boolean 文字列を渡すと ValidationError が発生すること。"""
         with pytest.raises(ValidationError, match="parallel"):
             HachimokuConfig(parallel="abc")  # type: ignore[arg-type]
+
+    def test_parallel_string_true_rejected(self) -> None:
+        """parallel に文字列 "true" を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="parallel"):
+            HachimokuConfig(parallel="true")  # type: ignore[arg-type]
+
+    def test_parallel_int_one_rejected(self) -> None:
+        """parallel に整数 1 を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="parallel"):
+            HachimokuConfig(parallel=1)  # type: ignore[arg-type]
+
+    def test_save_reviews_string_rejected(self) -> None:
+        """save_reviews に文字列を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="save_reviews"):
+            HachimokuConfig(save_reviews="yes")  # type: ignore[arg-type]
+
+    def test_show_cost_int_rejected(self) -> None:
+        """show_cost に整数を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="show_cost"):
+            HachimokuConfig(show_cost=0)  # type: ignore[arg-type]
 
 
 class TestHachimokuConfigAgents:
