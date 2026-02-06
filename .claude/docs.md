@@ -1,47 +1,36 @@
 # Documentation Guidelines
 
-このファイルは、プロジェクトのドキュメンテーションガイドラインを提供します。
+このファイルは、hachimoku プロジェクトのドキュメンテーションガイドラインを提供します。
 
 ## Documentation System
 
-プロジェクトで使用するドキュメンテーションシステムを記載してください。
-
-**例: Sphinx + MyST-Parser**
-
-Documentation is built with **Sphinx** + **MyST-Parser** (Markdown support) + **Mermaid** diagrams.
+Sphinx + MyST-Parser (Markdown) + Mermaid でドキュメントをビルドします。
 
 ### Building Docs
 
-例: Sphinxを使用する場合
 ```bash
-cd docs
-make html
-# Output: docs/_build/html/index.html
+# 推奨
+make -C docs html
+# Output: docs/_build/index.html
 
-# または直接実行
-sphinx-build -M html docs docs/_build
+# クリーンビルド
+make -C docs clean html
 ```
-
-他のドキュメンテーションシステムを使用する場合は、適切なビルドコマンドを記載してください。
 
 ## Writing Guidelines
 
 ### Markup Syntax
 
-使用するマークアップ構文とその拡張機能を記載してください。
+すべてのドキュメントは [MyST](https://mystmd.org/guide) 形式（Markdown for Sphinx）で記述します。
 
-**例: MyST (Markdown for Sphinx)**
+使用可能な拡張機能:
+- `colon_fence` - `:::` によるディレクティブ構文
+- `substitution` - 変数の置換
+- `tasklist` - `[ ]` と `[x]` によるタスクリスト
+- `attrs_inline` - インライン属性
+- `deflist` - 定義リスト
 
-Write all documentation in [MyST](https://mystmd.org/guide) format (Markdown for Sphinx).
-
-**Supported extensions**:
-- `colon_fence` - Directive syntax using `:::`
-- `substitution` - Variable substitution
-- `tasklist` - Task lists with `[ ]` and `[x]`
-- `attrs_inline` - Inline attributes
-- `deflist` - Definition lists
-
-**Common patterns**:
+よく使うパターン:
 
 ````markdown
 # Table of contents
@@ -68,32 +57,31 @@ def example():
 プロフェッショナルで簡潔な技術文書を心がけてください。
 
 **Avoid**:
-- ❌ 誇張表現: "革命的"、"画期的"、"amazing"
-- ❌ マーケティング用語: "best-in-class"、"cutting-edge"、"next-generation"
-- ❌ 絶対的な表現: "完全サポート"、"必ず"、"絶対"
-- ❌ 感嘆符: "！" for professional tone
-- ❌ 内部用語: "Phase 1"、"Milestone 3" (代わりに "v0.2+" を使用)
-- ❌ 内部参照: "Article 3"、"Article 8" (代わりに概念を直接参照)
-- ❌ 過度な太字使用: 文中で`**`を多用すると可読性が低下します
+- 誇張表現: "革命的"、"画期的"、"amazing"
+- マーケティング用語: "best-in-class"、"cutting-edge"、"next-generation"
+- 絶対的な表現: "完全サポート"、"必ず"、"絶対"
+- 感嘆符: "！"
+- 内部用語: "Phase 1"、"Milestone 3" (代わりに "v0.2+" を使用)
+- 内部参照: "Article 3"、"Article 8" (代わりに概念を直接参照)
+- 過度な太字使用: 文中で`**`を多用すると可読性が低下する
 
 **Prefer**:
-- ✅ 事実に基づく記述: "supports"、"provides"、"enables"
-- ✅ 限定的な表現: "多くの場合"、"通常"、"一般的に"
-- ✅ バージョン表記: "v0.2+"、"since v0.3"、"as of v0.2"
-- ✅ 明確で簡潔な技術的記述
+- 事実に基づく記述: "supports"、"provides"、"enables"
+- 限定的な表現: "多くの場合"、"通常"、"一般的に"
+- バージョン表記: "v0.2+"、"since v0.3"、"as of v0.2"
+- 明確で簡潔な技術的記述
 
 ### Emphasis
 
 太字（`**bold**`）は本当に必要な場合のみ使用してください。過度な修飾はドキュメントの可読性を損ない、プロフェッショナルな印象を損ないます。
 
-**使用が許可される場合:**
+使用が許可される場合:
 - セクション見出し（自動）
 - 重要な警告や要件
 - 初出の重要用語
 
-**重要**: 通常の説明文では太字を使用せず、平文で記述してください。
+通常の説明文では太字を使用せず、平文で記述してください。
 
-**Avoid over-emphasis**:
 ```markdown
 # ❌ 太字が多すぎる
 **このライブラリ**は**すべての機能**に**優れたサポート**を提供します。
@@ -106,8 +94,6 @@ def example():
 
 構文ハイライターエラーを避けるため、以下に注意してください。
 
-**Common pitfalls**:
-
 #### TOML
 ```toml
 # ❌ TOMLでnullを使用しない
@@ -118,13 +104,16 @@ key = null
 ```
 
 #### JSON
-```json
+
+JSON はコメントをサポートしないため、コメント付きの例は `jsonc` を使用する:
+
+```jsonc
 // ❌ 省略記号を使用しない
 {
   "items": [...]
 }
 
-// ✅ 完全な構造を示すかコメントを使用
+// ✅ 完全な構造を示す
 {
   "items": ["item1", "item2"]
 }
@@ -154,16 +143,10 @@ result = value
 
 #### Nested code blocks
 
-コードブロック内にさらにコードブロックを記載する場合（例: Markdown構文の例を示す場合）は、ネスト構文を使用します。
-
-**ネストの方法:**
-
-外側のコードブロックのバッククォートの数を増やします：
+コードブロック内にさらにコードブロックを記載する場合は、外側のバッククォートの数を増やします:
 - 通常のコードブロック: 3つのバッククォート（```）
 - 1段階ネスト: 4つのバッククォート（````）
 - 2段階ネスト: 5つのバッククォート（`````）
-
-**例:**
 
 `````markdown
 # ❌ 正しくレンダリングされない
@@ -183,49 +166,36 @@ This is a note.
 ````
 `````
 
-**使用例:**
-
-このファイル内でもネスト構文を使用しています：
-- Markup Syntax セクション（46-64行）: MyST構文の例
-- Unknown lexers セクション（134-144行）: コードブロックの例
-
-**参考:**
-- [MyST Parser - Nesting Directives](https://myst-parser.readthedocs.io/en/v0.15.1/syntax/syntax.html#nesting-directives)
+参考:
+- [MyST Parser - Roles and Directives](https://myst-parser.readthedocs.io/en/latest/syntax/roles-and-directives.html)
 
 ## Structure Guidelines
 
 ### File Organization
 
-プロジェクトのドキュメント構造を記載してください。
-
-例:
 ```
 docs/
 ├── index.md              # Main landing page
-├── user-guide.md         # Getting started guide
-├── features.md           # Feature-specific docs
-├── how-it-works.md       # Technical details
-├── architecture.md       # System design
-└── conf.py              # Documentation config (e.g., Sphinx)
+├── conf.py               # Sphinx 設定
+├── Makefile              # ビルドヘルパー
+├── _static/              # 静的ファイル
+└── _templates/           # カスタムテンプレート
 ```
 
 ### Document Sections
 
 機能ドキュメントの標準セクション:
 
-1. **Overview** - 簡潔な紹介（2-3文）
-2. **Quick Start** - 最小限の動作例
-3. **Features** - 詳細な機能リスト
-4. **Limitations** - 既知の制約
-5. **Troubleshooting** - よくある問題と解決策
-6. **FAQ** - よくある質問
-7. **Examples** - サンプルコードへのリンク
+1. Overview - 簡潔な紹介（2-3文）
+2. Quick Start - 最小限の動作例
+3. Features - 詳細な機能リスト
+4. Limitations - 既知の制約
+5. Troubleshooting - よくある問題と解決策
+6. FAQ - よくある質問
+7. Examples - サンプルコードへのリンク
 
 ### Cross-References
 
-クロスリファレンスの構文を記載してください。
-
-例: MyST
 ```markdown
 # 別のドキュメントへのリンク
 [Features](features.md)
@@ -243,33 +213,32 @@ MyST で別ファイルの特定セクションにリンクする場合、明示
 
 ```markdown
 # ❌ file.md#anchor 形式は Sphinx で警告が出る
-[Rust Guide](http-client.md#rust-http-client-guide)
+[Guide](other-page.md#section-name)
 
 # ✅ ターゲットを定義してターゲット名のみで参照
-# 参照先ファイル（http-client.md）でターゲットを定義:
-(rust-http-client-guide)=
-# Rust HTTP クライアント使用ガイド
+# 参照先ファイルでターゲットを定義:
+(section-target)=
+# セクション見出し
 
 # 参照元ファイルでターゲット名のみで参照:
-[Rust Guide](rust-http-client-guide)
+[Guide](section-target)
 ```
 
 #### docs 外ファイルへのリンク
 
-Sphinx は `docs/` ディレクトリをルートとしてビルドするため、`docs/` 外のファイル（例: `specs/`）への相対パスは解決できない。
+Sphinx は `docs/` ディレクトリをルートとしてビルドするため、`docs/` 外のファイルへの相対パスは解決できない。
 
 ```markdown
 # ❌ docs 外への相対パスは解決されない
-[spec](../specs/002-data-model-python/spec.md)
+[spec](../specs/002-domain-models/spec.md)
 
 # ✅ GitHub リポジトリへの絶対 URL を使用
-[spec](https://github.com/drillan/marketschema/tree/main/specs/002-data-model-python/spec.md)
+[spec](https://github.com/drillan/hachimoku/tree/main/specs/002-domain-models/spec.md)
 ```
 
-**対象ディレクトリ**:
+対象ディレクトリ:
 - `specs/` - 仕様書
-- `python/` - Python 実装
-- `rust/` - Rust 実装
+- `src/` - Python ソースコード
 - その他 `docs/` 外のファイル
 
 ## Version Documentation
@@ -283,7 +252,6 @@ Sphinx は `docs/` ディレクトリをルートとしてビルドするため�
 - **Deprecated** - 将来削除される予定
 - **Planned** - まだ実装されていない
 
-**Example**:
 ```markdown
 ## Custom Tools (v0.2+)
 
@@ -299,7 +267,6 @@ Advanced dependency injection is supported as an experimental feature.
 バージョン固有の動作を記載する場合:
 
 ```markdown
-**Version Support**:
 - v0.1: Basic support only
 - v0.2+: Enhanced features
 - v0.2+ (Experimental): Experimental features
@@ -309,7 +276,7 @@ Advanced dependency injection is supported as an experimental feature.
 
 ドキュメントビルド時の一般的な警告を避けるため:
 
-1. **Missing cross-references**
+1. Missing cross-references
    ```markdown
    # ❌ 壊れたリンク
    [Non-existent file](missing.md)
@@ -318,7 +285,7 @@ Advanced dependency injection is supported as an experimental feature.
    [Existing file](user-guide.md)
    ```
 
-2. **Empty sections before transitions**
+2. Empty sections before transitions
    ```markdown
    # ❌ 空のセクション
    ### Section Title
@@ -333,11 +300,11 @@ Advanced dependency injection is supported as an experimental feature.
    ---
    ```
 
-3. **Missing toctree entries** (Sphinx)
+3. Missing toctree entries
    - すべてのドキュメントファイルを`index.md`のtoctreeに含める
    - ビルド出力で "document isn't included in any toctree" をチェック
 
-4. **Heading level skips**
+4. Heading level skips
    ```markdown
    # ❌ 見出しレベルをスキップ
    # Heading 1
@@ -355,63 +322,50 @@ Advanced dependency injection is supported as an experimental feature.
 
 コミット前にドキュメントをビルドしてください:
 
-例: Sphinx
 ```bash
-sphinx-build -M html docs docs/_build
+make -C docs html
 ```
 
-**Check for**:
-- ❌ Errors (must fix)
-- ⚠️ Warnings (should fix)
-- ✅ Success message
+確認事項:
+- Errors (修正必須)
+- Warnings (修正推奨)
+- Success message
 
 ### Clean Build
 
 キャッシュなしでクリーンビルド:
 
-例: Sphinx
 ```bash
-rm -rf docs/_build
-sphinx-build -M html docs docs/_build
+make -C docs clean html
 ```
 
 ## Configuration
 
-### Documentation System Configuration
-
-ドキュメンテーションシステムの設定を記載してください。
-
-**例: Sphinx Configuration (`docs/conf.py`)**
+Sphinx の設定は `docs/conf.py` に記述されています。
 
 ```python
-# Project info
-project = '{{PROJECT_NAME}}'
-language = 'ja'  # または 'en'
+project = "hachimoku"
+language = "ja"
 
-# Extensions
 extensions = [
-    'myst_parser',           # Markdown support
-    'sphinx.ext.autodoc',    # Auto-generate docs from docstrings
-    'sphinx.ext.napoleon',   # Google-style docstrings
-    'sphinxcontrib.mermaid', # Mermaid diagrams
+    "myst_parser",
+    "sphinxcontrib.mermaid",
 ]
 
-# MyST configuration
 myst_enable_extensions = [
-    'colon_fence',
-    'substitution',
-    'tasklist',
-    'attrs_inline',
-    'deflist',
+    "colon_fence",
+    "substitution",
+    "tasklist",
+    "attrs_inline",
+    "deflist",
 ]
+
+html_theme = "shibuya"
 ```
 
 ## References
 
-ドキュメンテーションシステムの参考資料を記載してください。
-
-例: Sphinx + MyST
 - [MyST Parser Documentation](https://mystmd.org/guide)
 - [Sphinx Documentation](https://www.sphinx-doc.org/)
 - [Mermaid Diagram Syntax](https://mermaid.js.org/)
-- [Claude Code Memory System](https://docs.claude.com/ja/docs/claude-code/memory)
+- [Shibuya Theme](https://shibuya.lepture.com/)

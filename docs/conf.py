@@ -6,12 +6,16 @@ language = "ja"
 
 extensions = [
     "myst_parser",
-    "sphinxcontrib.mermaid"
+    "sphinxcontrib.mermaid",
 ]
 
-source_suffix = {
-    ".md": "markdown",
-}
+myst_enable_extensions = [
+    "colon_fence",
+    "substitution",
+    "tasklist",
+    "attrs_inline",
+    "deflist",
+]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
