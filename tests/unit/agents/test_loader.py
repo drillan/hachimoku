@@ -1,11 +1,13 @@
-"""_load_single_agent, load_builtin_agents のテスト。
+"""エージェントローダーのテスト。
 
 T013: _load_single_agent — 正常 TOML, 不正 TOML 構文, 必須フィールド欠損
 T014: load_builtin_agents — 6エージェント全件, 各名前存在, errors 空,
       エラー収集パスの検証
 T015: builtin agent validation — output_schema, phase, applicability
+T030: load_custom_agents — カスタム定義読み込み, ディレクトリ不在, 部分失敗
+T031: load_agents — ビルトイン+カスタム統合, 同名上書き, エラー統合
 
-タスク参照: specs/003-agent-definition/tasks.md Phase 3
+タスク参照: specs/003-agent-definition/tasks.md Phase 3, Phase 5
 """
 
 from __future__ import annotations
@@ -236,81 +238,57 @@ class TestLoadBuiltinAgents:
 class TestLoadBuiltinAgentsErrorCollection:
     """load_builtin_agents のエラー収集パスを検証。"""
 
-    def test_error_collected_in_load_result(self) -> None:
-        """_load_single_agent の例外が LoadResult.errors に収集される。"""
+    @staticmethod
+    def _load_builtin_with_failure(target_name: str, error: Exception) -> LoadResult:
+        """指定名のエージェント読み込み時に例外を発生させてビルトインを読み込む。"""
         original = _load_single_agent
 
-        def _fail_on_code_reviewer(path: Path) -> AgentDefinition:
-            if "code-reviewer" in str(path):
-                raise ValidationError.from_exception_data(
-                    title="AgentDefinition",
-                    line_errors=[],
-                )
+        def _failing_loader(path: Path) -> AgentDefinition:
+            if target_name in str(path):
+                raise error
             return original(path)
 
         with patch(
             "hachimoku.agents.loader._load_single_agent",
-            side_effect=_fail_on_code_reviewer,
+            side_effect=_failing_loader,
         ):
-            result = load_builtin_agents()
+            return load_builtin_agents()
 
+    def test_error_collected_in_load_result(self) -> None:
+        """_load_single_agent の例外が LoadResult.errors に収集される。"""
+        result = self._load_builtin_with_failure(
+            "code-reviewer",
+            ValidationError.from_exception_data(
+                title="AgentDefinition", line_errors=[]
+            ),
+        )
         assert len(result.errors) == 1
         assert "code-reviewer.toml" in result.errors[0].source
 
     def test_error_source_contains_filename(self) -> None:
         """LoadError.source にファイル名が設定される。"""
-        original = _load_single_agent
-
-        def _fail_on_pr_test(path: Path) -> AgentDefinition:
-            if "pr-test-analyzer" in str(path):
-                raise OSError("mock file error")
-            return original(path)
-
-        with patch(
-            "hachimoku.agents.loader._load_single_agent",
-            side_effect=_fail_on_pr_test,
-        ):
-            result = load_builtin_agents()
-
+        result = self._load_builtin_with_failure(
+            "pr-test-analyzer", OSError("mock file error")
+        )
         assert len(result.errors) == 1
         assert result.errors[0].source == "pr-test-analyzer.toml"
 
     def test_error_message_includes_type_name(self) -> None:
         """LoadError.message に例外型名が含まれる。"""
-        original = _load_single_agent
-
-        def _fail_on_comment(path: Path) -> AgentDefinition:
-            if "comment-analyzer" in str(path):
-                raise OSError("bad file access")
-            return original(path)
-
-        with patch(
-            "hachimoku.agents.loader._load_single_agent",
-            side_effect=_fail_on_comment,
-        ):
-            result = load_builtin_agents()
-
+        result = self._load_builtin_with_failure(
+            "comment-analyzer", OSError("bad file access")
+        )
         assert len(result.errors) == 1
         assert "OSError" in result.errors[0].message
 
     def test_one_error_does_not_block_others(self) -> None:
         """1ファイルの失敗が他ファイルの読み込みを妨げない。"""
-        original = _load_single_agent
-
-        def _fail_on_code_reviewer(path: Path) -> AgentDefinition:
-            if "code-reviewer" in str(path):
-                raise ValidationError.from_exception_data(
-                    title="AgentDefinition",
-                    line_errors=[],
-                )
-            return original(path)
-
-        with patch(
-            "hachimoku.agents.loader._load_single_agent",
-            side_effect=_fail_on_code_reviewer,
-        ):
-            result = load_builtin_agents()
-
+        result = self._load_builtin_with_failure(
+            "code-reviewer",
+            ValidationError.from_exception_data(
+                title="AgentDefinition", line_errors=[]
+            ),
+        )
         assert len(result.agents) == 5
         assert len(result.errors) == 1
         loaded_names = {agent.name for agent in result.agents}
@@ -465,6 +443,36 @@ class TestLoadCustomAgents:
         result = load_custom_agents(tmp_path)
         assert result.errors[0].source == "broken.toml"
 
+    def test_empty_dir_returns_empty(self, tmp_path: Path) -> None:
+        """存在するが空のディレクトリで空 LoadResult が返される。"""
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+        result = load_custom_agents(empty_dir)
+        assert result.agents == ()
+        assert result.errors == ()
+
+    def test_file_path_raises_not_a_directory_error(self, tmp_path: Path) -> None:
+        """ファイルパスを渡すと NotADirectoryError が送出される。"""
+        file_path = tmp_path / "not-a-dir.toml"
+        file_path.write_text("dummy")
+        with pytest.raises(NotADirectoryError, match="ディレクトリではありません"):
+            load_custom_agents(file_path)
+
+    def test_validation_error_collected(self, tmp_path: Path) -> None:
+        """必須フィールド欠損による ValidationError がエラーとして収集される。"""
+        incomplete_toml = 'name = "test-agent"\ndescription = "incomplete"\n'
+        _write_toml(tmp_path, "incomplete.toml", incomplete_toml)
+        result = load_custom_agents(tmp_path)
+        assert len(result.agents) == 0
+        assert len(result.errors) == 1
+        assert "ValidationError" in result.errors[0].message
+
+    def test_error_message_includes_type_name(self, tmp_path: Path) -> None:
+        """LoadError.message に例外型名が含まれる。"""
+        _write_toml(tmp_path, "broken.toml", 'name = "unclosed')
+        result = load_custom_agents(tmp_path)
+        assert "TOMLDecodeError" in result.errors[0].message
+
     def test_multiple_valid_custom_agents(self, tmp_path: Path) -> None:
         """複数の正常カスタム定義が全件読み込まれる。"""
         agent1 = VALID_TOML.replace("test-agent", "custom-one")
@@ -517,12 +525,12 @@ class TestLoadAgents:
         _write_toml(tmp_path, "code-reviewer.toml", 'name = "unclosed')
         result = load_agents(custom_dir=tmp_path)
         agent = _find_agent(result.agents, "code-reviewer")
-        assert agent.description != ""
-        assert len(result.errors) >= 1
+        assert agent.description == "コード品質・バグ・ベストプラクティスの総合レビュー"
+        assert len(result.errors) == 1
 
     def test_errors_merged(self, tmp_path: Path) -> None:
         """ビルトインとカスタムのエラーが統合される。"""
         _write_toml(tmp_path, "bad.toml", 'name = "unclosed')
         result = load_agents(custom_dir=tmp_path)
-        assert len(result.errors) >= 1
-        assert any("bad.toml" in e.source for e in result.errors)
+        assert len(result.errors) == 1
+        assert result.errors[0].source == "bad.toml"
