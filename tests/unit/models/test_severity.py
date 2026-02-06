@@ -238,3 +238,8 @@ class TestDetermineExitCode:
     def test_none_returns_exit_code_success(self) -> None:
         """AS4: 問題なし (None) → 終了コード 0。"""
         assert determine_exit_code(None) == EXIT_CODE_SUCCESS
+
+    def test_unknown_severity_raises_value_error(self) -> None:
+        """未知の Severity 値は ValueError を送出する。"""
+        with pytest.raises(ValueError, match="Unknown Severity value"):
+            determine_exit_code("Unknown")  # type: ignore[arg-type]
