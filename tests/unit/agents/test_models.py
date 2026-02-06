@@ -1,22 +1,25 @@
-"""Phase, PHASE_ORDER, ApplicabilityRule, LoadError のテスト。
+"""Phase, PHASE_ORDER, ApplicabilityRule, LoadError, AgentDefinition, LoadResult のテスト。
 
 T004: Phase StrEnum — 列挙値(early/main/final)、PHASE_ORDER ソート順検証
 T005: ApplicabilityRule — デフォルト値、正規表現バリデーション、frozen、extra=forbid
-T007: LoadError — フィールドバリデーション、frozen、extra=forbid
-
-NOTE: T006 (AgentDefinition) / T007 の LoadResult は AgentDefinition と密結合のため次 Issue で実装。
+T006: AgentDefinition — 全必須フィールド、name パターン、output_schema 解決、デフォルト値、frozen、extra=forbid
+T007: LoadError / LoadResult — フィールドバリデーション、frozen、extra=forbid
 """
 
 import pytest
 from pydantic import ValidationError
 
 from hachimoku.agents.models import (
+    AGENT_NAME_PATTERN,
     PHASE_ORDER,
+    AgentDefinition,
     ApplicabilityRule,
     LoadError,
+    LoadResult,
     Phase,
 )
 from hachimoku.models._base import HachimokuBaseModel
+from hachimoku.models.schemas import BaseAgentOutput, ScoredIssues
 
 
 # =============================================================================
@@ -215,3 +218,222 @@ class TestLoadErrorConstraints:
         """定義外フィールドがバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
             LoadError(source="x", message="y", extra="z")  # type: ignore[call-arg]
+
+
+# =============================================================================
+# AgentDefinition — ヘルパー
+# =============================================================================
+
+
+def _valid_agent_data(**overrides: object) -> dict[str, object]:
+    """AgentDefinition の最小限有効データを返す。"""
+    base: dict[str, object] = {
+        "name": "test-agent",
+        "description": "A test agent",
+        "model": "claude-sonnet-4-5-20250929",
+        "output_schema": "scored_issues",
+        "system_prompt": "You are a test agent.",
+    }
+    base.update(overrides)
+    return base
+
+
+# =============================================================================
+# AgentDefinition — 正常系
+# =============================================================================
+
+
+class TestAgentDefinitionValid:
+    """AgentDefinition の正常系を検証。"""
+
+    def test_valid_agent_definition(self) -> None:
+        """全必須フィールド指定でインスタンス生成が成功する。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.name == "test-agent"
+        assert agent.description == "A test agent"
+        assert agent.model == "claude-sonnet-4-5-20250929"
+        assert agent.output_schema == "scored_issues"
+        assert agent.system_prompt == "You are a test agent."
+
+    def test_resolved_schema_from_registry(self) -> None:
+        """output_schema から SCHEMA_REGISTRY のスキーマ型が解決される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.resolved_schema is ScoredIssues
+        assert issubclass(agent.resolved_schema, BaseAgentOutput)
+
+    def test_default_allowed_tools(self) -> None:
+        """allowed_tools のデフォルト値は空リスト。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.allowed_tools == []
+
+    def test_default_applicability(self) -> None:
+        """applicability のデフォルトは always=True の ApplicabilityRule。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.applicability.always is True
+        assert agent.applicability.file_patterns == ()
+        assert agent.applicability.content_patterns == ()
+
+    def test_default_phase(self) -> None:
+        """phase のデフォルト値は Phase.MAIN。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.phase == Phase.MAIN
+
+    def test_explicit_phase(self) -> None:
+        """phase を明示指定できる。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(phase="early"))
+        assert agent.phase == Phase.EARLY
+
+    def test_explicit_allowed_tools(self) -> None:
+        """allowed_tools を明示指定できる。"""
+        agent = AgentDefinition.model_validate(
+            _valid_agent_data(allowed_tools=["tool1", "tool2"])
+        )
+        assert agent.allowed_tools == ["tool1", "tool2"]
+
+    def test_explicit_applicability(self) -> None:
+        """applicability を明示指定できる。"""
+        agent = AgentDefinition.model_validate(
+            _valid_agent_data(applicability={"file_patterns": ["*.py"]})
+        )
+        assert agent.applicability.always is False
+        assert agent.applicability.file_patterns == ("*.py",)
+
+    def test_isinstance_hachimoku_base_model(self) -> None:
+        """HachimokuBaseModel のインスタンスである。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert isinstance(agent, HachimokuBaseModel)
+
+
+# =============================================================================
+# AgentDefinition — 制約
+# =============================================================================
+
+
+class TestAgentDefinitionConstraints:
+    """AgentDefinition の制約を検証。"""
+
+    def test_invalid_name_uppercase(self) -> None:
+        """大文字を含む name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            AgentDefinition.model_validate(_valid_agent_data(name="Test-Agent"))
+
+    def test_invalid_name_underscore(self) -> None:
+        """アンダースコアを含む name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            AgentDefinition.model_validate(_valid_agent_data(name="test_agent"))
+
+    def test_invalid_name_space(self) -> None:
+        """スペースを含む name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            AgentDefinition.model_validate(_valid_agent_data(name="test agent"))
+
+    def test_invalid_name_empty(self) -> None:
+        """空文字列の name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            AgentDefinition.model_validate(_valid_agent_data(name=""))
+
+    def test_unknown_schema_raises_error(self) -> None:
+        """SCHEMA_REGISTRY に未登録の output_schema でエラーとなる。"""
+        with pytest.raises(ValidationError, match="not registered"):
+            AgentDefinition.model_validate(
+                _valid_agent_data(output_schema="nonexistent")
+            )
+
+    def test_missing_required_field_name(self) -> None:
+        """name 欠損で ValidationError。"""
+        data = _valid_agent_data()
+        del data["name"]
+        with pytest.raises(ValidationError, match="name"):
+            AgentDefinition.model_validate(data)
+
+    def test_missing_required_field_description(self) -> None:
+        """description 欠損で ValidationError。"""
+        data = _valid_agent_data()
+        del data["description"]
+        with pytest.raises(ValidationError, match="description"):
+            AgentDefinition.model_validate(data)
+
+    def test_missing_required_field_output_schema(self) -> None:
+        """output_schema 欠損で ValidationError。"""
+        data = _valid_agent_data()
+        del data["output_schema"]
+        with pytest.raises(ValidationError, match="output_schema"):
+            AgentDefinition.model_validate(data)
+
+    def test_missing_required_field_system_prompt(self) -> None:
+        """system_prompt 欠損で ValidationError。"""
+        data = _valid_agent_data()
+        del data["system_prompt"]
+        with pytest.raises(ValidationError, match="system_prompt"):
+            AgentDefinition.model_validate(data)
+
+    def test_frozen_assignment_rejected(self) -> None:
+        """frozen=True によりフィールド変更が拒否される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        with pytest.raises(ValidationError, match="frozen"):
+            agent.name = "changed"  # type: ignore[misc]
+
+    def test_extra_field_rejected(self) -> None:
+        """定義外フィールドがバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            AgentDefinition.model_validate(_valid_agent_data(unknown="x"))
+
+    def test_agent_name_pattern_is_exported(self) -> None:
+        """AGENT_NAME_PATTERN 定数がエクスポートされている。"""
+        assert AGENT_NAME_PATTERN == r"^[a-z0-9-]+$"
+
+
+# =============================================================================
+# LoadResult — 正常系
+# =============================================================================
+
+
+class TestLoadResultValid:
+    """LoadResult の正常系を検証。"""
+
+    def test_valid_load_result(self) -> None:
+        """agents + errors 指定で正常作成。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        error = LoadError(source="bad.toml", message="parse error")
+        result = LoadResult(agents=[agent], errors=[error])
+        assert len(result.agents) == 1
+        assert result.agents[0].name == "test-agent"
+        assert len(result.errors) == 1
+        assert result.errors[0].source == "bad.toml"
+
+    def test_default_errors_empty_list(self) -> None:
+        """errors のデフォルト値は空リスト。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        result = LoadResult(agents=[agent])
+        assert result.errors == []
+
+    def test_empty_agents(self) -> None:
+        """空の agents リストで正常作成。"""
+        result = LoadResult(agents=[])
+        assert result.agents == []
+        assert result.errors == []
+
+    def test_isinstance_hachimoku_base_model(self) -> None:
+        """HachimokuBaseModel のインスタンスである。"""
+        result = LoadResult(agents=[])
+        assert isinstance(result, HachimokuBaseModel)
+
+
+# =============================================================================
+# LoadResult — 制約
+# =============================================================================
+
+
+class TestLoadResultConstraints:
+    """LoadResult の制約を検証。"""
+
+    def test_frozen_assignment_rejected(self) -> None:
+        """frozen=True によりフィールド変更が拒否される。"""
+        result = LoadResult(agents=[])
+        with pytest.raises(ValidationError, match="frozen"):
+            result.agents = []  # type: ignore[misc]
+
+    def test_extra_field_rejected(self) -> None:
+        """定義外フィールドがバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            LoadResult(agents=[], extra="z")  # type: ignore[call-arg]

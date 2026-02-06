@@ -1,6 +1,7 @@
-"""エージェント定義の基盤モデル。
+"""エージェント定義モデル。
 
-Phase（実行フェーズ）、ApplicabilityRule（適用ルール）、LoadError（読み込みエラー）を定義する。
+Phase（実行フェーズ）、ApplicabilityRule（適用ルール）、AgentDefinition（エージェント定義）、
+LoadError（読み込みエラー）、LoadResult（読み込み結果）を定義する。
 """
 
 from __future__ import annotations
@@ -11,9 +12,10 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Final
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
+from hachimoku.models.schemas import BaseAgentOutput, SchemaNotFoundError, get_schema
 
 
 # =============================================================================
@@ -90,3 +92,72 @@ class LoadError(HachimokuBaseModel):
 
     source: str = Field(min_length=1)
     message: str = Field(min_length=1)
+
+
+# =============================================================================
+# AgentDefinition（エージェント定義）
+# =============================================================================
+
+# エージェント名のバリデーションパターン
+AGENT_NAME_PATTERN: str = r"^[a-z0-9-]+$"
+
+
+class AgentDefinition(HachimokuBaseModel):
+    """レビューエージェントの全構成情報。TOML 定義ファイルから構築される。
+
+    Attributes:
+        name: エージェント名（一意識別子）。アルファベット小文字・数字・ハイフンのみ。
+        description: エージェントの説明。
+        model: 使用する LLM モデル名。
+        output_schema: SCHEMA_REGISTRY に登録されたスキーマ名。
+        resolved_schema: output_schema から解決されたスキーマ型。
+        system_prompt: エージェントのシステムプロンプト。
+        allowed_tools: 許可するツールのリスト。
+        applicability: 適用ルール。
+        phase: 実行フェーズ。
+    """
+
+    name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
+    description: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    output_schema: str = Field(min_length=1)
+    resolved_schema: type[BaseAgentOutput] = Field(exclude=True)
+    system_prompt: str = Field(min_length=1)
+    allowed_tools: list[str] = Field(default_factory=list)
+    applicability: ApplicabilityRule = Field(
+        default_factory=lambda: ApplicabilityRule(always=True)
+    )
+    phase: Phase = Phase.MAIN
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_output_schema(cls, data: dict[str, object]) -> dict[str, object]:
+        """output_schema から SCHEMA_REGISTRY のスキーマ型を解決する。
+
+        Raises:
+            SchemaNotFoundError: スキーマ名が SCHEMA_REGISTRY に未登録の場合。
+        """
+        if isinstance(data, dict) and "output_schema" in data:
+            schema_name = data["output_schema"]
+            if isinstance(schema_name, str):
+                try:
+                    data["resolved_schema"] = get_schema(schema_name)
+                except SchemaNotFoundError as e:
+                    raise ValueError(str(e)) from None
+        return data
+
+
+# =============================================================================
+# LoadResult（読み込み結果）
+# =============================================================================
+
+
+class LoadResult(HachimokuBaseModel):
+    """エージェント定義の読み込み結果。
+
+    正常に読み込まれたエージェント定義と、スキップされたエラー情報を分離して保持する。
+    呼び出し元がエラー情報の表示方法を決定できる。
+    """
+
+    agents: list[AgentDefinition]
+    errors: list[LoadError] = Field(default_factory=list)
