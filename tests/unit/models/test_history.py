@@ -1,4 +1,4 @@
-"""DiffReviewRecord, PRReviewRecord, FileReviewRecord, ReviewHistoryRecord のテスト。
+"""CommitHash, DiffReviewRecord, PRReviewRecord, FileReviewRecord, ReviewHistoryRecord のテスト。
 
 FR-DM-011: ReviewHistoryRecord 判別共用体。
 """
@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+from hachimoku.models.agent_result import AgentSuccess
 from hachimoku.models.history import (
     CommitHash,
     DiffReviewRecord,
@@ -29,6 +30,11 @@ VALID_SUMMARY_WITH_ISSUES = ReviewSummary(
     total_issues=1,
     max_severity=Severity.SUGGESTION,
     total_elapsed_time=1.0,
+)
+VALID_AGENT_SUCCESS = AgentSuccess(
+    agent_name="test-agent",
+    issues=[],
+    elapsed_time=1.5,
 )
 
 commit_hash_adapter: TypeAdapter[str] = TypeAdapter(CommitHash)
@@ -227,6 +233,18 @@ class TestPRReviewRecordValid:
 class TestPRReviewRecordConstraints:
     """PRReviewRecord の制約違反を検証。"""
 
+    def test_empty_branch_name_rejected(self) -> None:
+        """空の branch_name は拒否される。"""
+        with pytest.raises(ValidationError, match="branch_name"):
+            PRReviewRecord(
+                commit_hash=VALID_COMMIT_HASH,
+                pr_number=1,
+                branch_name="",
+                reviewed_at=VALID_REVIEWED_AT,
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
     def test_pr_number_zero_rejected(self) -> None:
         """pr_number=0 は拒否される (ge=1)。"""
         with pytest.raises(ValidationError, match="pr_number"):
@@ -321,6 +339,17 @@ class TestFileReviewRecordValid:
         )
         assert record.file_paths == ["a.py", "b.py", "c.py"]
 
+    def test_all_duplicates_deduplicated_to_single(self) -> None:
+        """全要素が同一の場合、重複排除後1要素になる（min_length=1 通過）。"""
+        record = FileReviewRecord(
+            file_paths=["a.py", "a.py", "a.py"],
+            reviewed_at=VALID_REVIEWED_AT,
+            working_directory="/tmp",
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        assert record.file_paths == ["a.py"]
+
     def test_absolute_working_directory_accepted(self) -> None:
         """絶対パスの working_directory が受け入れられる。"""
         record = FileReviewRecord(
@@ -332,9 +361,31 @@ class TestFileReviewRecordValid:
         )
         assert record.working_directory == "/var/lib/app"
 
+    def test_results_with_agent_success(self) -> None:
+        """AgentSuccess を含む results でインスタンス生成が成功する。"""
+        record = FileReviewRecord(
+            file_paths=["src/main.py"],
+            reviewed_at=VALID_REVIEWED_AT,
+            working_directory="/home/user/project",
+            results=[VALID_AGENT_SUCCESS],
+            summary=VALID_SUMMARY_WITH_ISSUES,
+        )
+        assert len(record.results) == 1
+
 
 class TestFileReviewRecordConstraints:
     """FileReviewRecord の制約違反を検証。"""
+
+    def test_empty_string_in_file_paths_rejected(self) -> None:
+        """file_paths に空文字列を含むと拒否される。"""
+        with pytest.raises(ValidationError, match="file_paths"):
+            FileReviewRecord(
+                file_paths=[""],
+                reviewed_at=VALID_REVIEWED_AT,
+                working_directory="/tmp",
+                results=[],
+                summary=VALID_SUMMARY,
+            )
 
     def test_empty_file_paths_rejected(self) -> None:
         """file_paths 空リストは拒否される (min_length=1)。"""
@@ -354,6 +405,28 @@ class TestFileReviewRecordConstraints:
                 file_paths=["test.py"],
                 reviewed_at=VALID_REVIEWED_AT,
                 working_directory="relative/path",
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
+    def test_dot_working_directory_rejected(self) -> None:
+        """ドット相対パス "." は拒否される。"""
+        with pytest.raises(ValidationError, match="working_directory"):
+            FileReviewRecord(
+                file_paths=["test.py"],
+                reviewed_at=VALID_REVIEWED_AT,
+                working_directory=".",
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
+    def test_dot_dot_working_directory_rejected(self) -> None:
+        """ドット相対パス ".." は拒否される。"""
+        with pytest.raises(ValidationError, match="working_directory"):
+            FileReviewRecord(
+                file_paths=["test.py"],
+                reviewed_at=VALID_REVIEWED_AT,
+                working_directory="..",
                 results=[],
                 summary=VALID_SUMMARY,
             )
@@ -471,3 +544,76 @@ class TestReviewHistoryRecordDiscriminator:
         }
         with pytest.raises(ValidationError):
             history_adapter.validate_python(data)
+
+    def test_diff_with_file_paths_rejected(self) -> None:
+        """review_mode="diff" に file_paths を含めると拒否される (extra="forbid")。"""
+        data = {
+            "review_mode": "diff",
+            "commit_hash": VALID_COMMIT_HASH,
+            "branch_name": "main",
+            "reviewed_at": VALID_REVIEWED_AT.isoformat(),
+            "results": [],
+            "summary": VALID_SUMMARY.model_dump(),
+            "file_paths": ["a.py"],
+        }
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            history_adapter.validate_python(data)
+
+    def test_pr_with_working_directory_rejected(self) -> None:
+        """review_mode="pr" に working_directory を含めると拒否される (extra="forbid")。"""
+        data = {
+            "review_mode": "pr",
+            "commit_hash": VALID_COMMIT_HASH,
+            "pr_number": 1,
+            "branch_name": "main",
+            "reviewed_at": VALID_REVIEWED_AT.isoformat(),
+            "results": [],
+            "summary": VALID_SUMMARY.model_dump(),
+            "working_directory": "/tmp",
+        }
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            history_adapter.validate_python(data)
+
+
+class TestReviewHistoryRecordRoundTrip:
+    """ReviewHistoryRecord のラウンドトリップ（JSONL 永続化）を検証。"""
+
+    def test_diff_round_trip(self) -> None:
+        """DiffReviewRecord の model_dump → validate_python ラウンドトリップ。"""
+        original = DiffReviewRecord(
+            commit_hash=VALID_COMMIT_HASH,
+            branch_name="main",
+            reviewed_at=VALID_REVIEWED_AT,
+            results=[VALID_AGENT_SUCCESS],
+            summary=VALID_SUMMARY_WITH_ISSUES,
+        )
+        restored = history_adapter.validate_python(original.model_dump())
+        assert isinstance(restored, DiffReviewRecord)
+        assert restored == original
+
+    def test_pr_round_trip(self) -> None:
+        """PRReviewRecord の model_dump → validate_python ラウンドトリップ。"""
+        original = PRReviewRecord(
+            commit_hash=VALID_COMMIT_HASH,
+            pr_number=42,
+            branch_name="feat/x",
+            reviewed_at=VALID_REVIEWED_AT,
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        restored = history_adapter.validate_python(original.model_dump())
+        assert isinstance(restored, PRReviewRecord)
+        assert restored == original
+
+    def test_file_round_trip(self) -> None:
+        """FileReviewRecord の model_dump → validate_python ラウンドトリップ。"""
+        original = FileReviewRecord(
+            file_paths=["src/main.py", "src/utils.py"],
+            reviewed_at=VALID_REVIEWED_AT,
+            working_directory="/home/user/project",
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        restored = history_adapter.validate_python(original.model_dump())
+        assert isinstance(restored, FileReviewRecord)
+        assert restored == original
