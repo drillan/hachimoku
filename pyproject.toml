@@ -21,12 +21,20 @@ requires = ["uv_build>=0.10.0,<0.11.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "ruff>=0.15.0",
+]
 docs = [
     "myst-parser>=5.0.0",
     "shibuya>=2026.1.9",
     "sphinx>=9.1.0",
     "sphinxcontrib-mermaid>=2.0.0",
 ]
+
+[tool.mypy]
+exclude = ["specs/"]
 
 [tool.uv.sources]
 claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }
