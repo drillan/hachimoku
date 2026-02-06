@@ -28,14 +28,14 @@ graph TD
     005 --> 008[008-github-integration]
 ```
 
-> **スキーマの所属境界**: SCHEMA_REGISTRY と各エージェントの出力スキーマ（ScoredIssuesResult 等）は **002-domain-models** に含まれる。これらはローダー（003）・ランナー（005）が参照する「ドメインモデル」であり、出力フォーマット（007）はフォーマッター・ストレージのみを担当する。この設計により依存方向が一方向に整理される。
+> **スキーマの所属境界**: SCHEMA_REGISTRY と各エージェントの出力スキーマ（ScoredIssues 等）は **002-domain-models** に含まれる。これらはローダー（003）・ランナー（005）が参照する「ドメインモデル」であり、出力フォーマット（007）はフォーマッター・ストレージのみを担当する。この設計により依存方向が一方向に整理される。
 
 ## 仕様一覧
 
 | ID | 名称 | 状態 | 優先度 | 概要 |
 |----|------|------|--------|------|
 | [001-architecture-spec](./001-architecture-spec/spec.md) | アーキテクチャ仕様（親） | Draft | - | 全体アーキテクチャ、ユーザーストーリー、機能要件、成功基準を定義する親仕様 |
-| 002-domain-models | ドメインモデル・出力スキーマ | 未着手 | P0 | Severity, ReviewIssue, AgentResult, ReviewReport 等の共通モデル、6種の出力スキーマ、SCHEMA_REGISTRY、Severity マッピング |
+| [002-domain-models](./002-domain-models/spec.md) | ドメインモデル・出力スキーマ | Draft | P0 | Severity, ReviewIssue, AgentResult, ReviewReport 等の共通モデル、6種の出力スキーマ、SCHEMA_REGISTRY、Severity マッピング |
 | 003-agent-definition | エージェント定義・ローダー | 未着手 | P1 | TOML 定義フォーマット、AgentDefinition、ApplicabilityRule、ビルトイン6エージェント、ローダー・セレクター |
 | 004-configuration | 設定管理 | 未着手 | P2 | HachimokuConfig、4層階層解決、CLAUDE.md 検出・注入 |
 | 005-review-engine | レビュー実行エンジン | 未着手 | P1 | 逐次・並列実行、二段階タイムアウト、部分失敗許容、結果集約、シグナルハンドリング |
