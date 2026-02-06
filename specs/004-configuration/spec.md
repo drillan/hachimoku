@@ -99,7 +99,7 @@
 - `.hachimoku/config.toml` が空ファイルの場合、全項目がデフォルト値で構成された設定が返される
 - `pyproject.toml` に `[tool.hachimoku]` セクションはあるが中身が空の場合、他のソースから解決される
 - `~/.config/hachimoku/config.toml` のディレクトリが存在しない場合、ユーザーグローバル設定はスキップされる
-- `.hachimoku/config.toml` の読み取り権限がない場合、明確なエラーメッセージとともにバリデーションエラーが報告される
+- `.hachimoku/config.toml` の読み取り権限がない場合、`PermissionError` が送出される
 - `timeout` に負の値が設定された場合、バリデーションエラーが発生する
 - `max_files_per_review` に 0 以下の値が設定された場合、バリデーションエラーが発生する
 - 設定ファイル内のエージェント個別設定でエージェント名の形式が不正（アルファベット小文字・数字・ハイフン以外を含む）な場合、バリデーションエラーが発生する
@@ -165,7 +165,7 @@
   - `output_format` の列挙値（`"markdown"` または `"json"`）
   - エージェント個別設定のエージェント名形式（アルファベット小文字・数字・ハイフンのみ）
 
-- **FR-CF-005**: システムは `pyproject.toml` の `[tool.hachimoku]` セクションを設定ソースとして読み込めなければならない。`pyproject.toml` はカレントディレクトリから親ディレクトリへ遡って探索する。`pyproject.toml` が存在しない場合、または `[tool.hachimoku]` セクションが存在しない場合はスキップする
+- **FR-CF-005**: システムは `pyproject.toml` の `[tool.hachimoku]` セクションを設定ソースとして読み込めなければならない。`pyproject.toml` はカレントディレクトリから親ディレクトリへ遡って探索する。この探索は `.hachimoku/` の探索（FR-CF-003）とは独立して行われる。`pyproject.toml` が存在しない場合、または `[tool.hachimoku]` セクションが存在しない場合はスキップする
 
 - **FR-CF-006**: システムは `~/.config/hachimoku/config.toml` をユーザーグローバル設定として読み込めなければならない。ファイルまたはディレクトリが存在しない場合はスキップする
 
