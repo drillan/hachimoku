@@ -65,12 +65,12 @@ class PRReviewRecord(HachimokuBaseModel):
 class FileReviewRecord(HachimokuBaseModel):
     """file レビューの履歴レコード。判別キー: review_mode="file"。
 
-    file_paths は重複排除バリデータにより一意性が保証される。
+    file_paths は frozenset[str] で重複不在を型レベルで保証する。
     working_directory は絶対パスバリデータにより検証される（POSIX パス形式）。
 
     Attributes:
         review_mode: 判別キー。固定値 "file"。
-        file_paths: レビュー対象ファイルパスのリスト（1要素以上、各要素非空、重複排除済み）。
+        file_paths: レビュー対象ファイルパスの集合（1要素以上、各要素非空）。
         reviewed_at: レビュー実行日時。
         working_directory: 作業ディレクトリ（絶対パス）。
         results: エージェント結果のリスト。
@@ -78,7 +78,7 @@ class FileReviewRecord(HachimokuBaseModel):
     """
 
     review_mode: Literal["file"] = "file"
-    file_paths: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
+    file_paths: frozenset[Annotated[str, Field(min_length=1)]]
     reviewed_at: datetime
     working_directory: str
     results: list[AgentResult]
@@ -86,12 +86,11 @@ class FileReviewRecord(HachimokuBaseModel):
 
     @field_validator("file_paths", mode="after")
     @classmethod
-    def deduplicate_file_paths(cls, v: list[str]) -> list[str]:
-        """file_paths の重複を排除する（順序保持）。
-
-        仕様上の正規化: data-model.md で「重複排除済み」と定義。
-        """
-        return list(dict.fromkeys(v))
+    def validate_file_paths_non_empty(cls, v: frozenset[str]) -> frozenset[str]:
+        """file_paths が空でないことを検証する。"""
+        if len(v) == 0:
+            raise ValueError("file_paths must contain at least one element")
+        return v
 
     @field_validator("working_directory", mode="after")
     @classmethod
