@@ -7,13 +7,17 @@ authors = [
     { name = "driller", email = "eleshis@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "claudecode-model",
+    "pydantic>=2.12.5",
+    "typer>=0.21.1",
+]
 
 [project.scripts]
 hachimoku = "hachimoku:main"
 
 [build-system]
-requires = ["uv_build>=0.9.29,<0.10.0"]
+requires = ["uv_build>=0.10.0,<0.11.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
@@ -23,3 +27,6 @@ docs = [
     "sphinx>=9.1.0",
     "sphinxcontrib-mermaid>=2.0.0",
 ]
+
+[tool.uv.sources]
+claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }
