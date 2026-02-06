@@ -262,9 +262,9 @@ class TestAgentDefinitionValid:
         assert issubclass(agent.resolved_schema, BaseAgentOutput)
 
     def test_default_allowed_tools(self) -> None:
-        """allowed_tools のデフォルト値は空リスト。"""
+        """allowed_tools のデフォルト値は空タプル。"""
         agent = AgentDefinition.model_validate(_valid_agent_data())
-        assert agent.allowed_tools == []
+        assert agent.allowed_tools == ()
 
     def test_default_applicability(self) -> None:
         """applicability のデフォルトは always=True の ApplicabilityRule。"""
@@ -288,7 +288,13 @@ class TestAgentDefinitionValid:
         agent = AgentDefinition.model_validate(
             _valid_agent_data(allowed_tools=["tool1", "tool2"])
         )
-        assert agent.allowed_tools == ["tool1", "tool2"]
+        assert agent.allowed_tools == ("tool1", "tool2")
+
+    def test_resolved_schema_excluded_from_serialization(self) -> None:
+        """resolved_schema が model_dump() から除外される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        dump = agent.model_dump()
+        assert "resolved_schema" not in dump
 
     def test_explicit_applicability(self) -> None:
         """applicability を明示指定できる。"""
@@ -339,6 +345,11 @@ class TestAgentDefinitionConstraints:
                 _valid_agent_data(output_schema="nonexistent")
             )
 
+    def test_non_string_output_schema_raises_error(self) -> None:
+        """output_schema が文字列以外の場合にバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="output_schema must be a string"):
+            AgentDefinition.model_validate(_valid_agent_data(output_schema=123))
+
     def test_missing_required_field_name(self) -> None:
         """name 欠損で ValidationError。"""
         data = _valid_agent_data()
@@ -360,12 +371,39 @@ class TestAgentDefinitionConstraints:
         with pytest.raises(ValidationError, match="output_schema"):
             AgentDefinition.model_validate(data)
 
+    def test_missing_required_field_model(self) -> None:
+        """model 欠損で ValidationError。"""
+        data = _valid_agent_data()
+        del data["model"]
+        with pytest.raises(ValidationError, match="model"):
+            AgentDefinition.model_validate(data)
+
     def test_missing_required_field_system_prompt(self) -> None:
         """system_prompt 欠損で ValidationError。"""
         data = _valid_agent_data()
         del data["system_prompt"]
         with pytest.raises(ValidationError, match="system_prompt"):
             AgentDefinition.model_validate(data)
+
+    def test_name_with_leading_hyphen_accepted(self) -> None:
+        """ハイフン先頭の name が許可される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(name="-leading"))
+        assert agent.name == "-leading"
+
+    def test_name_with_trailing_hyphen_accepted(self) -> None:
+        """ハイフン末尾の name が許可される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(name="trailing-"))
+        assert agent.name == "trailing-"
+
+    def test_name_digits_only_accepted(self) -> None:
+        """数字のみの name が許可される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(name="123"))
+        assert agent.name == "123"
+
+    def test_name_single_char_accepted(self) -> None:
+        """1文字の name が許可される。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(name="a"))
+        assert agent.name == "a"
 
     def test_frozen_assignment_rejected(self) -> None:
         """frozen=True によりフィールド変更が拒否される。"""
@@ -395,27 +433,37 @@ class TestLoadResultValid:
         """agents + errors 指定で正常作成。"""
         agent = AgentDefinition.model_validate(_valid_agent_data())
         error = LoadError(source="bad.toml", message="parse error")
-        result = LoadResult(agents=[agent], errors=[error])
+        result = LoadResult(agents=(agent,), errors=(error,))
         assert len(result.agents) == 1
         assert result.agents[0].name == "test-agent"
         assert len(result.errors) == 1
         assert result.errors[0].source == "bad.toml"
 
-    def test_default_errors_empty_list(self) -> None:
-        """errors のデフォルト値は空リスト。"""
+    def test_default_errors_empty_tuple(self) -> None:
+        """errors のデフォルト値は空タプル。"""
         agent = AgentDefinition.model_validate(_valid_agent_data())
-        result = LoadResult(agents=[agent])
-        assert result.errors == []
+        result = LoadResult(agents=(agent,))
+        assert result.errors == ()
 
     def test_empty_agents(self) -> None:
-        """空の agents リストで正常作成。"""
-        result = LoadResult(agents=[])
-        assert result.agents == []
-        assert result.errors == []
+        """空の agents タプルで正常作成。"""
+        result = LoadResult(agents=())
+        assert result.agents == ()
+        assert result.errors == ()
+
+    def test_multiple_agents_and_errors(self) -> None:
+        """複数の agents と errors を保持できる。"""
+        agent1 = AgentDefinition.model_validate(_valid_agent_data(name="agent-1"))
+        agent2 = AgentDefinition.model_validate(_valid_agent_data(name="agent-2"))
+        err1 = LoadError(source="a.toml", message="err1")
+        err2 = LoadError(source="b.toml", message="err2")
+        result = LoadResult(agents=(agent1, agent2), errors=(err1, err2))
+        assert len(result.agents) == 2
+        assert len(result.errors) == 2
 
     def test_isinstance_hachimoku_base_model(self) -> None:
         """HachimokuBaseModel のインスタンスである。"""
-        result = LoadResult(agents=[])
+        result = LoadResult(agents=())
         assert isinstance(result, HachimokuBaseModel)
 
 
@@ -429,11 +477,11 @@ class TestLoadResultConstraints:
 
     def test_frozen_assignment_rejected(self) -> None:
         """frozen=True によりフィールド変更が拒否される。"""
-        result = LoadResult(agents=[])
+        result = LoadResult(agents=())
         with pytest.raises(ValidationError, match="frozen"):
-            result.agents = []  # type: ignore[misc]
+            result.agents = ()  # type: ignore[misc]
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドがバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
-            LoadResult(agents=[], extra="z")  # type: ignore[call-arg]
+            LoadResult(agents=(), extra="z")  # type: ignore[call-arg]

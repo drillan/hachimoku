@@ -99,7 +99,7 @@ class LoadError(HachimokuBaseModel):
 # =============================================================================
 
 # エージェント名のバリデーションパターン
-AGENT_NAME_PATTERN: str = r"^[a-z0-9-]+$"
+AGENT_NAME_PATTERN: Final[str] = r"^[a-z0-9-]+$"
 
 
 class AgentDefinition(HachimokuBaseModel):
@@ -123,7 +123,7 @@ class AgentDefinition(HachimokuBaseModel):
     output_schema: str = Field(min_length=1)
     resolved_schema: type[BaseAgentOutput] = Field(exclude=True)
     system_prompt: str = Field(min_length=1)
-    allowed_tools: list[str] = Field(default_factory=list)
+    allowed_tools: tuple[str, ...] = ()
     applicability: ApplicabilityRule = Field(
         default_factory=lambda: ApplicabilityRule(always=True)
     )
@@ -135,15 +135,22 @@ class AgentDefinition(HachimokuBaseModel):
         """output_schema から SCHEMA_REGISTRY のスキーマ型を解決する。
 
         Raises:
-            SchemaNotFoundError: スキーマ名が SCHEMA_REGISTRY に未登録の場合。
+            ValueError: output_schema が文字列でない場合、または SCHEMA_REGISTRY に
+                未登録の場合（Pydantic により ValidationError に変換される）。
         """
-        if isinstance(data, dict) and "output_schema" in data:
-            schema_name = data["output_schema"]
-            if isinstance(schema_name, str):
-                try:
-                    data["resolved_schema"] = get_schema(schema_name)
-                except SchemaNotFoundError as e:
-                    raise ValueError(str(e)) from None
+        if not isinstance(data, dict):
+            return data  # pydantic 内部処理（model instance 渡し）
+        if "output_schema" not in data:
+            return data  # required フィールドバリデーションが処理
+        schema_name = data["output_schema"]
+        if not isinstance(schema_name, str):
+            raise ValueError(
+                f"output_schema must be a string, got {type(schema_name).__name__}"
+            )
+        try:
+            data["resolved_schema"] = get_schema(schema_name)
+        except SchemaNotFoundError as e:
+            raise ValueError(str(e)) from None
         return data
 
 
@@ -159,5 +166,5 @@ class LoadResult(HachimokuBaseModel):
     呼び出し元がエラー情報の表示方法を決定できる。
     """
 
-    agents: list[AgentDefinition]
-    errors: list[LoadError] = Field(default_factory=list)
+    agents: tuple[AgentDefinition, ...]
+    errors: tuple[LoadError, ...] = ()
