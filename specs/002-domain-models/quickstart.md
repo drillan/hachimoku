@@ -86,6 +86,7 @@ from hachimoku.models import (
     AgentError,
     AgentResult,
     ReviewReport,
+    ScoredIssues,
     determine_exit_code,
     get_schema,
 )
