@@ -882,6 +882,7 @@ version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "claudecode-model" },
+    { name = "pydantic" },
     { name = "typer" },
 ]
 
@@ -896,6 +897,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "claudecode-model", git = "https://github.com/drillan/claudecode-model.git" },
+    { name = "pydantic", specifier = ">=2.12.5" },
     { name = "typer", specifier = ">=0.21.1" },
 ]
 

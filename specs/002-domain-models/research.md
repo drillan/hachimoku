@@ -82,7 +82,7 @@ class Severity(StrEnum):
     NITPICK = "Nitpick"
 ```
 
-`StrEnum` を使用することで `Severity("Critical")` と `Severity("critical")` の両方が動作する...ただし大文字小文字非依存は `StrEnum` 単体では不可能。`@field_validator` で正規化が必要。
+`StrEnum` 単体では `Severity("critical")` は `ValueError` となり、大文字小文字非依存の入力を受け付けない。Pydantic モデルのフィールドとして使用する際に `@field_validator(mode="before")` で入力値を PascalCase に正規化することで、大文字小文字非依存を実現する。
 
 ## 4. SCHEMA_REGISTRY の設計
 
@@ -104,9 +104,10 @@ class Severity(StrEnum):
 以下の継承階層を採用:
 
 ```
+Severity (StrEnum) ← HachimokuBaseModel とは独立。比較演算を SEVERITY_ORDER でカスタム実装
+
 BaseModel (pydantic)
 └── HachimokuBaseModel (extra="forbid" 共通設定)
-    ├── Severity (StrEnum, 独立)
     ├── FileLocation
     ├── ReviewIssue
     ├── AgentSuccess / AgentError / AgentTimeout
@@ -134,7 +135,7 @@ BaseModel (pydantic)
 ## 6. Severity → 終了コードマッピング
 
 ### Decision
-`Severity` クラスに `to_exit_code()` メソッドとして実装するのではなく、モジュールレベル関数 `severity_to_exit_code()` として定義する。
+`Severity` クラスに `to_exit_code()` メソッドとして実装するのではなく、モジュールレベル関数 `determine_exit_code()` として定義する。
 
 ### Rationale
 - 終了コードの決定は「レビュー結果全体の最大重大度」から行うため、個別 Severity のメソッドではなくリスト操作が必要

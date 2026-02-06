@@ -15,13 +15,25 @@ classDiagram
         IMPORTANT = "Important"
         SUGGESTION = "Suggestion"
         NITPICK = "Nitpick"
+        +__lt__(other) bool
+        +__le__(other) bool
+        +__gt__(other) bool
+        +__ge__(other) bool
     }
 
-    class ExitCode {
-        <<IntEnum>>
-        SUCCESS = 0
-        CRITICAL_FOUND = 1
-        IMPORTANT_FOUND = 2
+    class SEVERITY_ORDER {
+        <<constant>>
+        Nitpick = 0
+        Suggestion = 1
+        Important = 2
+        Critical = 3
+    }
+
+    class ExitCodeConstants {
+        <<constant>>
+        EXIT_CODE_SUCCESS = 0
+        EXIT_CODE_CRITICAL = 1
+        EXIT_CODE_IMPORTANT = 2
     }
 
     class FileLocation {
@@ -66,10 +78,7 @@ classDiagram
 
     class ReviewReport {
         +results: list[AgentResult]
-        +total_issues: int ≥ 0
-        +max_severity: Severity | None
-        +total_elapsed_time: float ≥ 0
-        +total_cost: CostInfo | None
+        +summary: ReviewSummary
     }
 
     class BaseAgentOutput {
@@ -78,20 +87,18 @@ classDiagram
     }
 
     class ScoredIssues {
-        +issues: list[ReviewIssue]
         +overall_score: float 0.0-10.0
     }
 
     class SeverityClassified {
-        +issues: list[ReviewIssue]
         +critical_issues: list[ReviewIssue]
         +important_issues: list[ReviewIssue]
         +suggestion_issues: list[ReviewIssue]
         +nitpick_issues: list[ReviewIssue]
+        +issues: list[ReviewIssue] «computed_field»
     }
 
     class TestGapAssessment {
-        +issues: list[ReviewIssue]
         +coverage_gaps: list[CoverageGap]
         +risk_level: Severity
     }
@@ -103,7 +110,6 @@ classDiagram
     }
 
     class MultiDimensionalAnalysis {
-        +issues: list[ReviewIssue]
         +dimensions: list[DimensionScore]
     }
 
@@ -114,12 +120,10 @@ classDiagram
     }
 
     class CategoryClassification {
-        +issues: list[ReviewIssue]
         +categories: dict[str, list[ReviewIssue]]
     }
 
     class ImprovementSuggestions {
-        +issues: list[ReviewIssue]
         +suggestions: list[ImprovementItem]
     }
 
@@ -139,7 +143,7 @@ classDiagram
 
     class DiffReviewRecord {
         +review_mode: Literal["diff"] = "diff"
-        +commit_hash: str (40文字hex)
+        +commit_hash: CommitHash
         +branch_name: str
         +reviewed_at: datetime
         +results: list[AgentResult]
@@ -148,7 +152,7 @@ classDiagram
 
     class PRReviewRecord {
         +review_mode: Literal["pr"] = "pr"
-        +commit_hash: str (40文字hex)
+        +commit_hash: CommitHash
         +pr_number: int ≥ 1
         +branch_name: str
         +reviewed_at: datetime
@@ -199,10 +203,18 @@ classDiagram
     DiffReviewRecord --> ReviewSummary
     PRReviewRecord --> ReviewSummary
     FileReviewRecord --> ReviewSummary
-    Severity --> ExitCode : severity_to_exit_code()
+    Severity --> SEVERITY_ORDER : 順序比較
+    Severity --> ExitCodeConstants : determine_exit_code()
     TestGapAssessment --> CoverageGap
     MultiDimensionalAnalysis --> DimensionScore
     ImprovementSuggestions --> ImprovementItem
+```
+
+## 型エイリアス
+
+```python
+# コミットハッシュ（40文字の16進数文字列）
+CommitHash = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
 ```
 
 ## Union 型定義
@@ -297,17 +309,14 @@ ReviewHistoryRecord = Annotated[
 | フィールド | 型 | 必須 | 制約 |
 |-----------|---|------|------|
 | results | list[AgentResult] | Yes | 空リスト許容（SC-006 対応） |
-| total_issues | int | Yes | 非負（`ge=0`） |
-| max_severity | Severity \| None | Yes | 問題なしの場合 None |
-| total_elapsed_time | float | Yes | 非負（`ge=0.0`） |
-| total_cost | CostInfo \| None | No | デフォルト None |
+| summary | ReviewSummary | Yes | - |
 
 ### DiffReviewRecord
 
 | フィールド | 型 | 必須 | 制約 |
 |-----------|---|------|------|
 | review_mode | Literal["diff"] | Yes | 固定値 "diff"（判別キー） |
-| commit_hash | str | Yes | 40文字の16進数文字列（正規表現: `^[0-9a-f]{40}$`） |
+| commit_hash | CommitHash | Yes | 40文字の16進数文字列（正規表現: `^[0-9a-f]{40}$`） |
 | branch_name | str | Yes | 空文字列不可 |
 | reviewed_at | datetime | Yes | - |
 | results | list[AgentResult] | Yes | - |
@@ -318,7 +327,7 @@ ReviewHistoryRecord = Annotated[
 | フィールド | 型 | 必須 | 制約 |
 |-----------|---|------|------|
 | review_mode | Literal["pr"] | Yes | 固定値 "pr"（判別キー） |
-| commit_hash | str | Yes | 40文字の16進数文字列 |
+| commit_hash | CommitHash | Yes | 40文字の16進数文字列 |
 | pr_number | int | Yes | 正の整数（`ge=1`） |
 | branch_name | str | Yes | 空文字列不可 |
 | reviewed_at | datetime | Yes | - |

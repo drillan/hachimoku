@@ -4,6 +4,7 @@
 実装は src/hachimoku/models/ に配置される。
 
 NOTE: このファイルは仕様ドキュメントであり、実行可能コードではない。
+フィールド制約は Field() で型レベルに表現し、実装時にそのまま使用する。
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 # =============================================================================
@@ -30,14 +31,42 @@ class HachimokuBaseModel(BaseModel):
 # Severity（重大度）
 # =============================================================================
 
+# Severity の順序定義（数値が大きいほど重大度が高い）
+SEVERITY_ORDER: dict[str, int] = {
+    "Nitpick": 0,
+    "Suggestion": 1,
+    "Important": 2,
+    "Critical": 3,
+}
+
 
 class Severity(StrEnum):
-    """レビュー問題の重大度。PascalCase で内部保持。入力は大文字小文字非依存。"""
+    """レビュー問題の重大度。PascalCase で内部保持。
+
+    入力は大文字小文字非依存。Pydantic モデルのフィールドとして使用する場合、
+    ``@field_validator(mode="before")`` で入力値を PascalCase に正規化する。
+
+    順序関係: Critical > Important > Suggestion > Nitpick
+    比較演算は SEVERITY_ORDER に基づくカスタム実装を提供する。
+    """
 
     CRITICAL = "Critical"
     IMPORTANT = "Important"
     SUGGESTION = "Suggestion"
     NITPICK = "Nitpick"
+
+    def __lt__(self, other: object) -> bool:
+        """重大度の順序比較。SEVERITY_ORDER に基づく。"""
+        ...
+
+    def __le__(self, other: object) -> bool:
+        ...
+
+    def __gt__(self, other: object) -> bool:
+        ...
+
+    def __ge__(self, other: object) -> bool:
+        ...
 
 
 # 終了コード定数
@@ -69,16 +98,16 @@ def determine_exit_code(max_severity: Severity | None) -> int:
 class FileLocation(HachimokuBaseModel):
     """ファイル内位置。ファイルパスと行番号の組。"""
 
-    file_path: str  # min_length=1
-    line_number: int  # ge=1
+    file_path: str = Field(min_length=1)
+    line_number: int = Field(ge=1)
 
 
 class ReviewIssue(HachimokuBaseModel):
     """エージェントが検出したレビュー問題の統一表現。"""
 
-    agent_name: str  # min_length=1
+    agent_name: str = Field(min_length=1)
     severity: Severity
-    description: str  # min_length=1
+    description: str = Field(min_length=1)
     location: FileLocation | None = None
     suggestion: str | None = None
     category: str | None = None
@@ -92,18 +121,18 @@ class ReviewIssue(HachimokuBaseModel):
 class CostInfo(HachimokuBaseModel):
     """LLM 実行コスト情報。"""
 
-    input_tokens: int  # ge=0
-    output_tokens: int  # ge=0
-    total_cost: float  # ge=0.0
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    total_cost: float = Field(ge=0.0)
 
 
 class AgentSuccess(HachimokuBaseModel):
     """エージェント実行の成功結果。判別キー: status="success"。"""
 
     status: Literal["success"] = "success"
-    agent_name: str  # min_length=1
+    agent_name: str = Field(min_length=1)
     issues: list[ReviewIssue]
-    elapsed_time: float  # gt=0
+    elapsed_time: float = Field(gt=0)
     cost: CostInfo | None = None
 
 
@@ -111,16 +140,16 @@ class AgentError(HachimokuBaseModel):
     """エージェント実行のエラー結果。判別キー: status="error"。"""
 
     status: Literal["error"] = "error"
-    agent_name: str  # min_length=1
-    error_message: str  # min_length=1
+    agent_name: str = Field(min_length=1)
+    error_message: str = Field(min_length=1)
 
 
 class AgentTimeout(HachimokuBaseModel):
     """エージェント実行のタイムアウト結果。判別キー: status="timeout"。"""
 
     status: Literal["timeout"] = "timeout"
-    agent_name: str  # min_length=1
-    timeout_seconds: float  # gt=0
+    agent_name: str = Field(min_length=1)
+    timeout_seconds: float = Field(gt=0)
 
 
 AgentResult = Annotated[
@@ -135,11 +164,11 @@ AgentResult = Annotated[
 
 
 class ReviewSummary(HachimokuBaseModel):
-    """レビュー結果の全体サマリー。"""
+    """レビュー結果の全体サマリー。ReviewReport および ReviewHistoryRecord で共有。"""
 
-    total_issues: int  # ge=0
+    total_issues: int = Field(ge=0)
     max_severity: Severity | None
-    total_elapsed_time: float  # ge=0.0
+    total_elapsed_time: float = Field(ge=0.0)
     total_cost: CostInfo | None = None
 
 
@@ -147,10 +176,7 @@ class ReviewReport(HachimokuBaseModel):
     """全エージェントの結果を集約したレビューレポート。"""
 
     results: list[AgentResult]
-    total_issues: int  # ge=0
-    max_severity: Severity | None
-    total_elapsed_time: float  # ge=0.0
-    total_cost: CostInfo | None = None
+    summary: ReviewSummary
 
 
 # =============================================================================
@@ -167,23 +193,33 @@ class BaseAgentOutput(HachimokuBaseModel):
 class ScoredIssues(BaseAgentOutput):
     """スコア付き問題リスト。code-reviewer 等が使用。"""
 
-    overall_score: float  # ge=0.0, le=10.0
+    overall_score: float = Field(ge=0.0, le=10.0)
 
 
 class SeverityClassified(BaseAgentOutput):
-    """重大度分類問題リスト。silent-failure-hunter 等が使用。"""
+    """重大度分類問題リスト。silent-failure-hunter 等が使用。
+
+    分類リスト（critical_issues 等）が LLM 出力として受け取るフィールド。
+    issues は分類リストから computed_field で自動導出し、整合性を構造的に保証する。
+    """
 
     critical_issues: list[ReviewIssue]
     important_issues: list[ReviewIssue]
     suggestion_issues: list[ReviewIssue]
     nitpick_issues: list[ReviewIssue]
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def issues(self) -> list[ReviewIssue]:
+        """全分類リストを結合して issues を導出する。"""
+        ...
+
 
 class CoverageGap(HachimokuBaseModel):
     """テストカバレッジの欠落。"""
 
-    file_path: str  # min_length=1
-    description: str  # min_length=1
+    file_path: str = Field(min_length=1)
+    description: str = Field(min_length=1)
     priority: Severity
 
 
@@ -197,9 +233,9 @@ class TestGapAssessment(BaseAgentOutput):
 class DimensionScore(HachimokuBaseModel):
     """評価軸のスコア。"""
 
-    name: str  # min_length=1
-    score: float  # ge=0.0, le=10.0
-    description: str  # min_length=1
+    name: str = Field(min_length=1)
+    score: float = Field(ge=0.0, le=10.0)
+    description: str = Field(min_length=1)
 
 
 class MultiDimensionalAnalysis(BaseAgentOutput):
@@ -217,8 +253,8 @@ class CategoryClassification(BaseAgentOutput):
 class ImprovementItem(HachimokuBaseModel):
     """改善提案の個別項目。"""
 
-    title: str  # min_length=1
-    description: str  # min_length=1
+    title: str = Field(min_length=1)
+    description: str = Field(min_length=1)
     priority: Severity
     location: FileLocation | None = None
 
@@ -268,13 +304,16 @@ def register_schema(name: str, schema: type[BaseAgentOutput]) -> None:
 # ReviewHistoryRecord（判別共用体）
 # =============================================================================
 
+# コミットハッシュの型エイリアス（40文字の16進数文字列）
+CommitHash = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
+
 
 class DiffReviewRecord(HachimokuBaseModel):
     """diff レビューの履歴レコード。判別キー: review_mode="diff"。"""
 
     review_mode: Literal["diff"] = "diff"
-    commit_hash: str  # 40文字の16進数文字列
-    branch_name: str  # min_length=1
+    commit_hash: CommitHash
+    branch_name: str = Field(min_length=1)
     reviewed_at: datetime
     results: list[AgentResult]
     summary: ReviewSummary
@@ -284,9 +323,9 @@ class PRReviewRecord(HachimokuBaseModel):
     """PR レビューの履歴レコード。判別キー: review_mode="pr"。"""
 
     review_mode: Literal["pr"] = "pr"
-    commit_hash: str  # 40文字の16進数文字列
-    pr_number: int  # ge=1
-    branch_name: str  # min_length=1
+    commit_hash: CommitHash
+    pr_number: int = Field(ge=1)
+    branch_name: str = Field(min_length=1)
     reviewed_at: datetime
     results: list[AgentResult]
     summary: ReviewSummary
@@ -296,9 +335,9 @@ class FileReviewRecord(HachimokuBaseModel):
     """file レビューの履歴レコード。判別キー: review_mode="file"。"""
 
     review_mode: Literal["file"] = "file"
-    file_paths: list[str]  # min_length=1, 重複排除バリデータ
+    file_paths: list[str] = Field(min_length=1)  # 重複排除バリデータで保証
     reviewed_at: datetime
-    working_directory: str  # 絶対パスバリデータ
+    working_directory: str  # 絶対パスバリデータで検証
     results: list[AgentResult]
     summary: ReviewSummary
 

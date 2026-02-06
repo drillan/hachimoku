@@ -23,15 +23,23 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Constitution ファイルがテンプレート状態（プレースホルダーのみ）のため、具体的なゲート検証は該当なし。CLAUDE.md のルール（フォールバック禁止、TDD、型安全、DRY）を遵守する。
+hachimoku Constitution v1.0.0 に基づくゲート検証結果:
 
-**適用ルール**:
-- フォールバック禁止: エラー時にデフォルト値で続行しない → 全モデルで `extra="forbid"`、未登録スキーマは例外送出
-- TDD: テスト先行で実装
-- 型安全: 全関数に型注釈、`Any` 型禁止、`| None` 構文優先
-- DRY: 共通ベースモデル（`HachimokuBaseModel`）で `ConfigDict` を一元管理
+| Article | 原則 | 適用結果 | 備考 |
+|---------|------|---------|------|
+| Art.1 テストファースト | **非交渉的** | PASS | TDD サイクルを quickstart.md に定義。実装時に Red→Green→Refactor を厳守 |
+| Art.2 ドキュメント整合性 | **非交渉的** | PASS | spec.md → plan.md → data-model.md → contracts/models.py の一貫性を維持 |
+| Art.3 CLI 設計準拠 | 該当 | N/A | 本仕様はモデル定義のみ。CLI は 006-cli-interface が担当 |
+| Art.4 シンプルさ | 該当 | PASS | 単一パッケージ構成。不要なラッパーなし。Pydantic の機能を直接使用 |
+| Art.5 コード品質基準 | **非交渉的** | PASS | ruff + mypy をコミット前に実行。quickstart.md に手順記載 |
+| Art.6 データ正確性 | **非交渉的** | PASS | マジックナンバー禁止（終了コードは名前付き定数）。暗黙的デフォルト値なし |
+| Art.7 DRY 原則 | **非交渉的** | PASS | `HachimokuBaseModel` で ConfigDict 一元管理。`ReviewSummary` で共通サマリーを共有。`CommitHash` 型エイリアスで重複排除 |
+| Art.8 リファクタリング | 該当 | PASS | 新規実装のため V2 クラスなし |
+| Art.9 Python 型安全性 | **非交渉的** | PASS | 全フィールドに型注釈。`Any` 型不使用。`\| None` 構文優先 |
+| Art.10 Docstring 標準 | 推奨 | PASS | Google-style docstring を contracts/models.py に記載 |
+| Art.11 命名規則 | **非交渉的** | PASS | ブランチ名 `002-domain-models` は規約準拠 |
 
-**結果**: ゲート通過（違反なし）
+**結果**: 全ゲート通過（違反なし）
 
 ## Project Structure
 

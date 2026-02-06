@@ -10,10 +10,10 @@
 
 ```bash
 # 依存関係のインストール（pydantic は pydantic-ai 経由で導入済み）
-uv --directory /home/driller/repo/hachimoku sync
+uv --directory $PROJECT_ROOT sync
 
 # pytest を dev dependency に追加（未追加の場合）
-uv --directory /home/driller/repo/hachimoku add --dev pytest
+uv --directory $PROJECT_ROOT add --dev pytest
 ```
 
 ## ディレクトリ構成
@@ -57,20 +57,20 @@ tests/unit/models/
 
 ```bash
 # 1. テスト作成後、Red 確認
-uv --directory /home/driller/repo/hachimoku run pytest tests/unit/models/test_severity.py -v
+uv --directory $PROJECT_ROOT run pytest tests/unit/models/test_severity.py -v
 # → FAILED (期待通り)
 
 # 2. 実装後、Green 確認
-uv --directory /home/driller/repo/hachimoku run pytest tests/unit/models/test_severity.py -v
+uv --directory $PROJECT_ROOT run pytest tests/unit/models/test_severity.py -v
 # → PASSED
 
 # 3. 全テスト実行
-uv --directory /home/driller/repo/hachimoku run pytest tests/unit/models/ -v
+uv --directory $PROJECT_ROOT run pytest tests/unit/models/ -v
 
 # 4. 品質チェック
-uv --directory /home/driller/repo/hachimoku run ruff check --fix src/hachimoku/models/
-uv --directory /home/driller/repo/hachimoku run ruff format src/hachimoku/models/
-uv --directory /home/driller/repo/hachimoku run mypy src/hachimoku/models/
+uv --directory $PROJECT_ROOT run ruff check --fix src/hachimoku/models/
+uv --directory $PROJECT_ROOT run ruff format src/hachimoku/models/
+uv --directory $PROJECT_ROOT run mypy src/hachimoku/models/
 ```
 
 ## 使用例
@@ -79,6 +79,7 @@ uv --directory /home/driller/repo/hachimoku run mypy src/hachimoku/models/
 from hachimoku.models import (
     Severity,
     ReviewIssue,
+    ReviewSummary,
     FileLocation,
     AgentSuccess,
     AgentError,
@@ -116,16 +117,18 @@ error: AgentResult = AgentError(
     error_message="API rate limit exceeded",
 )
 
-# ReviewReport
+# ReviewReport（summary に ReviewSummary を委譲）
 report = ReviewReport(
     results=[success, error],
-    total_issues=1,
-    max_severity=Severity.CRITICAL,
-    total_elapsed_time=1.5,
+    summary=ReviewSummary(
+        total_issues=1,
+        max_severity=Severity.CRITICAL,
+        total_elapsed_time=1.5,
+    ),
 )
 
 # 終了コード決定
-exit_code = determine_exit_code(report.max_severity)
+exit_code = determine_exit_code(report.summary.max_severity)
 assert exit_code == 1  # Critical → 1
 
 # SCHEMA_REGISTRY

@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "claudecode-model",
+    "pydantic>=2.12.5",
     "typer>=0.21.1",
 ]
 
