@@ -22,7 +22,7 @@ def _matches(
 ) -> bool:
     """適用ルールを評価し、エージェントが適用されるかを判定する。
 
-    評価ロジック（OR 短絡評価）:
+    評価ロジック（OR 条件、早期リターン）:
     1. always=True → True
     2. file_patterns のいずれかにファイル名（basename）がマッチ → True
     3. content_patterns のいずれかにコンテンツがマッチ → True

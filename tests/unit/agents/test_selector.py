@@ -75,6 +75,15 @@ class TestMatchesAlways:
         assert _matches(rule, [], "some content") is True
         assert _matches(rule, [], "") is True
 
+    def test_always_true_overrides_non_matching_conditions(self) -> None:
+        """always=true では file_patterns/content_patterns が不一致でも True。"""
+        rule = ApplicabilityRule(
+            always=True,
+            file_patterns=("*.py",),
+            content_patterns=(r"class\s+\w+",),
+        )
+        assert _matches(rule, ["main.js"], "no match here") is True
+
 
 # =============================================================================
 # T025: _matches — file_patterns マッチ
@@ -119,6 +128,11 @@ class TestMatchesFilePatterns:
         """file_paths が空リストの場合は False。"""
         rule = ApplicabilityRule(file_patterns=("*.py",))
         assert _matches(rule, [], "") is False
+
+    def test_directory_pattern_does_not_match_basename(self) -> None:
+        """ディレクトリ付きパターンは basename マッチのため一致しない。"""
+        rule = ApplicabilityRule(file_patterns=("src/*.py",))
+        assert _matches(rule, ["src/main.py"], "") is False
 
 
 # =============================================================================
@@ -230,9 +244,7 @@ class TestSelectAgents:
         agents = [always_agent, py_agent]
 
         result = select_agents(agents, ["main.py"], "")
-        names = [a.name for a in result]
-        assert "always-on" in names
-        assert "py-only" in names
+        assert {a.name for a in result} == {"always-on", "py-only"}
 
     def test_excludes_non_matching_agents(self) -> None:
         """マッチしないエージェントは除外する。"""
