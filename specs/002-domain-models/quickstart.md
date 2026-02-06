@@ -32,6 +32,7 @@ src/hachimoku/models/
 └── history.py               # ReviewHistoryRecord
 
 tests/unit/models/
+├── test_base.py
 ├── test_severity.py
 ├── test_review.py
 ├── test_agent_result.py

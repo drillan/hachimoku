@@ -101,7 +101,7 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
   - **AgentError**: status="error"、エージェント名、エラー情報（必須）
   - **AgentTimeout**: status="timeout"、エージェント名、タイムアウト情報（必須）
   - **AgentResult** はこれら3型の Union 型とする
-- **FR-DM-004**: システムは全エージェントの結果を集約したレビューレポート（ReviewReport）を表現するモデルを提供しなければならない。レポートは AgentResult のリスト、エージェントごとのステータス・所要時間・コスト情報を含み、重大度別の ReviewIssue グループ化は AgentResult から計算導出するものとする
+- **FR-DM-004**: システムは全エージェントの結果を集約したレビューレポート（ReviewReport）を表現するモデルを提供しなければならない。レポートは AgentResult のリストと全体サマリー（ReviewSummary: 総問題数、最大重大度、総実行時間、総コスト情報）を含む。重大度別の ReviewIssue グループ化は AgentResult から計算導出するものとする
 - **FR-DM-005**: システムは共通ベースモデル（BaseAgentOutput: ReviewIssue リスト）を定義し、以下の6種の出力スキーマはすべてこのベースモデルを継承しなければならない。各スキーマは固有フィールドを追加する
   - **ScoredIssues**: スコア付き問題リスト（code-reviewer 等が使用）
   - **SeverityClassified**: 重大度分類問題リスト（silent-failure-hunter 等が使用）
@@ -131,7 +131,8 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - **AgentError（エージェントエラー結果）**: 判別共用体のエラーバリアント。status="error"（判別キー）、エージェント名、エラー情報（必須）を持つ
 - **AgentTimeout（エージェントタイムアウト結果）**: 判別共用体のタイムアウトバリアント。status="timeout"（判別キー）、エージェント名、タイムアウト情報（必須）を持つ
 - **AgentResult（エージェント結果）**: AgentSuccess | AgentError | AgentTimeout の判別共用体（Discriminated Union）。status フィールドの固定値で型を一意に特定する
-- **ReviewReport（レビューレポート）**: 全エージェントの結果を集約した最終出力。AgentResult のリスト、全体サマリー（総問題数、最大重大度、総実行時間、総コスト）を含む。重大度別の ReviewIssue グループ化は AgentResult から計算導出する
+- **ReviewReport（レビューレポート）**: 全エージェントの結果を集約した最終出力。AgentResult のリストと全体サマリー（ReviewSummary）を含む。重大度別の ReviewIssue グループ化は AgentResult から計算導出する
+- **ReviewSummary（レビューサマリー）**: レビュー結果の全体サマリー情報。ReviewReport および全ての ReviewHistoryRecord バリアント（DiffReviewRecord、PRReviewRecord、FileReviewRecord）で共有される共通エンティティ。総問題数（非負整数）、最大重大度（Severity | None）、総実行時間（非負浮動小数点）、総コスト情報（CostInfo、オプション）を持つ
 - **DiffReviewRecord（diff レビューレコード）**: 判別共用体のバリアント。review_mode="diff"（判別キー）、コミットハッシュ（完全40文字の16進数文字列）、ブランチ名、レビュー実行日時、AgentResult リスト、全体サマリーを持つ
 - **PRReviewRecord（PR レビューレコード）**: 判別共用体のバリアント。review_mode="pr"（判別キー）、コミットハッシュ（完全40文字の16進数文字列）、PR 番号、ブランチ名、レビュー実行日時、AgentResult リスト、全体サマリーを持つ
 - **FileReviewRecord（file レビューレコード）**: 判別共用体のバリアント。review_mode="file"（判別キー）、ファイルパスリスト（1要素以上、重複排除済み）、レビュー実行日時、作業ディレクトリ（絶対パス、相対パスはバリデーションエラー）、AgentResult リスト、全体サマリーを持つ
