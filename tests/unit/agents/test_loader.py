@@ -17,7 +17,12 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from hachimoku.agents.loader import _load_single_agent, load_builtin_agents
+from hachimoku.agents.loader import (
+    _load_single_agent,
+    load_agents,
+    load_builtin_agents,
+    load_custom_agents,
+)
 from hachimoku.agents.models import AgentDefinition, LoadResult, Phase
 
 
@@ -414,3 +419,110 @@ class TestBuiltinAgentApplicability:
     ) -> None:
         agent = _find_agent(builtin_agents, "code-simplifier")
         assert agent.applicability.always is True
+
+
+# =============================================================================
+# T030: load_custom_agents
+# =============================================================================
+
+
+class TestLoadCustomAgents:
+    """load_custom_agents のテストを検証。"""
+
+    def test_loads_valid_custom_agent(self, tmp_path: Path) -> None:
+        """正常なカスタム定義が読み込まれる。"""
+        _write_toml(tmp_path, "custom-agent.toml", VALID_TOML)
+        result = load_custom_agents(tmp_path)
+        assert len(result.agents) == 1
+        assert result.agents[0].name == "test-agent"
+
+    def test_nonexistent_dir_returns_empty(self, tmp_path: Path) -> None:
+        """存在しないディレクトリで空 LoadResult が返される。"""
+        result = load_custom_agents(tmp_path / "nonexistent")
+        assert result.agents == ()
+        assert result.errors == ()
+
+    def test_ignores_non_toml_files(self, tmp_path: Path) -> None:
+        """.toml 以外のファイルは無視される。"""
+        _write_toml(tmp_path, "custom-agent.toml", VALID_TOML)
+        (tmp_path / "readme.txt").write_text("not a toml file")
+        (tmp_path / "script.py").write_text("print('hello')")
+        result = load_custom_agents(tmp_path)
+        assert len(result.agents) == 1
+        assert result.errors == ()
+
+    def test_partial_failure_collects_error(self, tmp_path: Path) -> None:
+        """不正な TOML がある場合、他の正常定義は読み込まれエラーが収集される。"""
+        _write_toml(tmp_path, "good-agent.toml", VALID_TOML)
+        _write_toml(tmp_path, "bad-agent.toml", 'name = "unclosed')
+        result = load_custom_agents(tmp_path)
+        assert len(result.agents) == 1
+        assert len(result.errors) == 1
+
+    def test_error_source_contains_filename(self, tmp_path: Path) -> None:
+        """LoadError.source にファイル名が設定される。"""
+        _write_toml(tmp_path, "broken.toml", 'name = "unclosed')
+        result = load_custom_agents(tmp_path)
+        assert result.errors[0].source == "broken.toml"
+
+    def test_multiple_valid_custom_agents(self, tmp_path: Path) -> None:
+        """複数の正常カスタム定義が全件読み込まれる。"""
+        agent1 = VALID_TOML.replace("test-agent", "custom-one")
+        agent2 = VALID_TOML.replace("test-agent", "custom-two")
+        _write_toml(tmp_path, "custom-one.toml", agent1)
+        _write_toml(tmp_path, "custom-two.toml", agent2)
+        result = load_custom_agents(tmp_path)
+        assert len(result.agents) == 2
+        loaded_names = {a.name for a in result.agents}
+        assert loaded_names == {"custom-one", "custom-two"}
+
+
+# =============================================================================
+# T031: load_agents — 統合テスト
+# =============================================================================
+
+
+class TestLoadAgents:
+    """load_agents の統合テストを検証。"""
+
+    def test_builtin_only_when_no_custom_dir(self) -> None:
+        """custom_dir=None でビルトインのみが読み込まれる。"""
+        result = load_agents(custom_dir=None)
+        assert len(result.agents) == 6
+        loaded_names = {a.name for a in result.agents}
+        assert loaded_names == BUILTIN_AGENT_NAMES
+
+    def test_custom_added_to_builtin(self, tmp_path: Path) -> None:
+        """新名前のカスタムがビルトインに追加される。"""
+        _write_toml(tmp_path, "my-custom.toml", VALID_TOML)
+        result = load_agents(custom_dir=tmp_path)
+        assert len(result.agents) == 7
+        loaded_names = {a.name for a in result.agents}
+        assert "test-agent" in loaded_names
+        assert BUILTIN_AGENT_NAMES.issubset(loaded_names)
+
+    def test_custom_overrides_builtin(self, tmp_path: Path) -> None:
+        """同名のカスタムがビルトインを上書きする。"""
+        override_toml = VALID_TOML.replace("test-agent", "code-reviewer").replace(
+            "A test agent", "Custom code reviewer"
+        )
+        _write_toml(tmp_path, "code-reviewer.toml", override_toml)
+        result = load_agents(custom_dir=tmp_path)
+        agent = _find_agent(result.agents, "code-reviewer")
+        assert agent.description == "Custom code reviewer"
+        assert len(result.agents) == 6
+
+    def test_invalid_custom_does_not_override_builtin(self, tmp_path: Path) -> None:
+        """不正なカスタムが同名ビルトインを上書きしない。"""
+        _write_toml(tmp_path, "code-reviewer.toml", 'name = "unclosed')
+        result = load_agents(custom_dir=tmp_path)
+        agent = _find_agent(result.agents, "code-reviewer")
+        assert agent.description != ""
+        assert len(result.errors) >= 1
+
+    def test_errors_merged(self, tmp_path: Path) -> None:
+        """ビルトインとカスタムのエラーが統合される。"""
+        _write_toml(tmp_path, "bad.toml", 'name = "unclosed')
+        result = load_agents(custom_dir=tmp_path)
+        assert len(result.errors) >= 1
+        assert any("bad.toml" in e.source for e in result.errors)
