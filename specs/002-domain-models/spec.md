@@ -88,7 +88,7 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - ReviewReport に AgentResult が0件の場合でもレポートは生成可能である（全エージェント失敗時の部分レポート対応、親仕様 SC-006）
 - AgentResult の JSON デシリアライズ時、判別キー（status フィールド）の値により正しいモデル（AgentSuccess/AgentError/AgentTimeout）が自動選択される
 - ReviewHistoryRecord の JSON デシリアライズ時、判別キー（review_mode フィールド）の値により正しいモデル（DiffReviewRecord/PRReviewRecord/FileReviewRecord）が自動選択される
-- FileReviewRecord の作業ディレクトリは絶対パスとして保存される。相対パスで指定されたファイルパスも、ファイルパスリスト内では作業ディレクトリからの相対パスとして保持される
+- FileReviewRecord の作業ディレクトリは絶対パスとして保存される。ファイルパスリスト内のパスは指定形式に依存する: 相対パスで指定されたファイルは作業ディレクトリからの相対パスとして保持し、絶対パスで指定されたファイルはそのまま絶対パスとして保持する
 
 ## Requirements *(mandatory)*
 
@@ -115,9 +115,9 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - **FR-DM-009**: 全モデルおよびスキーマは追加フィールドを拒否する厳格モードで動作しなければならない（想定外のデータ混入を防止する）
 - **FR-DM-010**: Severity の列挙値はすべての入力経路で大文字・小文字を区別せず受け付けなければならない。内部表現は PascalCase（Critical, Important, Suggestion, Nitpick）で統一して保持する
 - **FR-DM-011**: JSONL 蓄積用のレビュー履歴レコード（ReviewHistoryRecord）を判別共用体（Discriminated Union）として定義しなければならない。以下の3つのバリアントモデルを定義し、判別キー（`review_mode` フィールドの固定値）で型を一意に特定する:
-  - **DiffReviewRecord**: review_mode="diff"、コミットハッシュ（必須）、ブランチ名（必須）、レビュー実行日時（必須）、AgentResult リスト（必須）、全体サマリー（必須）
-  - **PRReviewRecord**: review_mode="pr"、コミットハッシュ（必須）、PR 番号（必須）、レビュー実行日時（必須）、AgentResult リスト（必須）、全体サマリー（必須）
-  - **FileReviewRecord**: review_mode="file"、ファイルパスリスト（必須）、レビュー実行日時（必須）、作業ディレクトリ（必須、絶対パス）、AgentResult リスト（必須）、全体サマリー（必須）
+  - **DiffReviewRecord**: review_mode="diff"、コミットハッシュ（必須、完全40文字の16進数文字列）、ブランチ名（必須）、レビュー実行日時（必須）、AgentResult リスト（必須）、全体サマリー（必須）
+  - **PRReviewRecord**: review_mode="pr"、コミットハッシュ（必須、完全40文字の16進数文字列）、PR 番号（必須）、ブランチ名（必須）、レビュー実行日時（必須）、AgentResult リスト（必須）、全体サマリー（必須）
+  - **FileReviewRecord**: review_mode="file"、ファイルパスリスト（必須、1要素以上、重複排除済み）、レビュー実行日時（必須）、作業ディレクトリ（必須、絶対パス、相対パスはバリデーションエラー）、AgentResult リスト（必須）、全体サマリー（必須）
   - **ReviewHistoryRecord** はこれら3型の Union 型とする
 
   これにより各レビューモードで不要なフィールドが存在しない型安全な設計を実現する（親仕様 FR-026, FR-030 の基盤）
@@ -132,9 +132,9 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - **AgentTimeout（エージェントタイムアウト結果）**: 判別共用体のタイムアウトバリアント。status="timeout"（判別キー）、エージェント名、タイムアウト情報（必須）を持つ
 - **AgentResult（エージェント結果）**: AgentSuccess | AgentError | AgentTimeout の判別共用体（Discriminated Union）。status フィールドの固定値で型を一意に特定する
 - **ReviewReport（レビューレポート）**: 全エージェントの結果を集約した最終出力。AgentResult のリスト、全体サマリー（総問題数、最大重大度、総実行時間、総コスト）を含む。重大度別の ReviewIssue グループ化は AgentResult から計算導出する
-- **DiffReviewRecord（diff レビューレコード）**: 判別共用体のバリアント。review_mode="diff"（判別キー）、コミットハッシュ、ブランチ名、レビュー実行日時、AgentResult リスト、全体サマリーを持つ
-- **PRReviewRecord（PR レビューレコード）**: 判別共用体のバリアント。review_mode="pr"（判別キー）、コミットハッシュ、PR 番号、レビュー実行日時、AgentResult リスト、全体サマリーを持つ
-- **FileReviewRecord（file レビューレコード）**: 判別共用体のバリアント。review_mode="file"（判別キー）、ファイルパスリスト、レビュー実行日時、作業ディレクトリ（絶対パス）、AgentResult リスト、全体サマリーを持つ
+- **DiffReviewRecord（diff レビューレコード）**: 判別共用体のバリアント。review_mode="diff"（判別キー）、コミットハッシュ（完全40文字の16進数文字列）、ブランチ名、レビュー実行日時、AgentResult リスト、全体サマリーを持つ
+- **PRReviewRecord（PR レビューレコード）**: 判別共用体のバリアント。review_mode="pr"（判別キー）、コミットハッシュ（完全40文字の16進数文字列）、PR 番号、ブランチ名、レビュー実行日時、AgentResult リスト、全体サマリーを持つ
+- **FileReviewRecord（file レビューレコード）**: 判別共用体のバリアント。review_mode="file"（判別キー）、ファイルパスリスト（1要素以上、重複排除済み）、レビュー実行日時、作業ディレクトリ（絶対パス、相対パスはバリデーションエラー）、AgentResult リスト、全体サマリーを持つ
 - **ReviewHistoryRecord（レビュー履歴レコード）**: DiffReviewRecord | PRReviewRecord | FileReviewRecord の判別共用体（Discriminated Union）。`review_mode` フィールドの固定値で型を一意に特定する。JSONL 蓄積時に使用される
 - **BaseAgentOutput（出力ベースモデル）**: 全出力スキーマの共通ベースモデル。ReviewIssue リストを共通属性として持つ。6種の出力スキーマはすべてこのベースを継承し、固有フィールドを追加する。ReviewReport への集約時に共通インターフェースとして機能する
 - **ScoredIssues（スコア付き問題）**: BaseAgentOutput を継承。数値スコアとレビュー問題のリストを組み合わせた出力スキーマ。コードレビューエージェント等が使用する
