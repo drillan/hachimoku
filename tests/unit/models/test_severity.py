@@ -59,6 +59,21 @@ class TestSeverityOrder:
     def test_nitpick_is_lowest(self) -> None:
         assert SEVERITY_ORDER["Nitpick"] == min(SEVERITY_ORDER.values())
 
+    def test_immutable(self) -> None:
+        """SEVERITY_ORDER は変更不可である。"""
+        with pytest.raises(TypeError):
+            SEVERITY_ORDER["Critical"] = -999  # type: ignore[index]
+
+    def test_all_severity_members_in_order_mapping(self) -> None:
+        """全 Severity メンバーが SEVERITY_ORDER に含まれている。"""
+        for member in Severity:
+            assert member.value in SEVERITY_ORDER
+
+    def test_order_mapping_covers_only_severity_members(self) -> None:
+        """SEVERITY_ORDER のキーは Severity メンバーと完全一致する。"""
+        severity_values = {member.value for member in Severity}
+        assert set(SEVERITY_ORDER.keys()) == severity_values
+
 
 class TestSeverityComparison:
     """Severity の順序比較（SEVERITY_ORDER 基準）を検証。"""
@@ -114,30 +129,55 @@ class TestSeverityComparison:
     def test_ne_different_value(self) -> None:
         assert Severity.CRITICAL != Severity.NITPICK
 
+    def test_sorted_ascending(self) -> None:
+        """sorted() が SEVERITY_ORDER に基づく昇順で動作する。"""
+        items = [
+            Severity.CRITICAL,
+            Severity.NITPICK,
+            Severity.IMPORTANT,
+            Severity.SUGGESTION,
+        ]
+        assert sorted(items) == [
+            Severity.NITPICK,
+            Severity.SUGGESTION,
+            Severity.IMPORTANT,
+            Severity.CRITICAL,
+        ]
+
+    def test_min_is_nitpick(self) -> None:
+        """min() が最低重大度 (Nitpick) を返す。"""
+        items = [Severity.CRITICAL, Severity.NITPICK, Severity.IMPORTANT]
+        assert min(items) == Severity.NITPICK
+
+    def test_max_is_critical(self) -> None:
+        """max() が最高重大度 (Critical) を返す。"""
+        items = [Severity.SUGGESTION, Severity.NITPICK, Severity.CRITICAL]
+        assert max(items) == Severity.CRITICAL
+
 
 class TestSeverityComparisonWithNonSeverity:
-    """非 Severity 型との比較で NotImplemented が返されることを検証。"""
+    """非 Severity 型との比較で TypeError が送出されることを検証。"""
 
-    def test_lt_with_string_returns_not_implemented(self) -> None:
-        result = Severity.CRITICAL.__lt__("Critical")
-        assert result is NotImplemented
+    def test_lt_with_string_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="'<' not supported"):
+            Severity.CRITICAL < "Critical"  # type: ignore[operator]  # noqa: B015
 
-    def test_le_with_string_returns_not_implemented(self) -> None:
-        result = Severity.CRITICAL.__le__("Critical")
-        assert result is NotImplemented
+    def test_le_with_string_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="'<=' not supported"):
+            Severity.CRITICAL <= "Critical"  # type: ignore[operator]  # noqa: B015
 
-    def test_gt_with_string_returns_not_implemented(self) -> None:
-        result = Severity.CRITICAL.__gt__("Critical")
-        assert result is NotImplemented
+    def test_gt_with_string_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="'>' not supported"):
+            Severity.CRITICAL > "Critical"  # type: ignore[operator]  # noqa: B015
 
-    def test_ge_with_string_returns_not_implemented(self) -> None:
-        result = Severity.CRITICAL.__ge__("Critical")
-        assert result is NotImplemented
+    def test_ge_with_string_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="'>=' not supported"):
+            Severity.CRITICAL >= "Critical"  # type: ignore[operator]  # noqa: B015
 
-    def test_lt_with_int_returns_not_implemented(self) -> None:
-        result = Severity.CRITICAL.__lt__(3)
-        assert result is NotImplemented
+    def test_lt_with_int_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="'<' not supported"):
+            Severity.CRITICAL < 3  # type: ignore[operator]  # noqa: B015
 
-    def test_gt_with_int_returns_not_implemented(self) -> None:
-        result = Severity.CRITICAL.__gt__(0)
-        assert result is NotImplemented
+    def test_gt_with_int_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="'>' not supported"):
+            Severity.CRITICAL > 0  # type: ignore[operator]  # noqa: B015
