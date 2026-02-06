@@ -24,6 +24,7 @@ from hachimoku.models.schemas import (
     ScoredIssues,
     SeverityClassified,
     TestGapAssessment,
+    _SCHEMA_REGISTRY_INTERNAL,
     get_schema,
     register_schema,
 )
@@ -212,7 +213,7 @@ class TestSeverityClassifiedValid:
         assert isinstance(classified, BaseAgentOutput)
 
     def test_model_dump_includes_issues(self) -> None:
-        """model_dump() に computed_field の issues が含まれる。"""
+        """model_dump() に model_validator で自動導出された issues が含まれる。"""
         issue = _make_review_issue(severity=Severity.CRITICAL, description="C1")
         classified = SeverityClassified(  # type: ignore[call-arg]
             critical_issues=[issue],
@@ -238,6 +239,30 @@ class TestSeverityClassifiedConstraints:
                 nitpick_issues=[],
                 extra="x",  # type: ignore[call-arg]
             )
+
+    def test_frozen_assignment_rejected(self) -> None:
+        """frozen=True によりフィールド変更が拒否される。"""
+        classified = SeverityClassified(  # type: ignore[call-arg]
+            critical_issues=[],
+            important_issues=[],
+            suggestion_issues=[],
+            nitpick_issues=[],
+        )
+        with pytest.raises(ValidationError):
+            classified.critical_issues = []  # type: ignore[misc]
+
+    def test_issues_always_rebuilt_from_classifications(self) -> None:
+        """issues を明示的に渡しても分類リストから再計算される。"""
+        issue = _make_review_issue(severity=Severity.CRITICAL, description="C1")
+        extra_issue = _make_review_issue(severity=Severity.NITPICK, description="N1")
+        classified = SeverityClassified(
+            critical_issues=[issue],
+            important_issues=[],
+            suggestion_issues=[],
+            nitpick_issues=[],
+            issues=[extra_issue],  # type: ignore[call-arg]
+        )
+        assert classified.issues == [issue]
 
     def test_missing_classification_list_rejected(self) -> None:
         """分類リスト省略時にバリデーションエラーが発生する。"""
@@ -644,7 +669,7 @@ class TestSchemaRegistryLookup:
             "category_classification",
             "improvement_suggestions",
         }
-        assert set(SCHEMA_REGISTRY.keys()) >= expected_names
+        assert set(SCHEMA_REGISTRY.keys()) == expected_names
 
     @pytest.mark.parametrize(
         ("name", "expected_class"),
@@ -675,6 +700,11 @@ class TestSchemaRegistryLookup:
         with pytest.raises(SchemaNotFoundError, match="nonexistent_schema"):
             get_schema("nonexistent_schema")
 
+    def test_schema_not_found_error_message_lists_available(self) -> None:
+        """SchemaNotFoundError のメッセージに利用可能スキーマ一覧が含まれる。"""
+        with pytest.raises(SchemaNotFoundError, match="Available schemas:"):
+            get_schema("nonexistent_schema")
+
 
 class TestSchemaRegistryRegister:
     """SCHEMA_REGISTRY の登録を検証。"""
@@ -690,7 +720,7 @@ class TestSchemaRegistryRegister:
             register_schema(name, _TestSchema)
             assert get_schema(name) is _TestSchema
         finally:
-            SCHEMA_REGISTRY.pop(name, None)
+            _SCHEMA_REGISTRY_INTERNAL.pop(name, None)
 
     def test_register_duplicate_raises_duplicate_schema_error(self) -> None:
         """同名スキーマの重複登録で DuplicateSchemaError が発生する。"""
@@ -701,6 +731,20 @@ class TestSchemaRegistryRegister:
         """DuplicateSchemaError のメッセージにスキーマ名が含まれる。"""
         with pytest.raises(DuplicateSchemaError, match="scored_issues"):
             register_schema("scored_issues", ScoredIssues)
+
+    def test_register_non_subclass_raises_type_error(self) -> None:
+        """BaseAgentOutput のサブクラスでない型の登録で TypeError が発生する。"""
+        with pytest.raises(TypeError, match="subclass of BaseAgentOutput"):
+            register_schema("bad_schema", str)  # type: ignore[arg-type]
+
+
+class TestSchemaRegistryImmutability:
+    """SCHEMA_REGISTRY の読み取り専用性を検証。"""
+
+    def test_registry_direct_mutation_rejected(self) -> None:
+        """SCHEMA_REGISTRY への直接変更が TypeError となる。"""
+        with pytest.raises(TypeError):
+            SCHEMA_REGISTRY["bad"] = ScoredIssues  # type: ignore[index]
 
 
 class TestSchemaRegistryExceptions:

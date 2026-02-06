@@ -29,11 +29,25 @@ class SeverityClassified(BaseAgentOutput):
     @model_validator(mode="before")
     @classmethod
     def build_issues_from_classifications(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """4つの分類リストから issues を自動構築する。"""
-        if isinstance(data, dict) and "issues" not in data:
-            critical = data.get("critical_issues", [])
-            important = data.get("important_issues", [])
-            suggestion = data.get("suggestion_issues", [])
-            nitpick = data.get("nitpick_issues", [])
-            data["issues"] = [*critical, *important, *suggestion, *nitpick]
+        """4つの分類リストから issues を常に自動構築する。
+
+        issues は分類リストの結合と常に等しいという不変条件を保証する。
+        外部から issues を明示的に渡した場合でも分類リストから再計算する。
+        分類リストが欠落している場合は構築をスキップし、
+        後続の Pydantic フィールドバリデーションでエラーを検出する。
+        """
+        if isinstance(data, dict):
+            keys = (
+                "critical_issues",
+                "important_issues",
+                "suggestion_issues",
+                "nitpick_issues",
+            )
+            if all(k in data for k in keys):
+                data["issues"] = [
+                    *data["critical_issues"],
+                    *data["important_issues"],
+                    *data["suggestion_issues"],
+                    *data["nitpick_issues"],
+                ]
         return data

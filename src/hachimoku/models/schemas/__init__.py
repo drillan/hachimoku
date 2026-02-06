@@ -1,10 +1,14 @@
 """出力スキーマパッケージ。
 
 SCHEMA_REGISTRY による名前からスキーマへの解決を提供する。
+FR-DM-005: BaseAgentOutput と6種スキーマの継承。
 FR-DM-006: スキーマレジストリ。
 """
 
 from __future__ import annotations
+
+from types import MappingProxyType
+from typing import Mapping
 
 from hachimoku.models.schemas._base import BaseAgentOutput
 from hachimoku.models.schemas.category_classification import CategoryClassification
@@ -29,7 +33,7 @@ class DuplicateSchemaError(Exception):
     """SCHEMA_REGISTRY に同名のスキーマが重複登録された場合のエラー。"""
 
 
-SCHEMA_REGISTRY: dict[str, type[BaseAgentOutput]] = {
+_SCHEMA_REGISTRY_INTERNAL: dict[str, type[BaseAgentOutput]] = {
     "scored_issues": ScoredIssues,
     "severity_classified": SeverityClassified,
     "test_gap_assessment": TestGapAssessment,
@@ -37,6 +41,10 @@ SCHEMA_REGISTRY: dict[str, type[BaseAgentOutput]] = {
     "category_classification": CategoryClassification,
     "improvement_suggestions": ImprovementSuggestions,
 }
+
+SCHEMA_REGISTRY: Mapping[str, type[BaseAgentOutput]] = MappingProxyType(
+    _SCHEMA_REGISTRY_INTERNAL
+)
 
 
 def get_schema(name: str) -> type[BaseAgentOutput]:
@@ -54,8 +62,10 @@ def get_schema(name: str) -> type[BaseAgentOutput]:
     try:
         return SCHEMA_REGISTRY[name]
     except KeyError:
+        available = ", ".join(sorted(SCHEMA_REGISTRY.keys()))
         raise SchemaNotFoundError(
-            f"Schema '{name}' is not registered in SCHEMA_REGISTRY"
+            f"Schema '{name}' is not registered in SCHEMA_REGISTRY."
+            f" Available schemas: {available}"
         ) from None
 
 
@@ -68,12 +78,15 @@ def register_schema(name: str, schema: type[BaseAgentOutput]) -> None:
 
     Raises:
         DuplicateSchemaError: 同名のスキーマが既に登録されている場合。
+        TypeError: schema が BaseAgentOutput のサブクラスでない場合。
     """
-    if name in SCHEMA_REGISTRY:
+    if not (isinstance(schema, type) and issubclass(schema, BaseAgentOutput)):
+        raise TypeError(f"schema must be a subclass of BaseAgentOutput, got {schema!r}")
+    if name in _SCHEMA_REGISTRY_INTERNAL:
         raise DuplicateSchemaError(
             f"Schema '{name}' is already registered in SCHEMA_REGISTRY"
         )
-    SCHEMA_REGISTRY[name] = schema
+    _SCHEMA_REGISTRY_INTERNAL[name] = schema
 
 
 __all__ = [
