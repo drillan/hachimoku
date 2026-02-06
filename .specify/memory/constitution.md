@@ -137,7 +137,10 @@ if not data:
     data = "default"  # 暗黙的デフォルト値代入
 
 # 良い例（推奨）
-TIMEOUT_SECONDS = int(os.environ["API_TIMEOUT"])  # 環境変数から取得
+from hachimoku.config import load_config
+config = load_config()  # .hachimoku/config.toml から取得
+timeout = config.timeout_seconds
+
 if not data:
     raise ValueError("Required data is missing")  # 明示的エラー処理
 ```
@@ -313,9 +316,13 @@ SpecKitで生成されるディレクトリ（`specs/`配下）は、以下の�
 - テストファーストが遵守されているか（Article 1）
 - ドキュメントとの整合性が保たれているか（Article 2）
 - CLI 設計原則に準拠しているか（Article 3）
+- シンプルさの原則に準拠しているか（Article 4）
 - コード品質基準に準拠しているか（Article 5）
+- データ正確性が遵守されているか（Article 6）
 - DRY原則に違反していないか（Article 7）
+- リファクタリングポリシーに準拠しているか（Article 8）
 - Python型安全性基準を満たしているか（Article 9）
+- 命名規則に準拠しているか（Article 11）
 
 **推奨チェック項目**:
 - Python docstring標準が適用されているか（Article 10）
