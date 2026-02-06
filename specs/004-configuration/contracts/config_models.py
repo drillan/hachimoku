@@ -74,7 +74,7 @@ class HachimokuConfig(HachimokuBaseModel):
             if not _AGENT_NAME_RE.match(name):
                 msg = (
                     f"Invalid agent name '{name}': "
-                    f"must match pattern [a-z0-9-]+"
+                    f"must match pattern {AGENT_NAME_PATTERN}"
                 )
                 raise ValueError(msg)
         return v
