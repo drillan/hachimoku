@@ -8,6 +8,13 @@ from hachimoku.models.agent_result import (
     AgentTimeout,
     CostInfo,
 )
+from hachimoku.models.history import (
+    CommitHash,
+    DiffReviewRecord,
+    FileReviewRecord,
+    PRReviewRecord,
+    ReviewHistoryRecord,
+)
 from hachimoku.models.report import ReviewReport, ReviewSummary
 from hachimoku.models.review import FileLocation, ReviewIssue
 from hachimoku.models.schemas import (
@@ -43,18 +50,23 @@ __all__ = [
     "AgentTimeout",
     "BaseAgentOutput",
     "CategoryClassification",
+    "CommitHash",
     "CostInfo",
     "CoverageGap",
+    "DiffReviewRecord",
     "DimensionScore",
     "DuplicateSchemaError",
     "EXIT_CODE_CRITICAL",
     "EXIT_CODE_IMPORTANT",
     "EXIT_CODE_SUCCESS",
     "FileLocation",
+    "FileReviewRecord",
     "HachimokuBaseModel",
     "ImprovementItem",
     "ImprovementSuggestions",
     "MultiDimensionalAnalysis",
+    "PRReviewRecord",
+    "ReviewHistoryRecord",
     "ReviewIssue",
     "ReviewReport",
     "ReviewSummary",
