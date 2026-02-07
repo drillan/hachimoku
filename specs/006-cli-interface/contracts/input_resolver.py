@@ -47,20 +47,20 @@ class InputError(Exception):
     """
 
 
-def resolve_input(args: list[str]) -> ResolvedInput:
+def resolve_input(args: list[str] | None) -> ResolvedInput:
     """位置引数から入力モードを判定する。
 
-    FR-CLI-002 の優先順ルール:
-    1. 引数なし → DiffInput
-    2. 単一の正の整数 → PRInput
-    3. パスライク文字列（/, \\, *, ?, . を含む）→ FileInput
-    4. ファイルシステム上に存在するパス → FileInput
+    FR-CLI-002 の優先順ルール（サブコマンドは Typer が処理済み）:
+    1. 全引数が正の整数、かつ引数が1つ → PRInput
+    2. パスライク文字列（/, \\, *, ?, . を含む）→ FileInput
+    3. ファイルシステム上に存在するパス → FileInput
+    4. 引数なし → DiffInput
     5. 上記のいずれにも該当しない → InputError
 
     PR 番号とファイルパスの同時指定（整数と非整数の混在）→ InputError
 
     Args:
-        args: 位置引数のリスト。
+        args: 位置引数のリスト。None または空リストは引数なし（diff モード）。
 
     Returns:
         ResolvedInput: 判定された入力モード。

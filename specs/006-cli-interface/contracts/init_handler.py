@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from hachimoku.models._base import HachimokuBaseModel
+
 
 class InitError(Exception):
     """init コマンドのエラー。
@@ -17,16 +19,16 @@ class InitError(Exception):
     """
 
 
-class InitResult:
+class InitResult(HachimokuBaseModel):
     """init コマンドの実行結果。
 
     Attributes:
-        created: 新規作成されたファイル/ディレクトリのパスリスト。
-        skipped: 既存のためスキップされたファイル/ディレクトリのパスリスト。
+        created: 新規作成されたファイル/ディレクトリのパスタプル。
+        skipped: 既存のためスキップされたファイル/ディレクトリのパスタプル。
     """
 
-    created: list[Path]
-    skipped: list[Path]
+    created: tuple[Path, ...] = ()
+    skipped: tuple[Path, ...] = ()
 
 
 def run_init(project_root: Path, *, force: bool = False) -> InitResult:

@@ -62,10 +62,14 @@ def review_callback(
     if ctx.invoked_subcommand is not None:
         return
 
-    # 1. 入力モード判定
+    # 1. 入力モード判定: resolve_input(args or [])
     # 2. 設定上書き辞書構築（None を除外）
-    # 3. ReviewTarget 構築
-    # 4. run_review() 呼び出し
+    #    注意: CLI パラメータ名と HachimokuConfig フィールド名の対応:
+    #    - format → output_format（キー名変換が必要）
+    #    - max_files → max_files_per_review（キー名変換が必要）
+    #    - max_turns はハイフンなし（Typer が自動変換）
+    # 3. ReviewTarget 構築（ResolvedInput + config.base_branch + --issue）
+    # 4. run_review(target, config_overrides) 呼び出し
     # 5. stdout にレポート出力
     # 6. ExitCode で終了
     ...

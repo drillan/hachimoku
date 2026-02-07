@@ -16,8 +16,9 @@
 | EXECUTION_ERROR | int | 3 | 全エージェント失敗 |
 | INPUT_ERROR | int | 4 | 入力エラー（引数解析・ファイル未発見等） |
 
-**型**: `IntEnum`（`int` と `enum.IntEnum` の多重継承）
+**型**: `IntEnum`（`enum.IntEnum` を継承。`IntEnum` 自体が `int` のサブクラス）
 **関係**: `EngineResult.exit_code`（0-3）から `ExitCode` への変換は直接キャスト可能。INPUT_ERROR(4) は CLI 層で直接設定。
+**移行**: 既存の `severity.py` の `EXIT_CODE_SUCCESS` 等の定数は、ExitCode 導入後に ExitCode メンバーへの参照に置き換える。`determine_exit_code()` の戻り値型も `ExitCode` に変更する。
 
 ---
 
@@ -35,7 +36,7 @@
 
 **型**: `Annotated[Union[DiffInput, PRInput, FileInput], Field(discriminator="mode")]`
 **バリデーション**: PRInput と FileInput の混在は `resolve_input()` 関数がエラーを返す
-**関係**: ResolvedInput → ReviewTarget への変換を `_app.py` が行う（config の base_branch と issue_number を付加）
+**関係**: ResolvedInput → ReviewTarget への変換を `_app.py` が行う（config の base_branch と CLI `--issue` オプションの issue_number を付加）
 
 ---
 
@@ -52,6 +53,22 @@
 
 **型**: `HachimokuBaseModel`（frozen=True, extra="forbid"）
 **バリデーション**: paths は min_length=1（空の場合は呼び出し側で処理）
+
+---
+
+### InitResult
+
+**場所**: `src/hachimoku/cli/_init_handler.py`
+
+init コマンドの実行結果。
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| created | tuple[Path, ...] | () | 新規作成されたファイル/ディレクトリ |
+| skipped | tuple[Path, ...] | () | 既存のためスキップされたファイル/ディレクトリ |
+
+**型**: `HachimokuBaseModel`（frozen=True, extra="forbid"）
+**関係**: `run_init()` の戻り値。`_app.py` の `init` サブコマンドが結果を stderr に表示する。
 
 ---
 

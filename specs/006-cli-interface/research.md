@@ -125,9 +125,9 @@ class ExitCode(IntEnum):
 
 ## R-009: `config` 予約サブコマンド
 
-**Decision**: `@app.command()` で登録し、実行時に `InputError` 例外を送出する（終了コード 4）。
+**Decision**: `@app.command()` で登録し、実行時に未実装メッセージを stderr に出力後 `typer.Exit(code=4)` で終了する。
 
-**Rationale**: 親仕様 FR-021 との整合性を保ちつつ、v0.1 では未実装とする仕様の明示的な要求。
+**Rationale**: 親仕様 FR-021 との整合性を保ちつつ、v0.1 では未実装とする仕様の明示的な要求。Typer コマンド内では `typer.Exit` で終了する（R-010 参照）。
 
 ## R-010: Typer の `raise SystemExit` vs `sys.exit()`
 
