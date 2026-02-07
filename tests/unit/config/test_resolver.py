@@ -333,6 +333,54 @@ class TestResolveConfigOnlyProjectConfig:
         assert config.max_turns == 10
 
 
+class TestResolveConfigOnlyPyprojectConfig:
+    """pyproject.toml [tool.hachimoku] のみ → 反映。"""
+
+    def test_pyproject_toml_values_applied(self, tmp_path: Path) -> None:
+        """pyproject.toml の [tool.hachimoku] 値が設定に反映される。"""
+        _create_pyproject_toml(
+            tmp_path,
+            '[tool.hachimoku]\nmodel = "haiku"\ntimeout = 120\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.model == "haiku"
+        assert config.timeout == 120
+        assert config.max_turns == 10  # デフォルト
+
+
+class TestResolveConfigOnlyUserGlobalConfig:
+    """ユーザーグローバル設定のみ → 反映。"""
+
+    def test_user_global_values_applied(self, tmp_path: Path) -> None:
+        """~/.config/hachimoku/config.toml の値が設定に反映される。"""
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            'model = "user-model"\nmax_turns = 20\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.model == "user-model"
+        assert config.max_turns == 20
+        assert config.timeout == 300  # デフォルト
+
+
+class TestResolveConfigProjectDirWithoutConfigToml:
+    """.hachimoku/ ディレクトリあり・config.toml 不在 → デフォルト値。"""
+
+    def test_missing_config_toml_skipped(self, tmp_path: Path) -> None:
+        """.hachimoku/ はあるが config.toml がない場合、該当レイヤーをスキップ。"""
+        (tmp_path / _PROJECT_DIR_NAME).mkdir()
+        # config.toml は作成しない
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config == HachimokuConfig()
+
+
 class TestResolveConfigFiveLayerPriority:
     """5層の優先順位テスト (FR-CF-001)。"""
 
@@ -420,6 +468,24 @@ class TestResolveConfigTomlSyntaxError:
             with pytest.raises(tomllib.TOMLDecodeError):
                 resolve_config(start_dir=tmp_path)
 
+    def test_pyproject_toml_syntax_error_propagates(self, tmp_path: Path) -> None:
+        """pyproject.toml の構文エラーは TOMLDecodeError として伝播。"""
+        _create_pyproject_toml(tmp_path, "[invalid\n")
+        with _nonexistent_user_config(tmp_path):
+            with pytest.raises(tomllib.TOMLDecodeError):
+                resolve_config(start_dir=tmp_path)
+
+    def test_user_global_syntax_error_propagates(self, tmp_path: Path) -> None:
+        """ユーザーグローバル設定の構文エラーは TOMLDecodeError として伝播。"""
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(user_config_dir / "config.toml", "bad = = = toml")
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            with pytest.raises(tomllib.TOMLDecodeError):
+                resolve_config(start_dir=tmp_path)
+
 
 class TestResolveConfigPermissionError:
     """読み取り権限なし → PermissionError が伝播。"""
@@ -435,3 +501,35 @@ class TestResolveConfigPermissionError:
                     resolve_config(start_dir=tmp_path)
         finally:
             config_path.chmod(0o644)
+
+    @_SKIP_PERMISSION
+    def test_pyproject_toml_permission_error_propagates(self, tmp_path: Path) -> None:
+        """pyproject.toml の読み取り権限なし → PermissionError。"""
+        pyproject_path = _create_pyproject_toml(
+            tmp_path, '[tool.hachimoku]\nmodel = "opus"\n'
+        )
+        pyproject_path.chmod(0o000)
+        try:
+            with _nonexistent_user_config(tmp_path):
+                with pytest.raises(PermissionError):
+                    resolve_config(start_dir=tmp_path)
+        finally:
+            pyproject_path.chmod(0o644)
+
+    @_SKIP_PERMISSION
+    def test_user_global_permission_error_propagates(self, tmp_path: Path) -> None:
+        """ユーザーグローバル設定の読み取り権限なし → PermissionError。"""
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        user_config_path = _write_toml(
+            user_config_dir / "config.toml", 'model = "opus"\n'
+        )
+        user_config_path.chmod(0o000)
+        try:
+            with patch(
+                "hachimoku.config._resolver.get_user_config_path",
+                return_value=user_config_path,
+            ):
+                with pytest.raises(PermissionError):
+                    resolve_config(start_dir=tmp_path)
+        finally:
+            user_config_path.chmod(0o644)

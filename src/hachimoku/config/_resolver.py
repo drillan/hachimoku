@@ -150,6 +150,8 @@ def resolve_config(
     config_layer: dict[str, object] | None = None
     config_path = find_config_file(effective_start)
     if config_path is not None:
+        # find_config_file はパス構築のみで config.toml の存在チェックをしないため、
+        # .hachimoku/ ディレクトリはあるが config.toml が未作成のケースに対応する。
         try:
             config_layer = load_toml_config(config_path)
         except FileNotFoundError:
@@ -163,4 +165,5 @@ def resolve_config(
     # マージ (低優先度 → 高優先度の順)
     merged = merge_config_layers(user_layer, pyproject_layer, config_layer, cli_layer)
 
+    # Layer 5 (最低優先): デフォルト値 -- HachimokuConfig のフィールドデフォルトが適用される
     return HachimokuConfig(**merged)  # type: ignore[arg-type]
