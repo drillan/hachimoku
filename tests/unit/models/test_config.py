@@ -168,7 +168,8 @@ class TestHachimokuConfigDefaults:
         assert HachimokuConfig().max_turns == 10
 
     def test_default_parallel(self) -> None:
-        assert HachimokuConfig().parallel is False
+        """parallel のデフォルトが True であること。"""
+        assert HachimokuConfig().parallel is True
 
     def test_default_base_branch(self) -> None:
         assert HachimokuConfig().base_branch == "main"

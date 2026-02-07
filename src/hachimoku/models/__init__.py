@@ -6,6 +6,7 @@ from hachimoku.models.agent_result import (
     AgentResult,
     AgentSuccess,
     AgentTimeout,
+    AgentTruncated,
     CostInfo,
 )
 from hachimoku.models.history import (
@@ -48,6 +49,7 @@ __all__ = [
     "AgentResult",
     "AgentSuccess",
     "AgentTimeout",
+    "AgentTruncated",
     "BaseAgentOutput",
     "CategoryClassification",
     "CommitHash",

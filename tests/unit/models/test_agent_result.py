@@ -1,4 +1,4 @@
-"""CostInfo, AgentSuccess, AgentError, AgentTimeout, AgentResult のテスト。
+"""CostInfo, AgentSuccess, AgentError, AgentTimeout, AgentTruncated, AgentResult のテスト。
 
 FR-DM-003: AgentResult 判別共用体。
 """
@@ -11,6 +11,7 @@ from hachimoku.models.agent_result import (
     AgentResult,
     AgentSuccess,
     AgentTimeout,
+    AgentTruncated,
     CostInfo,
 )
 from hachimoku.models.review import ReviewIssue
@@ -268,6 +269,132 @@ class TestAgentTimeoutConstraints:
             AgentTimeout(agent_name="test", timeout_seconds=10.0, reason="slow")  # type: ignore[call-arg]
 
 
+class TestAgentTruncatedValid:
+    """AgentTruncated の正常系を検証。"""
+
+    def test_valid_agent_truncated(self) -> None:
+        """正常値でインスタンス生成が成功する。"""
+        result = AgentTruncated(
+            agent_name="code-reviewer",
+            issues=[],
+            elapsed_time=5.0,
+            turns_consumed=10,
+        )
+        assert result.agent_name == "code-reviewer"
+        assert result.issues == []
+        assert result.elapsed_time == 5.0
+        assert result.turns_consumed == 10
+
+    def test_status_is_truncated_literal(self) -> None:
+        """status フィールドが "truncated" である。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=5,
+        )
+        assert result.status == "truncated"
+
+    def test_status_default_value(self) -> None:
+        """status を省略してもデフォルトで "truncated" が設定される。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=3,
+        )
+        assert result.status == "truncated"
+
+    def test_empty_issues_list_accepted(self) -> None:
+        """空リスト issues=[] も受け入れる。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=1,
+        )
+        assert result.issues == []
+
+    def test_issues_with_review_issue(self) -> None:
+        """issues に ReviewIssue リストを渡せる。"""
+        issue = ReviewIssue(
+            agent_name="code-reviewer",
+            severity=Severity.CRITICAL,
+            description="Bug found",
+        )
+        result = AgentTruncated(
+            agent_name="code-reviewer",
+            issues=[issue],
+            elapsed_time=2.0,
+            turns_consumed=10,
+        )
+        assert len(result.issues) == 1
+        assert result.issues[0].severity == Severity.CRITICAL
+
+
+class TestAgentTruncatedConstraints:
+    """AgentTruncated の制約違反を検証。"""
+
+    def test_empty_agent_name_rejected(self) -> None:
+        """agent_name が空文字で ValidationError。"""
+        with pytest.raises(ValidationError, match="agent_name"):
+            AgentTruncated(agent_name="", issues=[], elapsed_time=1.0, turns_consumed=5)
+
+    def test_zero_elapsed_time_rejected(self) -> None:
+        """elapsed_time=0 で ValidationError (gt=0)。"""
+        with pytest.raises(ValidationError, match="elapsed_time"):
+            AgentTruncated(
+                agent_name="test", issues=[], elapsed_time=0, turns_consumed=5
+            )
+
+    def test_negative_elapsed_time_rejected(self) -> None:
+        """elapsed_time が負で ValidationError。"""
+        with pytest.raises(ValidationError, match="elapsed_time"):
+            AgentTruncated(
+                agent_name="test", issues=[], elapsed_time=-1.0, turns_consumed=5
+            )
+
+    def test_infinity_elapsed_time_rejected(self) -> None:
+        """float('inf') は拒否する。"""
+        with pytest.raises(ValidationError, match="elapsed_time"):
+            AgentTruncated(
+                agent_name="test",
+                issues=[],
+                elapsed_time=float("inf"),
+                turns_consumed=5,
+            )
+
+    def test_zero_turns_consumed_rejected(self) -> None:
+        """turns_consumed=0 で ValidationError (gt=0)。"""
+        with pytest.raises(ValidationError, match="turns_consumed"):
+            AgentTruncated(
+                agent_name="test", issues=[], elapsed_time=1.0, turns_consumed=0
+            )
+
+    def test_negative_turns_consumed_rejected(self) -> None:
+        """turns_consumed が負で ValidationError。"""
+        with pytest.raises(ValidationError, match="turns_consumed"):
+            AgentTruncated(
+                agent_name="test", issues=[], elapsed_time=1.0, turns_consumed=-1
+            )
+
+    def test_missing_turns_consumed_rejected(self) -> None:
+        """turns_consumed 省略で ValidationError。"""
+        with pytest.raises(ValidationError):
+            AgentTruncated(agent_name="test", issues=[], elapsed_time=1.0)  # type: ignore[call-arg]
+
+    def test_extra_field_rejected(self) -> None:
+        """extra="forbid" により追加フィールドが拒否される。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            AgentTruncated(
+                agent_name="test",
+                issues=[],
+                elapsed_time=1.0,
+                turns_consumed=5,
+                cost=None,  # type: ignore[call-arg]
+            )
+
+
 class TestAgentResultDiscriminatedUnion:
     """AgentResult 判別共用体のデシリアライズを検証。
 
@@ -314,6 +441,20 @@ class TestAgentResultDiscriminatedUnion:
         )
         assert isinstance(result, AgentTimeout)
         assert result.status == "timeout"
+
+    def test_deserialize_truncated(self) -> None:
+        """status="truncated" で AgentTruncated が選択される。"""
+        result = self.adapter.validate_python(
+            {
+                "status": "truncated",
+                "agent_name": "test",
+                "issues": [],
+                "elapsed_time": 5.0,
+                "turns_consumed": 10,
+            }
+        )
+        assert isinstance(result, AgentTruncated)
+        assert result.status == "truncated"
 
     def test_invalid_status_rejected(self) -> None:
         """不正な status 値で ValidationError。"""
@@ -387,3 +528,16 @@ class TestAgentResultDiscriminatedUnion:
         restored = self.adapter.validate_python(data)
         assert isinstance(restored, AgentTimeout)
         assert restored.timeout_seconds == original.timeout_seconds
+
+    def test_round_trip_truncated(self) -> None:
+        """AgentTruncated の model_dump → validate_python ラウンドトリップ。"""
+        original = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=5.0,
+            turns_consumed=10,
+        )
+        data = original.model_dump()
+        restored = self.adapter.validate_python(data)
+        assert isinstance(restored, AgentTruncated)
+        assert restored.turns_consumed == original.turns_consumed

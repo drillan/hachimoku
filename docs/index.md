@@ -42,7 +42,7 @@ TOML ベースの階層的な設定をサポートします。
 ### ドメインモデル
 
 レビュー結果は型安全なドメインモデルで管理されます。
-Severity（4段階重大度）、ReviewIssue（問題の統一表現）、AgentResult（判別共用体による成功/エラー/タイムアウト）、ReviewReport（結果集約レポート）を提供します。
+Severity（4段階重大度）、ReviewIssue（問題の統一表現）、AgentResult（判別共用体による成功/切り詰め/エラー/タイムアウト）、ReviewReport（結果集約レポート）を提供します。
 詳細は [ドメインモデル](models.md) を参照してください。
 
 ```{toctree}

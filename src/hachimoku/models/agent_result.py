@@ -74,8 +74,29 @@ class AgentTimeout(HachimokuBaseModel):
     timeout_seconds: float = Field(gt=0, allow_inf_nan=False)
 
 
+class AgentTruncated(HachimokuBaseModel):
+    """エージェント実行の切り詰め結果。判別キー: status="truncated"。
+
+    最大ターン数に到達した場合の部分的な結果を保持する。
+    ReviewSummary 計算時には AgentSuccess と同様に有効な結果として扱う。
+
+    Attributes:
+        status: 判別キー。固定値 "truncated"。
+        agent_name: エージェント名。
+        issues: その時点までに検出されたレビュー問題のリスト（部分的だが有効）。
+        elapsed_time: 実行所要時間（秒、正の値）。
+        turns_consumed: 切り詰めまでに消費したターン数（正の値）。
+    """
+
+    status: Literal["truncated"] = "truncated"
+    agent_name: str = Field(min_length=1)
+    issues: list[ReviewIssue]
+    elapsed_time: float = Field(gt=0, allow_inf_nan=False)
+    turns_consumed: int = Field(gt=0)
+
+
 AgentResult = Annotated[
-    Union[AgentSuccess, AgentError, AgentTimeout],
+    Union[AgentSuccess, AgentTruncated, AgentError, AgentTimeout],
     Field(discriminator="status"),
 ]
 """エージェント結果の判別共用体。status フィールドの値で型を自動選択する。"""
