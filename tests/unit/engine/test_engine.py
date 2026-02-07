@@ -472,6 +472,9 @@ class TestRunReviewPipeline:
 
         assert result.exit_code == 3
         assert len(result.report.results) == 3
+        assert isinstance(result.report.results[0], AgentError)
+        assert isinstance(result.report.results[1], AgentTimeout)
+        assert isinstance(result.report.results[2], AgentError)
 
     @patch("hachimoku.engine._engine.execute_sequential")
     @patch("hachimoku.engine._engine.run_selector")

@@ -7,9 +7,10 @@ FR-RE-004: タイムアウトと最大ターン数の制御。
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from pydantic import ValidationError
 from pydantic_ai import Tool
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
