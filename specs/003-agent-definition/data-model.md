@@ -11,8 +11,6 @@ erDiagram
     AgentDefinition }o--|| BaseAgentOutput : "output_schema resolves to"
     LoadResult ||--o{ AgentDefinition : "contains"
     LoadResult ||--o{ LoadError : "contains"
-    AgentSelector }o--o{ AgentDefinition : "evaluates and selects"
-
     AgentDefinition {
         str name PK "アルファベット小文字・数字・ハイフンのみ"
         str description "エージェントの説明"
@@ -79,13 +77,12 @@ erDiagram
 **Validation Rules**:
 - `content_patterns` の各要素は有効な正規表現であること（`re.compile()` で検証、失敗時は `ValueError`）
 
-**Condition Evaluation Logic**:
-1. `always = True` → 常に適用
-2. `file_patterns` のいずれか1つ以上にファイル名がマッチ → 適用
-3. `content_patterns` のいずれか1つ以上にコンテンツがマッチ → 適用
-4. 上記いずれも該当しない → 不適用
+**判断ガイダンス（005-review-engine の SelectorAgent が参照）**:
+- `always = true`: SelectorAgent は他の条件に関わらず当該エージェントを選択すべきことを示すガイダンス
+- `file_patterns`: SelectorAgent がレビュー対象のファイルとの関連性を判断する際のガイダンス（fnmatch 互換グロブパターン）
+- `content_patterns`: SelectorAgent がレビュー対象のコンテンツとの関連性を判断する際のガイダンス（Python `re` 互換正規表現）
 
-条件 2 と 3 は OR 関係（いずれか一方で適用）。
+実際の評価ロジック（エージェント選択）は 005-review-engine の SelectorAgent が担当する。本仕様ではデータモデルの定義とバリデーションのみを担当。
 
 ### AgentDefinition（エージェント定義）
 
@@ -190,38 +187,6 @@ always = true
 **処理フロー**:
 1. `tomllib.load()` で TOML をパース（`tomllib.TOMLDecodeError` 時は例外伝播）
 2. `AgentDefinition.model_validate(data)` でバリデーション + モデル構築（`pydantic.ValidationError` 時は例外伝播）
-
-### AgentSelector
-
-**Module**: `src/hachimoku/agents/selector.py`
-**Type**: モジュールレベル関数
-
-#### `select_agents(agents: list[AgentDefinition], file_paths: list[str], content: str) -> list[AgentDefinition]`
-
-適用ルールに基づいてエージェントを選択し、Phase 順でソートして返す。
-
-**Parameters**:
-- `agents`: 選択候補のエージェント定義リスト
-- `file_paths`: レビュー対象のファイルパスリスト
-- `content`: 差分内容（diff/PR モード）またはファイル内容（file モード）
-
-**Returns**: 適用されるエージェントを Phase 順（early → main → final）、同 Phase 内は名前の辞書順でソートしたリスト
-
-**処理フロー**:
-1. 各エージェントの `applicability` を評価
-2. 適用されるエージェントを収集
-3. `(PHASE_ORDER[agent.phase], agent.name)` のタプルでソート
-4. ソート済みリストを返す
-
-#### `_matches(rule: ApplicabilityRule, file_paths: list[str], content: str) -> bool`
-
-単一の ApplicabilityRule を評価する。
-
-**Logic**:
-1. `rule.always` が `True` → `True`
-2. `rule.file_patterns` のいずれかにファイル名（basename）がマッチ → `True`
-3. `rule.content_patterns` のいずれかにコンテンツがマッチ → `True`
-4. 上記いずれも該当しない → `False`
 
 ## State Transitions
 

@@ -1,4 +1,4 @@
-# Feature Specification: エージェント定義・ローダー・セレクター
+# Feature Specification: エージェント定義・ローダー
 
 **Feature Branch**: `003-agent-definition`
 **Created**: 2026-02-06
@@ -12,11 +12,19 @@
 
 ### Session 2026-02-06
 
-- 親仕様 FR-003, FR-005, FR-011, FR-014 および US3 を本仕様で実現する
+- 親仕様 FR-003, FR-011, FR-014 および US3 を本仕様で実現する（FR-005 は Issue #64 により 005-review-engine に移管）
 - README.md のスキーマ所属境界に基づき、出力スキーマの定義は 002-domain-models に含まれる。本仕様ではエージェント定義の `output_schema` フィールドから SCHEMA_REGISTRY を参照してスキーマを解決する
 - エージェント定義ファイルのフォーマットは TOML に統一（親仕様 Clarification Session の決定事項）
 - ビルトイン6エージェントの定義ファイルは Python パッケージ内にバンドルし、`8moku init` 時にプロジェクトへコピーする（親仕様 US8）
 - エージェントのローダーはビルトイン定義とカスタム定義の両方を読み込み、同名の場合はカスタム定義がビルトインを上書きする（親仕様 US3 Acceptance Scenario 2）
+
+### Session 2026-02-07
+
+- Q: Issue #64 により AgentSelector が pydantic-ai エージェント（SelectorAgent）に再設計されるが、003 の AgentSelector の扱いは？ → A: 003 から AgentSelector を完全に削除し、セレクター責務は 005-review-engine の SelectorAgent に一本化する。003 のスコープはエージェント定義・ローダーのみとする。`file_patterns` / `content_patterns` は TOML フィールドとして残り、005 の SelectorAgent が判断ガイダンスとして参照する
+- Q: SelectorAgent がパターンを判断ガイダンスとして参照する新設計で、`content_patterns` の正規表現構文チェックは維持すべきか？ → A: 維持する。SelectorAgent の判断ガイダンスとしての役割に変わっても、無効な正規表現はユーザーの意図が不明確であることを示すため、定義読み込み時のバリデーションエラーとして早期フィードバックを提供する
+- Q: 既存の `selector.py`（メカニカルマッチング実装）と対応テストの扱いは？ → A: 削除する。005-review-engine で SelectorAgent として完全に再設計されるため、旧実装は不要。`src/hachimoku/agents/selector.py` と `tests/test_selector.py` を Issue #64 の実装時に削除する
+- Q: 003 の定義読み込み時に `allowed_tools` のバリデーションをどのレベルまで行うか？ → A: 型バリデーション（`list[str]`）のみ。カテゴリ名の妥当性チェック（ToolCatalog との照合）は 005-review-engine が担当する。003 は TOML 定義のデータ構造保証に集中し、ToolCatalog のドメイン知識を持ち込まない
+- Q: 親仕様 FR-005（エージェント選択機能）の実現帰属はどうするか？ → A: FR-005 を 003 の実現対象から除外し、005-review-engine の実現対象に移す。003 が実現する親仕様は FR-003, FR-011, FR-014 のみとなる
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -38,24 +46,9 @@
 
 ---
 
-### User Story 2 - 変更内容に基づくエージェント自動選択 (Priority: P1)
+### ~~User Story 2 - 変更内容に基づくエージェント自動選択~~ (削除: 005-review-engine へ移管)
 
-システムがレビュー対象（変更ファイルのパターン・差分内容）に基づいて、適用すべきエージェントを自動選択する。適用ルール（ApplicabilityRule）の条件評価により、関連するエージェントのみがレビューに参加する。
-
-**Why this priority**: エージェント選択は基本レビュー実行（US1）の中核ロジック。変更内容に無関係なエージェントを除外することで、レビューの精度と効率を保証する。
-
-**Independent Test**: テスト用のファイルパスリストと差分内容をセレクターに渡し、適用ルールに基づいて正しいエージェントのみが選択されることで検証可能。
-
-**Acceptance Scenarios**:
-
-1. **Given** `always = true` の適用ルールを持つエージェントが定義されている, **When** 任意のレビュー対象に対してセレクターが実行される, **Then** そのエージェントは常に選択される
-2. **Given** `file_patterns = ["*.py"]` の適用ルールを持つエージェントが定義されている, **When** Python ファイルが変更ファイルに含まれる, **Then** そのエージェントが選択される
-3. **Given** `file_patterns = ["*.py"]` の適用ルールを持つエージェントが定義されている, **When** Python ファイルが変更ファイルに含まれない, **Then** そのエージェントは選択されない
-4. **Given** `content_patterns = ["try:\\s*\\.+\\s*except"]` の適用ルールを持つエージェントが定義されている, **When** diff/PR モードで差分内容に try-except パターンが含まれる, **Then** そのエージェントが選択される
-5. **Given** `content_patterns` の適用ルールを持つエージェントが定義されている, **When** file モードでファイル全体の内容が content_patterns に一致する, **Then** そのエージェントが選択される
-6. **Given** `file_patterns` と `content_patterns` の両方を持つ適用ルールが定義されている, **When** いずれか一方の条件に一致する, **Then** そのエージェントが選択される（OR 条件）
-7. **Given** `file_patterns` と `content_patterns` がともに空で `always = false` のエージェントが定義されている, **When** セレクターが実行される, **Then** そのエージェントは選択されない
-8. **Given** 実行フェーズ（phase）が指定されたエージェントが複数存在する, **When** セレクターが実行される, **Then** 結果は phase 順（early → main → final）にソートされて返される
+> **移管理由**: Issue #64 により AgentSelector が pydantic-ai エージェント（SelectorAgent）に再設計されたため、エージェント選択の全責務は 005-review-engine に移管された。`file_patterns` / `content_patterns` / `phase` は TOML 定義フィールドとして本仕様に残り、005 の SelectorAgent の判断ガイダンスとして機能する。受入シナリオは 005-review-engine の SelectorAgent 仕様で定義される。
 
 ---
 
@@ -96,16 +89,16 @@
 ### Edge Cases
 
 - エージェント定義ファイルで参照されたスキーマが SCHEMA_REGISTRY に存在しない場合、バリデーションエラーとしてスキップし明確なエラーメッセージを表示する（親仕様 Edge Cases）
-- エージェント定義の `file_patterns` や `content_patterns` が空リストの場合、そのルールは常に不一致として扱われる（`always = true` でない限りスキップ）（親仕様 Edge Cases）
+- エージェント定義の `file_patterns` や `content_patterns` が空リストであってもバリデーションエラーとはしない（有効なデータ状態として許容する）。空リスト時の選択挙動は 005-review-engine の SelectorAgent が判断する
 - `content_patterns` に無効な正規表現が含まれる場合、定義読み込み時にバリデーションエラーが発生し、具体的なエラーメッセージが表示される
 - `.hachimoku/agents/` に `.toml` 以外のファイルが存在する場合、それらは無視される
 - ビルトインとカスタムの両方にエージェント定義が存在し、カスタム側がバリデーションエラーの場合、ビルトイン定義がそのまま使用される（上書きは成功したカスタム定義にのみ適用）
-- `file_patterns` のパターンマッチングは fnmatch 互換のグロブパターンを使用する（`*`, `?`, `[seq]`, `[!seq]`）
-- `content_patterns` のパターンマッチングは正規表現を使用する（Python `re` モジュール互換）
+- `file_patterns` は fnmatch 互換のグロブパターン記法で記述する（`*`, `?`, `[seq]`, `[!seq]`）。バリデーション時の構文チェック対象であり、実際のマッチング評価は 005-review-engine の SelectorAgent が判断ガイダンスとして参照する
+- `content_patterns` は Python `re` 互換の正規表現記法で記述する。バリデーション時の構文チェック対象であり、実際のマッチング評価は 005-review-engine の SelectorAgent が判断ガイダンスとして参照する
 - `phase` フィールドが省略された場合、デフォルト値 `main` が適用される
 - エージェント名に使用できる文字はアルファベット小文字・数字・ハイフンのみとする。これ以外の文字を含む名前はバリデーションエラーとなる
 - `allowed_tools` フィールドが空リストの場合、エージェントはツールなしで実行される（有効な状態）
-- 同じフェーズ内の複数エージェントの実行順序は名前の辞書順とする（決定的な順序を保証）
+- 同じフェーズ内の複数エージェントの実行順序は 005-review-engine の SelectorAgent が決定する（003 ではフェーズと名前のデータのみ保持）
 
 ## Requirements *(mandatory)*
 
@@ -123,12 +116,10 @@
   - `applicability`: 適用ルール（ApplicabilityRule）。TOML に `[applicability]` セクションが存在しない場合、`{always: true}` がデフォルトとして適用される（エージェントは常に実行対象となる）
   - `phase`: 実行フェーズ（"early", "main", "final" のいずれか、デフォルト: "main"）
 
-- **FR-AD-002**: システムは適用ルール（ApplicabilityRule）を評価し、レビュー対象に基づいてエージェントの適用可否を判定できなければならない。ApplicabilityRule は以下のフィールドを持つ:
-  - `always`: 常時適用フラグ（デフォルト: false）。true の場合、他の条件に関わらず常に適用する
-  - `file_patterns`: ファイル名パターンのリスト（fnmatch 互換グロブパターン）。マッチング対象はファイルパスのファイル名部分（basename）とする。変更ファイル（diff/PR モード）または指定ファイル（file モード）のファイル名に対してマッチングする
-  - `content_patterns`: 差分内容パターンのリスト（Python `re` 互換正規表現）。差分内容（diff/PR モード）またはファイル全体の内容（file モード）に対してマッチングする
-
-  条件評価ロジック: `always = true` → 常に適用。それ以外の場合、`file_patterns` と `content_patterns` のいずれか1つ以上にマッチすれば適用（OR 条件）。両方が空リストかつ `always = false` の場合は不適用
+- **FR-AD-002**: エージェント定義の ApplicabilityRule は、005-review-engine の SelectorAgent が参照する判断ガイダンスとして以下のフィールドを持つ。本仕様ではデータモデルの定義とバリデーションのみを担当し、実際の評価ロジック（エージェント選択）は 005-review-engine の SelectorAgent が担当する:
+  - `always`: 常時適用フラグ（デフォルト: false）。true の場合、SelectorAgent は他の条件に関わらず当該エージェントを選択すべきことを示すガイダンス
+  - `file_patterns`: ファイル名パターンのリスト（fnmatch 互換グロブパターン記法）。SelectorAgent がレビュー対象のファイルとの関連性を判断する際のガイダンス
+  - `content_patterns`: コンテンツパターンのリスト（Python `re` 互換正規表現記法）。SelectorAgent がレビュー対象のコンテンツとの関連性を判断する際のガイダンス
 
 - **FR-AD-003**: システムはビルトインエージェント定義ファイルを Python パッケージ内にバンドルし、ローダーが常にアクセスできなければならない。ビルトイン定義はカスタム定義が存在しない場合のデフォルトとして機能する（親仕様 FR-003）
 
@@ -142,7 +133,7 @@
   - **comment-analyzer**: コードコメントの正確性・品質の分析。出力スキーマ: `category_classification`
   - **code-simplifier**: コードの簡潔化・改善提案。出力スキーマ: `improvement_suggestions`
 
-- **FR-AD-006**: システムはレビュー対象のファイルパスリストと差分/ファイル内容を受け取り、適用ルールに基づいて実行すべきエージェントを選択し、実行フェーズ順（early → main → final）でソートされたリストを返すセレクターを提供しなければならない（親仕様 FR-005）
+- **~~FR-AD-006~~**: ~~セレクター機能~~ → 005-review-engine の SelectorAgent に移管（Issue #64）。親仕様 FR-005 の実現は 005-review-engine が担当する
 
 - **FR-AD-007**: システムはエージェント定義ファイルのバリデーションにおいて以下を検証しなければならない:
   - 必須フィールドの存在
@@ -158,10 +149,9 @@
 ### Key Entities
 
 - **AgentDefinition（エージェント定義）**: レビューエージェントの全構成情報を包含するモデル。TOML 定義ファイルから構築される。名前（一意識別子）、説明、使用モデル、許可ツールリスト、出力スキーマ参照（SCHEMA_REGISTRY のスキーマ名 + 解決済み型情報）、システムプロンプト、適用ルール（ApplicabilityRule）、実行フェーズを持つ
-- **ApplicabilityRule（適用ルール）**: エージェントをいつ適用するかを決定する条件セット。常時適用フラグ（always）、ファイルパターンリスト（file_patterns、fnmatch 互換グロブ）、コンテンツパターンリスト（content_patterns、Python re 互換正規表現）から構成される。条件は OR 評価（いずれか1つ以上にマッチで適用）
-- **Phase（実行フェーズ）**: エージェントの実行順序を制御する列挙型。early（前処理的な分析）、main（メインの詳細レビュー）、final（最終的な総合分析）の3値。同フェーズ内のエージェントは名前の辞書順で実行される
+- **ApplicabilityRule（適用ルール）**: 005-review-engine の SelectorAgent がエージェントの適用可否を判断する際のガイダンス情報。常時適用フラグ（always）、ファイルパターンリスト（file_patterns、fnmatch 互換グロブ記法）、コンテンツパターンリスト（content_patterns、Python re 互換正規表現記法）から構成される。本仕様ではデータ構造の定義とバリデーション（正規表現の構文チェック等）を担当し、実際の評価ロジックは 005-review-engine の SelectorAgent が担当する
+- **Phase（実行フェーズ）**: エージェントの実行順序を制御する列挙型。early（前処理的な分析）、main（メインの詳細レビュー）、final（最終的な総合分析）の3値。実行順序の決定は 005-review-engine の SelectorAgent が担当する
 - **AgentLoader（エージェントローダー）**: ビルトインとカスタムの TOML 定義ファイルを読み込み、バリデーションし、AgentDefinition モデルのリストを構築する処理。カスタム定義によるビルトイン上書きと部分失敗（不正な定義のスキップ）をサポートする
-- **AgentSelector（エージェントセレクター）**: レビュー対象（ファイルパスリスト・差分/ファイル内容）を受け取り、各エージェントの ApplicabilityRule を評価して、適用すべきエージェントを Phase 順にソートして返す処理
 - **LoadResult（読み込み結果）**: ローダーの処理結果を表現するモデル。正常に読み込まれた AgentDefinition のリストと、スキップされたエージェントのエラー情報リストを持つ。呼び出し元がエラー情報の表示方法を決定できる
 
 ## Success Criteria *(mandatory)*
@@ -172,8 +162,8 @@
 - **SC-AD-002**: エージェント定義ファイルを `.hachimoku/agents/` に配置するだけで、コード変更なしにカスタムエージェントがレビューに参加できる（親仕様 SC-003 の実現基盤）
 - **SC-AD-003**: ビルトインと同名のカスタム定義が存在する場合、カスタム定義がビルトインを100%上書きする
 - **SC-AD-004**: 不正な TOML ファイルや必須フィールド欠損の定義ファイルが存在しても、正常な定義ファイルはすべて読み込まれる（部分失敗許容）
-- **SC-AD-005**: セレクターが ApplicabilityRule に基づいてエージェントを正しく選択し、`always = true` のエージェントは常に選択される
-- **SC-AD-006**: セレクターの結果がフェーズ順（early → main → final）でソートされ、同フェーズ内は名前の辞書順で返される
+- **~~SC-AD-005~~**: ~~セレクターによるエージェント選択~~ → 005-review-engine の SelectorAgent の Success Criteria に移管（Issue #64）
+- **~~SC-AD-006~~**: ~~セレクター結果のフェーズ順ソート~~ → 005-review-engine の SelectorAgent の Success Criteria に移管（Issue #64）
 - **SC-AD-007**: `output_schema` フィールドの値が SCHEMA_REGISTRY に存在しない場合、定義読み込み時に明確なエラーが報告される
 
 ## Assumptions
@@ -181,6 +171,6 @@
 - エージェント定義ファイルの TOML パースには Python 標準ライブラリ `tomllib`（Python 3.11+）を使用する。外部ライブラリの追加は不要
 - ビルトイン6エージェントのシステムプロンプトの具体的な内容は、実装フェーズで各エージェントの専門領域に基づいて策定する。本仕様ではプロンプトの構造と配置方法を定義する
 - ビルトインエージェント定義ファイルのパッケージ内配置には `importlib.resources` を使用する（Python 標準ライブラリ）
-- `file_patterns` のマッチングは完全パスではなくファイル名部分に対して行う。ディレクトリパターン（例: `src/**/*.py`）のサポートは将来の拡張として検討する
+- `file_patterns` の記法は fnmatch 互換グロブパターンとする。実際のマッチング方法（basename 対象 / フルパス対象 / ディレクトリパターン等）は 005-review-engine の SelectorAgent の判断に委ねられる
 - エージェント定義の `model` フィールドの値は文字列として保持し、実際のモデル解決は 005-review-engine が担当する。本仕様ではモデル名のバリデーション（存在確認等）は行わない
 - `allowed_tools` フィールドの値は文字列リストとして保持し、実際のツール解決は 005-review-engine が担当する

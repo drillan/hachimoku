@@ -36,7 +36,7 @@ graph TD
 |----|------|------|--------|------|
 | [001-architecture-spec](./001-architecture-spec/spec.md) | アーキテクチャ仕様（親） | Draft | - | 全体アーキテクチャ、ユーザーストーリー、機能要件、成功基準を定義する親仕様 |
 | [002-domain-models](./002-domain-models/spec.md) | ドメインモデル・出力スキーマ | Draft | P0 | Severity, ReviewIssue, AgentResult, ReviewReport 等の共通モデル、6種の出力スキーマ、SCHEMA_REGISTRY、Severity マッピング |
-| 003-agent-definition | エージェント定義・ローダー | 未着手 | P1 | TOML 定義フォーマット、AgentDefinition、ApplicabilityRule、ビルトイン6エージェント、ローダー・セレクター |
+| 003-agent-definition | エージェント定義・ローダー | 未着手 | P1 | TOML 定義フォーマット、AgentDefinition、ApplicabilityRule、ビルトイン6エージェント、ローダー |
 | [004-configuration](./004-configuration/spec.md) | 設定管理 | Draft | P2 | HachimokuConfig、5層階層解決、エージェント個別設定、プロジェクトディレクトリ探索 |
 | 005-review-engine | レビュー実行エンジン | 未着手 | P1 | 逐次・並列実行、二段階タイムアウト、部分失敗許容、結果集約、シグナルハンドリング |
 | 006-cli-interface | CLI インターフェース・初期化 | 未着手 | P1-P3 | Typer app、`8moku`/`hachimoku` デュアルコマンド、`init`・`agents` サブコマンド、終了コード |
@@ -52,9 +52,9 @@ graph TD
 | 子仕様 | 機能要件 | ユーザーストーリー |
 |--------|---------|------------------|
 | 002-domain-models | FR-004 | - |
-| 003-agent-definition | FR-003, FR-005, FR-011, FR-014 | US3 |
+| 003-agent-definition | FR-003, FR-011, FR-014 | US3 |
 | 004-configuration | FR-010 | US5 |
-| 005-review-engine | FR-001, FR-002, FR-006, FR-007, FR-013 | US1, US2, US9 |
+| 005-review-engine | FR-001, FR-002, FR-005, FR-006, FR-007, FR-013 | US1, US2, US9 |
 | 006-cli-interface | FR-008, FR-009, FR-016, FR-017, FR-018, FR-021, FR-027, FR-028, FR-029, FR-031, FR-032 | US7, US8, US9 |
 | 007-output-format | FR-008, FR-015, FR-025, FR-026, FR-030 | US4, US9 |
 | 008-github-integration | FR-019, FR-020, FR-022, FR-023, FR-024 | US6 |
@@ -68,7 +68,7 @@ graph TD
 依存関係と優先度を考慮した実装順序:
 
 1. **002-domain-models** — 全レイヤーの基盤となる共通モデル・スキーマ定義
-2. **003-agent-definition** — エージェントの定義・読み込み・選択（スキーマは 002 で定義済み）
+2. **003-agent-definition** — エージェントの定義・読み込み（スキーマは 002 で定義済み）
 3. **007-output-format** — Markdown フォーマッター基本実装（エンジン開発時の結果確認に必要）
 4. **004-configuration** — 設定階層の解決
 5. **005-review-engine** — 逐次実行 → 並列実行（設定・エージェント定義に依存）
