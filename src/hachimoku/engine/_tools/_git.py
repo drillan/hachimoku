@@ -23,6 +23,9 @@ ALLOWED_GIT_SUBCOMMANDS: Final[frozenset[str]] = frozenset(
 )
 """読み取り専用の git サブコマンド。"""
 
+_SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
+"""subprocess.run のタイムアウト秒数。"""
+
 
 def run_git(args: list[str]) -> str:
     """git コマンドを読み取り専用で実行する。
@@ -35,7 +38,8 @@ def run_git(args: list[str]) -> str:
 
     Raises:
         ValueError: args[0] がホワイトリスト外のサブコマンドの場合。
-        RuntimeError: git コマンドが非ゼロで終了した場合。
+        RuntimeError: git コマンドが非ゼロで終了した場合、
+            または git が PATH 上に見つからない場合。
     """
     if not args or args[0] not in ALLOWED_GIT_SUBCOMMANDS:
         subcmd = args[0] if args else "(empty)"
@@ -47,7 +51,12 @@ def run_git(args: list[str]) -> str:
             capture_output=True,
             text=True,
             check=True,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
         )
+    except FileNotFoundError:
+        raise RuntimeError(
+            "git command not found. Ensure git is installed and available in PATH."
+        ) from None
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"git command failed: {e.stderr}") from e
 

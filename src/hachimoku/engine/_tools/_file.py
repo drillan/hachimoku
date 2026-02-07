@@ -23,7 +23,7 @@ def read_file(path: str) -> str:
     file_path = Path(path)
     if not file_path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
-    return file_path.read_text()
+    return file_path.read_text(encoding="utf-8")
 
 
 def list_directory(path: str, pattern: str | None = None) -> str:
@@ -31,7 +31,7 @@ def list_directory(path: str, pattern: str | None = None) -> str:
 
     Args:
         path: ディレクトリパス。
-        pattern: glob パターン（例: "*.py"）。None の場合は全エントリ。
+        pattern: glob パターン（例: "*.py"）。None の場合は全ファイル。
 
     Returns:
         ファイル名一覧を改行区切りで連結した文字列。

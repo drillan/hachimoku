@@ -217,6 +217,20 @@ class TestReportSelectorResult:
         captured = capsys.readouterr()
         assert "Selector: no applicable agents found" in captured.err
 
+    def test_reasoning_included_in_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """reasoning が出力に含まれる（I-2 修正確認）。"""
+        report_selector_result(selected_count=2, reasoning="high relevance")
+        captured = capsys.readouterr()
+        assert "high relevance" in captured.err
+
+    def test_empty_reasoning_omitted(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """空の reasoning は出力に追加されない。"""
+        report_selector_result(selected_count=1, reasoning="")
+        captured = capsys.readouterr()
+        assert captured.err.strip() == "Selector: 1 agents selected"
+
     def test_no_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
         """stdout が空である。"""
         report_selector_result(selected_count=1, reasoning="test")

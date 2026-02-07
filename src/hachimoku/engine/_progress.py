@@ -123,4 +123,7 @@ def report_selector_result(selected_count: int, reasoning: str) -> None:
     else:
         msg = f"Selector: {selected_count} agents selected"
 
+    if reasoning:
+        msg += f" — {reasoning}"
+
     print(msg, file=sys.stderr)

@@ -87,8 +87,8 @@ class TestBuildReviewInstructionIssue:
         """issue_number=None 時に Issue 参照を含まない。"""
         target = DiffTarget(base_branch="main")
         instruction = build_review_instruction(target)
-        # issue 関連のキーワードが含まれないことを確認
         assert "#None" not in instruction
+        assert "Related Issue" not in instruction
 
 
 # =============================================================================
