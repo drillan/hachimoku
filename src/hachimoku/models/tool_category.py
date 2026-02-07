@@ -1,7 +1,8 @@
 """ツールカテゴリの正規定義。
 
 エージェントに許可されるツールのカテゴリを定義する。
-004-configuration (FR-CF-004) と 005-review-engine (FR-RE-016) が参照する。
+004-configuration (FR-CF-004) と 005-review-engine (FR-RE-016) での使用を想定。
+循環依存を回避するため 002-domain-models に配置（004-configuration spec.md Q5）。
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ class ToolCategory(StrEnum):
 
     読み取り専用の3カテゴリを定義する。
     セレクターエージェント設定の allowed_tools バリデーション（FR-CF-004）と
-    ToolCatalog のカテゴリ名解決（FR-RE-016）で使用される。
+    ToolCatalog のカテゴリ名解決（FR-RE-016）での使用を想定。
     """
 
     GIT_READ = "git_read"
