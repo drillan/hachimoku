@@ -15,7 +15,7 @@ TOML 形式のエージェント定義ファイルを読み込み、AgentDefinit
 **Testing**: pytest
 **Target Platform**: Python CLI（Linux/macOS/Windows）
 **Project Type**: single（既存の `src/hachimoku/` パッケージに追加）
-**Performance Goals**: N/A（定義読み込み・選択は軽量な処理）
+**Performance Goals**: N/A（定義読み込みは軽量な処理）
 **Constraints**: 既存の 002-domain-models（HachimokuBaseModel, SCHEMA_REGISTRY, BaseAgentOutput）との整合性を保つ
 **Scale/Scope**: ビルトイン6エージェント + カスタムエージェント（数十程度を想定）
 

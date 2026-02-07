@@ -33,5 +33,5 @@
 
 - Assumptions セクションに技術的な実装方針（tomllib, importlib.resources）を記載しているが、これは仕様本体ではなく前提条件の記録であり許容範囲
 - ビルトインエージェントのシステムプロンプト内容は実装フェーズで策定するとの前提を明記済み
-- file_patterns のマッチング対象（ファイル名部分 vs フルパス）について Assumptions で明確化済み
+- file_patterns の記法は fnmatch 互換グロブパターンとし、実際のマッチング方法は 005-review-engine に委ねる旨を Assumptions で明確化済み
 - model, allowed_tools フィールドの解決は 005-review-engine の責務と明確に分離済み

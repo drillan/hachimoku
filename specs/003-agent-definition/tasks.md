@@ -31,7 +31,7 @@
 
 **Purpose**: 全ユーザーストーリーが依存する `Phase`, `ApplicabilityRule`, `AgentDefinition`, `LoadError`, `LoadResult` モデルの実装
 
-**⚠️ CRITICAL**: US1/US2/US3/US4 のすべてがこのフェーズのモデルに依存する
+**⚠️ CRITICAL**: US1/US3/US4 のすべてがこのフェーズのモデルに依存する
 
 ### Tests for Phase 2
 

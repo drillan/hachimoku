@@ -32,7 +32,7 @@ class Phase(StrEnum):
     """エージェントの実行フェーズ。
 
     実行順序: EARLY → MAIN → FINAL
-    同フェーズ内のエージェントは名前の辞書順で実行される。
+    同フェーズ内の実行順序は 005-review-engine の SelectorAgent が決定する。
     """
 
     EARLY = "early"
