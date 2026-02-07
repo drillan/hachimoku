@@ -3,7 +3,9 @@
 T026: EngineResult モデル検証、_filter_disabled_agents、
 run_review パイプラインの統合テスト。
 T037: parallel 設定による実行モード切り替えテスト。
+T042: SignalHandler の install/uninstall 統合テスト。
 FR-RE-002: エージェント実行パイプライン全体の統括。
+FR-RE-005: グレースフルシャットダウン。
 FR-RE-006: parallel 設定に応じたフェーズ順序制御。
 FR-RE-009: 全エージェント失敗時の exit_code=3。
 FR-RE-010: 空選択時の正常終了（exit_code=0）。
@@ -11,6 +13,8 @@ FR-RE-014: load_errors のレポート記録。
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -591,3 +595,152 @@ class TestRunReviewParallelSwitch:
         """HachimokuConfig のデフォルトで parallel=True。"""
         config = HachimokuConfig()
         assert config.parallel is True
+
+
+# =============================================================================
+# run_review — SignalHandler 統合テスト
+# =============================================================================
+
+
+class TestRunReviewSignalIntegration:
+    """T042: SignalHandler の install/uninstall 統合テスト。
+
+    FR-RE-005: グレースフルシャットダウン。
+    run_review() が executor 前後で install/uninstall を呼ぶことを検証する。
+    """
+
+    @patch("hachimoku.engine._engine.uninstall_signal_handlers")
+    @patch("hachimoku.engine._engine.install_signal_handlers")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_signal_handlers_installed_and_uninstalled(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_install: MagicMock,
+        mock_uninstall: MagicMock,
+    ) -> None:
+        """シグナルハンドラが executor 前後で install/uninstall される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        # 呼び出し順序を記録するトラッカー
+        call_order: list[str] = []
+        mock_install.side_effect = lambda *a, **kw: call_order.append("install")
+
+        async def track_execute(*a: object, **kw: object) -> list[object]:
+            call_order.append("execute")
+            return [_make_success("agent-a")]
+
+        mock_execute.side_effect = track_execute
+        mock_uninstall.side_effect = lambda *a, **kw: call_order.append("uninstall")
+
+        await run_review(target=_make_target())
+
+        # S1: install → execute → uninstall の順序を検証
+        assert call_order == ["install", "execute", "uninstall"]
+        mock_install.assert_called_once()
+        mock_uninstall.assert_called_once()
+
+    @patch("hachimoku.engine._engine.uninstall_signal_handlers")
+    @patch("hachimoku.engine._engine.install_signal_handlers")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_same_shutdown_event_passed_to_install_and_executor(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_install: MagicMock,
+        mock_uninstall: MagicMock,
+    ) -> None:
+        """install と executor に同一の shutdown_event が渡される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        # install_signal_handlers(shutdown_event, loop) の第1引数
+        install_event = mock_install.call_args[0][0]
+        assert isinstance(install_event, asyncio.Event)
+
+        # executor(contexts, shutdown_event) の第2引数
+        executor_event = mock_execute.call_args[0][1]
+        assert isinstance(executor_event, asyncio.Event)
+
+        # S2: 同一の shutdown_event オブジェクト
+        assert install_event is executor_event
+
+    @patch("hachimoku.engine._engine.uninstall_signal_handlers")
+    @patch("hachimoku.engine._engine.install_signal_handlers")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_signal_handlers_uninstalled_on_executor_error(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_install: MagicMock,
+        mock_uninstall: MagicMock,
+    ) -> None:
+        """executor がエラーでも finally で uninstall が呼ばれる。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+        )
+        mock_execute.side_effect = RuntimeError("executor crashed")
+
+        with pytest.raises(RuntimeError, match="executor crashed"):
+            await run_review(target=_make_target())
+
+        mock_install.assert_called_once()
+        mock_uninstall.assert_called_once()
+
+    @patch("hachimoku.engine._engine.uninstall_signal_handlers")
+    @patch("hachimoku.engine._engine.install_signal_handlers")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_signal_handlers_not_installed_when_no_agents_selected(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_install: MagicMock,
+        mock_uninstall: MagicMock,
+    ) -> None:
+        """空選択時はシグナルハンドラが install されない。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=[],
+            reasoning="No applicable agents",
+        )
+
+        result = await run_review(target=_make_target())
+
+        assert result.exit_code == 0
+        mock_install.assert_not_called()
+        mock_uninstall.assert_not_called()
