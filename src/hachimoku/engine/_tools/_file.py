@@ -19,11 +19,15 @@ def read_file(path: str) -> str:
 
     Raises:
         FileNotFoundError: ファイルが存在しない場合。
+        ValueError: ファイルが有効な UTF-8 テキストでない場合。
     """
     file_path = Path(path)
     if not file_path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
-    return file_path.read_text(encoding="utf-8")
+    try:
+        return file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise ValueError(f"File '{path}' is not a valid UTF-8 text file") from None
 
 
 def list_directory(path: str, pattern: str | None = None) -> str:

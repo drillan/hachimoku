@@ -178,6 +178,16 @@ class TestFileTargetConstraints:
         with pytest.raises(ValidationError, match="issue_number"):
             FileTarget(paths=("a.py",), issue_number=0)
 
+    def test_empty_string_path_rejected(self) -> None:
+        """paths 要素が空文字列で ValidationError（I-3）。"""
+        with pytest.raises(ValidationError):
+            FileTarget(paths=("",))
+
+    def test_mixed_empty_string_path_rejected(self) -> None:
+        """paths に空文字列が混在する場合 ValidationError（I-3）。"""
+        with pytest.raises(ValidationError):
+            FileTarget(paths=("valid.py", ""))
+
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドで extra_forbidden。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):

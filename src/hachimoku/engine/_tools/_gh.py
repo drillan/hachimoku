@@ -36,7 +36,8 @@ def run_gh(args: list[str]) -> str:
         ValueError: コマンドパターンがホワイトリスト外の場合、
             または api サブコマンドで GET 以外の HTTP メソッドが指定された場合。
         RuntimeError: gh コマンドが非ゼロで終了した場合、
-            または gh が PATH 上に見つからない場合。
+            gh が PATH 上に見つからない場合、
+            またはタイムアウトした場合。
     """
     if not args:
         raise ValueError("gh command is empty")
@@ -65,6 +66,10 @@ def run_gh(args: list[str]) -> str:
         raise RuntimeError(
             "gh command not found. Ensure GitHub CLI is installed and available in PATH."
         ) from None
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"gh command timed out after {_SUBPROCESS_TIMEOUT_SECONDS}s"
+        ) from e
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"gh command failed: {e.stderr}") from e
 
@@ -78,10 +83,13 @@ def _validate_api_method(args: list[str]) -> None:
         args: gh サブコマンドと引数のリスト。
 
     Raises:
-        ValueError: GET 以外の HTTP メソッドが指定されている場合。
+        ValueError: GET 以外の HTTP メソッドが指定されている場合、
+            または -X / --method フラグに値が指定されていない場合。
     """
     for i, arg in enumerate(args):
-        if arg in ("-X", "--method") and i + 1 < len(args):
+        if arg in ("-X", "--method"):
+            if i + 1 >= len(args):
+                raise ValueError(f"gh api: missing value for {arg}")
             method = args[i + 1].upper()
             if method != "GET":
                 raise ValueError(f"gh api only allows GET method, got '{method}'")

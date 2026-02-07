@@ -91,6 +91,15 @@ class TestRunGitExecution:
             with pytest.raises(RuntimeError, match="git command not found"):
                 run_git(["status"])
 
+    def test_timeout_raises_runtime_error(self) -> None:
+        """タイムアウト時に RuntimeError を送出する。"""
+        with patch("hachimoku.engine._tools._git.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(
+                ["git", "diff"], timeout=120
+            )
+            with pytest.raises(RuntimeError, match="timed out"):
+                run_git(["diff"])
+
 
 # =============================================================================
 # run_gh
@@ -185,6 +194,11 @@ class TestRunGhApiMethodValidation:
             mock_run.return_value = Mock(stdout="ok")
             run_gh(["api", "repos/owner/repo"])
 
+    def test_api_method_flag_at_end_raises_error(self) -> None:
+        """api に -X が末尾で値なしの場合 ValueError を送出する（I-1）。"""
+        with pytest.raises(ValueError, match="missing value"):
+            run_gh(["api", "repos/owner/repo", "-X"])
+
 
 class TestRunGhExecution:
     """run_gh のコマンド実行を検証。"""
@@ -204,6 +218,15 @@ class TestRunGhExecution:
             mock_run.side_effect = FileNotFoundError("No such file: 'gh'")
             with pytest.raises(RuntimeError, match="gh command not found"):
                 run_gh(["pr", "view", "1"])
+
+    def test_timeout_raises_runtime_error(self) -> None:
+        """タイムアウト時に RuntimeError を送出する。"""
+        with patch("hachimoku.engine._tools._gh.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(
+                ["gh", "api", "repos/owner/repo"], timeout=120
+            )
+            with pytest.raises(RuntimeError, match="timed out"):
+                run_gh(["api", "repos/owner/repo"])
 
 
 # =============================================================================
@@ -237,6 +260,13 @@ class TestReadFile:
         """ディレクトリパスで FileNotFoundError を送出する（S-7）。"""
         with pytest.raises(FileNotFoundError):
             read_file(str(tmp_path))
+
+    def test_binary_file_raises_value_error(self, tmp_path: Path) -> None:
+        """バイナリファイルで ValueError を送出する（I-2）。"""
+        binary_file = tmp_path / "binary.bin"
+        binary_file.write_bytes(b"\x80\x81\x82\xff\xfe")
+        with pytest.raises(ValueError, match="not a valid UTF-8"):
+            read_file(str(binary_file))
 
 
 # =============================================================================

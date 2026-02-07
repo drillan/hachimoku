@@ -56,7 +56,7 @@ class FileTarget(HachimokuBaseModel):
     """
 
     mode: Literal["file"] = "file"
-    paths: tuple[str, ...] = Field(min_length=1)
+    paths: tuple[Annotated[str, Field(min_length=1)], ...] = Field(min_length=1)
     issue_number: int | None = Field(default=None, gt=0)
 
 

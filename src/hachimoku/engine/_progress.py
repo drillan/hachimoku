@@ -111,12 +111,13 @@ def report_selector_result(selected_count: int, reasoning: str) -> None:
     """セレクター結果を stderr に表示する。
 
     出力フォーマット:
-        "Selector: {selected_count} agents selected"
-        空の場合: "Selector: no applicable agents found"
+        "Selector: {selected_count} agents selected — {reasoning}"
+        reasoning が空の場合: "Selector: {selected_count} agents selected"
+        選択数が 0 の場合: "Selector: no applicable agents found — {reasoning}"
 
     Args:
         selected_count: 選択されたエージェント数。
-        reasoning: 選択理由（デバッグ時に有用）。
+        reasoning: 選択理由。空でない場合はメッセージ末尾に付加される。
     """
     if selected_count == 0:
         msg = "Selector: no applicable agents found"
