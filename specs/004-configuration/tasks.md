@@ -230,9 +230,9 @@
 
 **Purpose**: 品質向上、ドキュメント整合性、quickstart 検証
 
-- [ ] T036 Run full test suite: `uv --directory $PROJECT_ROOT run pytest`
-- [ ] T037 [P] Run final quality checks: `ruff check --fix . && ruff format . && mypy .`
-- [ ] T038 Validate quickstart.md scenarios work end-to-end (manual verification against `specs/004-configuration/quickstart.md`)
+- [x] T036 Run full test suite: `uv --directory $PROJECT_ROOT run pytest`
+- [x] T037 [P] Run final quality checks: `ruff check --fix . && ruff format . && mypy .`
+- [x] T038 Validate quickstart.md scenarios work end-to-end (manual verification against `specs/004-configuration/quickstart.md`)
 
 ---
 
