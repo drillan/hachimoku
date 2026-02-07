@@ -39,7 +39,7 @@ graph TD
 | 003-agent-definition | エージェント定義・ローダー | 未着手 | P1 | TOML 定義フォーマット、AgentDefinition、ApplicabilityRule、ビルトイン6エージェント、ローダー |
 | [004-configuration](./004-configuration/spec.md) | 設定管理 | Draft | P2 | HachimokuConfig、5層階層解決、エージェント個別設定、プロジェクトディレクトリ探索 |
 | 005-review-engine | レビュー実行エンジン | 未着手 | P1 | 逐次・並列実行、二段階タイムアウト、部分失敗許容、結果集約、シグナルハンドリング |
-| 006-cli-interface | CLI インターフェース・初期化 | 未着手 | P1-P3 | Typer app、`8moku`/`hachimoku` デュアルコマンド、`init`・`agents` サブコマンド、終了コード |
+| [006-cli-interface](./006-cli-interface/spec.md) | CLI インターフェース・初期化 | Draft | P1-P3 | Typer app、`8moku`/`hachimoku` デュアルコマンド、`init`・`agents` サブコマンド、終了コード |
 | 007-output-format | 出力フォーマット・レビュー蓄積 | 未着手 | P1-P3 | Markdown/JSON フォーマッター、JSONL 蓄積、コスト集計表示 |
 | 008-github-integration | GitHub PR・Issue 連携 | 未着手 | P2 | PR メタデータ取得、PR 差分取得、`--issue` コンテキスト注入、GitHub API エラー処理 |
 
