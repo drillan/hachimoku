@@ -35,6 +35,11 @@ class TestCostInfoValid:
         assert cost.output_tokens == 0
         assert cost.total_cost == 0.0
 
+    def test_total_cost_default_none(self) -> None:
+        """total_cost 省略時に None となる（金額計算未実装時）。"""
+        cost = CostInfo(input_tokens=100, output_tokens=50)
+        assert cost.total_cost is None
+
 
 class TestCostInfoConstraints:
     """CostInfo の制約違反を検証。"""

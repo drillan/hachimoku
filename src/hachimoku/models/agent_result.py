@@ -20,12 +20,12 @@ class CostInfo(HachimokuBaseModel):
     Attributes:
         input_tokens: 入力トークン数（非負）。
         output_tokens: 出力トークン数（非負）。
-        total_cost: 合計コスト（非負）。
+        total_cost: 合計コスト（非負）。金額計算未実装時は None。
     """
 
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
-    total_cost: float = Field(ge=0.0, allow_inf_nan=False)
+    total_cost: float | None = Field(default=None, ge=0.0, allow_inf_nan=False)
 
 
 class AgentSuccess(HachimokuBaseModel):
