@@ -45,6 +45,7 @@ from hachimoku.models.severity import (
     determine_exit_code,
 )
 
+
 __all__ = [
     "AgentError",
     "AgentResult",
