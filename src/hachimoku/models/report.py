@@ -1,15 +1,21 @@
 """レビューサマリーとレビューレポートの定義。
 
 FR-DM-004: ReviewReport による結果集約。
+FR-RE-014: load_errors フィールド。
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import AgentResult, CostInfo
 from hachimoku.models.severity import Severity
+
+if TYPE_CHECKING:
+    from hachimoku.agents.models import LoadError
 
 
 class ReviewSummary(HachimokuBaseModel):
@@ -51,7 +57,9 @@ class ReviewReport(HachimokuBaseModel):
     Attributes:
         results: エージェント結果のリスト。
         summary: レビュー結果の全体サマリー。
+        load_errors: エージェント読み込みエラーのタプル（FR-RE-014）。
     """
 
     results: list[AgentResult]
     summary: ReviewSummary
+    load_errors: tuple[LoadError, ...] = ()

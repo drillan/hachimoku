@@ -1,11 +1,13 @@
 """ReviewSummary と ReviewReport のテスト。
 
 FR-DM-004: ReviewReport による結果集約。
+FR-RE-014: ReviewReport.load_errors フィールド。
 """
 
 import pytest
 from pydantic import ValidationError
 
+from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
@@ -293,3 +295,55 @@ class TestReviewReportConstraints:
                 ),
                 metadata={},  # type: ignore[call-arg]
             )
+
+
+# =============================================================================
+# ReviewReport.load_errors (FR-RE-014)
+# =============================================================================
+
+
+class TestReviewReportLoadErrors:
+    """ReviewReport の load_errors フィールドを検証。"""
+
+    def _make_summary(self) -> ReviewSummary:
+        """テスト用 ReviewSummary を生成するヘルパー。"""
+        return ReviewSummary(
+            total_issues=0,
+            max_severity=None,
+            total_elapsed_time=0.0,
+        )
+
+    def test_load_errors_default_empty_tuple(self) -> None:
+        """load_errors 省略時に空タプルとなる。"""
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+        )
+        assert report.load_errors == ()
+
+    def test_load_errors_accepts_load_error_tuple(self) -> None:
+        """load_errors に LoadError タプルを渡せる。"""
+        error = LoadError(source="broken.toml", message="parse error")
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+            load_errors=(error,),
+        )
+        assert len(report.load_errors) == 1
+        assert report.load_errors[0].source == "broken.toml"
+        assert report.load_errors[0].message == "parse error"
+
+    def test_multiple_load_errors(self) -> None:
+        """複数の LoadError を保持できる。"""
+        errors = (
+            LoadError(source="a.toml", message="error a"),
+            LoadError(source="b.toml", message="error b"),
+        )
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+            load_errors=errors,
+        )
+        assert len(report.load_errors) == 2
+        assert report.load_errors[0].source == "a.toml"
+        assert report.load_errors[1].source == "b.toml"
