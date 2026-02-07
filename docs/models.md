@@ -23,6 +23,25 @@ hachimoku のドメインモデルは `hachimoku.models` パッケージで定�
 
 ReviewIssue の severity フィールドでは、大文字小文字を区別せずに入力を受け付けます（`"critical"`, `"CRITICAL"`, `"Critical"` いずれも有効）。
 
+(tool-category)=
+## ToolCategory（ツールカテゴリ）
+
+エージェントに許可されるツールの種類を定義する列挙型（StrEnum）です。
+読み取り専用の3カテゴリで構成されます。
+
+| 値 | 文字列値 | 説明 |
+|----|---------|------|
+| `GIT_READ` | `"git_read"` | Git 読み取り操作（diff, log, show, status 等） |
+| `GH_READ` | `"gh_read"` | GitHub CLI 読み取り操作（pr view, issue view 等） |
+| `FILE_READ` | `"file_read"` | ファイル読み取り操作（read, ls 等） |
+
+```{code-block} python
+from hachimoku.models import ToolCategory
+
+cat = ToolCategory.GIT_READ
+assert cat == "git_read"
+```
+
 ## FileLocation（ファイル位置）
 
 レビュー問題が検出されたファイル内の位置を表します。
@@ -153,7 +172,9 @@ assert isinstance(result, AgentSuccess)
 |-----------|---|------|------|
 | `results` | `list[AgentResult]` | Yes | 空リスト許容 |
 | `summary` | `ReviewSummary` | Yes | - |
+| `load_errors` | `tuple[`[LoadError](load-error)`, ...]` | No | デフォルト空タプル |
 
+`load_errors` はエージェント定義の読み込み時に発生したエラーを保持します。
 全エージェントが失敗した場合でも空の `results` でレポートを生成できます。
 
 ```{code-block} python
@@ -169,6 +190,88 @@ report = ReviewReport(
 )
 ```
 
+## レビュー履歴レコード
+
+レビュー結果を JSONL 形式で永続化するためのレコードモデルです。
+`review_mode` フィールドの値で型が自動選択される判別共用体として定義されています。
+
+### CommitHash
+
+Git コミットハッシュの型エイリアスです。40文字の16進小文字文字列に制約されます。
+
+```{code-block} python
+from hachimoku.models import CommitHash
+from pydantic import TypeAdapter
+
+adapter = TypeAdapter(CommitHash)
+hash_value = adapter.validate_python("a" * 40)  # 有効
+```
+
+### DiffReviewRecord
+
+diff モードのレビュー履歴レコードです。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `review_mode` | `Literal["diff"]` | Yes | 固定値 `"diff"` |
+| `commit_hash` | `CommitHash` | Yes | 40文字の16進小文字 |
+| `branch_name` | `str` | Yes | 空文字列不可 |
+| `reviewed_at` | `datetime` | Yes | - |
+| `results` | `list[AgentResult]` | Yes | - |
+| `summary` | `ReviewSummary` | Yes | - |
+
+### PRReviewRecord
+
+PR モードのレビュー履歴レコードです。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `review_mode` | `Literal["pr"]` | Yes | 固定値 `"pr"` |
+| `commit_hash` | `CommitHash` | Yes | 40文字の16進小文字 |
+| `pr_number` | `int` | Yes | 1以上 |
+| `branch_name` | `str` | Yes | 空文字列不可 |
+| `reviewed_at` | `datetime` | Yes | - |
+| `results` | `list[AgentResult]` | Yes | - |
+| `summary` | `ReviewSummary` | Yes | - |
+
+### FileReviewRecord
+
+file モードのレビュー履歴レコードです。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `review_mode` | `Literal["file"]` | Yes | 固定値 `"file"` |
+| `file_paths` | `frozenset[str]` | Yes | 1要素以上、各要素非空 |
+| `reviewed_at` | `datetime` | Yes | - |
+| `working_directory` | `str` | Yes | 絶対パス |
+| `results` | `list[AgentResult]` | Yes | - |
+| `summary` | `ReviewSummary` | Yes | - |
+
+### デシリアライズ例
+
+```{code-block} python
+from pydantic import TypeAdapter
+from hachimoku.models import ReviewHistoryRecord, DiffReviewRecord
+
+adapter = TypeAdapter(ReviewHistoryRecord)
+
+# review_mode フィールドで型が自動選択される
+record = adapter.validate_python({
+    "review_mode": "diff",
+    "commit_hash": "a" * 40,
+    "branch_name": "feature/example",
+    "reviewed_at": "2026-01-01T00:00:00",
+    "results": [],
+    "summary": {
+        "total_issues": 0,
+        "max_severity": None,
+        "total_elapsed_time": 0.0,
+    },
+})
+assert isinstance(record, DiffReviewRecord)
+```
+
+(output-schemas)=
 ## 出力スキーマ
 
 エージェントの出力形式を規定するスキーマです。全スキーマは `BaseAgentOutput` を継承し、共通属性として `issues: list[ReviewIssue]` を持ちます。
@@ -301,6 +404,7 @@ ImprovementItem は以下のフィールドを持ちます。
 | `priority` | `Severity` | Yes | - |
 | `location` | `FileLocation \| None` | No | デフォルト `None` |
 
+(schema-registry)=
 ## SCHEMA_REGISTRY（スキーマレジストリ）
 
 スキーマ名から対応するスキーマクラスを解決するレジストリです。エージェント定義ファイルの `output_schema` フィールドからスキーマを特定する際に使用します。
