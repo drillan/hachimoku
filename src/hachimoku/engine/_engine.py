@@ -8,14 +8,16 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Callable, Coroutine
+from contextlib import suppress
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from hachimoku.agents import load_agents
 from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
-from hachimoku.engine._context import build_execution_context
+from hachimoku.engine._context import AgentExecutionContext, build_execution_context
 from hachimoku.engine._executor import execute_parallel, execute_sequential
 from hachimoku.engine._instruction import build_review_instruction
 from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
@@ -41,6 +43,10 @@ from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity, determine_exit_code
 
 
+SHUTDOWN_TIMEOUT_SECONDS: Final[float] = 3.0
+"""SC-RE-005: SIGINT/SIGTERM 受信後、エグゼキュータをキャンセルするまでの猶予時間（秒）。"""
+
+
 class EngineResult(HachimokuBaseModel):
     """ReviewEngine の実行結果。
 
@@ -51,6 +57,66 @@ class EngineResult(HachimokuBaseModel):
 
     report: ReviewReport
     exit_code: Literal[0, 1, 2, 3]
+
+
+async def _execute_with_shutdown_timeout(
+    executor_fn: Callable[
+        [list[AgentExecutionContext], asyncio.Event, list[AgentResult] | None],
+        Coroutine[object, object, list[AgentResult]],
+    ],
+    contexts: list[AgentExecutionContext],
+    shutdown_event: asyncio.Event,
+) -> list[AgentResult]:
+    """シャットダウンタイムアウトを適用してエグゼキュータを実行する。
+
+    SC-RE-005: shutdown_event がセットされた場合、SHUTDOWN_TIMEOUT_SECONDS 以内に
+    エグゼキュータタスクをキャンセルし、それまでに完了したエージェントの結果を返す。
+
+    完了済みエージェントの結果は collected_results 共有リストに蓄積される。
+    タイムアウト後にエグゼキュータタスクがキャンセルされても、
+    既に共有リストに追加された結果は保存される。
+
+    Args:
+        executor_fn: execute_sequential または execute_parallel。
+        contexts: エージェント実行コンテキストのリスト。
+        shutdown_event: シグナルハンドラがセットする停止イベント。
+
+    Returns:
+        完了したエージェントの AgentResult リスト。
+        タイムアウト時は完了済み分のみ。
+    """
+    collected_results: list[AgentResult] = []
+
+    executor_task: asyncio.Task[list[AgentResult]] = asyncio.create_task(
+        executor_fn(contexts, shutdown_event, collected_results)
+    )
+    shutdown_waiter = asyncio.create_task(shutdown_event.wait())
+
+    done, _ = await asyncio.wait(
+        {executor_task, shutdown_waiter},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    shutdown_waiter.cancel()
+    with suppress(asyncio.CancelledError):
+        await shutdown_waiter
+
+    if executor_task in done:
+        return await executor_task
+
+    # シャットダウン要求 → 猶予時間内に完了を待つ
+    try:
+        return await asyncio.wait_for(executor_task, timeout=SHUTDOWN_TIMEOUT_SECONDS)
+    except TimeoutError:
+        executor_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await executor_task
+        print(
+            f"Warning: Shutdown timeout ({SHUTDOWN_TIMEOUT_SECONDS}s) expired, "
+            f"returning {len(collected_results)} partial result(s)",
+            file=sys.stderr,
+        )
+        return collected_results
 
 
 async def run_review(
@@ -137,7 +203,9 @@ async def run_review(
     try:
         install_signal_handlers(shutdown_event, loop)
         executor = execute_parallel if config.parallel else execute_sequential
-        results: list[AgentResult] = await executor(contexts, shutdown_event)
+        results: list[AgentResult] = await _execute_with_shutdown_timeout(
+            executor, contexts, shutdown_event
+        )
     finally:
         uninstall_signal_handlers(loop)
 

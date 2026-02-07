@@ -50,20 +50,28 @@ def group_by_phase(
 async def execute_sequential(
     contexts: list[AgentExecutionContext],
     shutdown_event: asyncio.Event,
+    collected_results: list[AgentResult] | None = None,
 ) -> list[AgentResult]:
     """エージェントをフェーズ順・名前辞書順で逐次実行する。
 
     各エージェント実行前に shutdown_event をチェックし、
     セット済みなら残りの実行をスキップする。
 
+    SC-RE-005: collected_results が指定された場合、結果を直接追加する。
+    これによりキャンセル時にも完了済みエージェントの結果が保存される。
+
     Args:
         contexts: 実行コンテキストのリスト（ソート不要、内部でグループ化する）。
         shutdown_event: シグナルハンドラがセットする停止イベント。
+        collected_results: 外部から結果を参照するための共有リスト。
+            None の場合は内部でリストを作成する。
 
     Returns:
         実行完了したエージェントの AgentResult リスト。
     """
-    results: list[AgentResult] = []
+    results: list[AgentResult] = (
+        collected_results if collected_results is not None else []
+    )
     grouped = group_by_phase(contexts)
 
     for phase_contexts in grouped.values():
@@ -82,6 +90,7 @@ async def execute_sequential(
 async def execute_parallel(
     contexts: list[AgentExecutionContext],
     shutdown_event: asyncio.Event,
+    collected_results: list[AgentResult] | None = None,
 ) -> list[AgentResult]:
     """同一フェーズ内のエージェントを並列実行する。
 
@@ -92,24 +101,29 @@ async def execute_parallel(
     各タスク内で全ての例外を捕捉し、進捗報告の失敗が
     TaskGroup に伝播して他タスクをキャンセルすることを防止する。
 
+    SC-RE-005: collected_results が指定された場合、結果を直接追加する。
+    これにより TaskGroup キャンセル時にも完了済みエージェントの結果が保存される。
+
     Args:
         contexts: 実行コンテキストのリスト（ソート不要、内部でグループ化する）。
         shutdown_event: シグナルハンドラがセットする停止イベント。
+        collected_results: 外部から結果を参照するための共有リスト。
+            None の場合は内部でリストを作成する。
 
     Returns:
         実行完了したエージェントの AgentResult リスト。
         フェーズ間の順序は保持されるが、同一フェーズ内の順序は非決定的。
     """
-    results: list[AgentResult] = []
+    # asyncio は単一スレッドで動作するため、
+    # list.append は並列タスク間で安全に使用できる。
+    results: list[AgentResult] = (
+        collected_results if collected_results is not None else []
+    )
     grouped = group_by_phase(contexts)
 
     for phase_contexts in grouped.values():
         if shutdown_event.is_set():
             return results
-
-        # asyncio は単一スレッドで動作するため、
-        # list.append は並列タスク間で安全に使用できる。
-        phase_results: list[AgentResult] = []
 
         async def _run_and_collect(ctx: AgentExecutionContext) -> None:
             if shutdown_event.is_set():
@@ -123,12 +137,10 @@ async def execute_parallel(
                 report_agent_complete(ctx.agent_name, result)
             except Exception:
                 pass
-            phase_results.append(result)
+            results.append(result)
 
         async with asyncio.TaskGroup() as tg:
             for ctx in phase_contexts:
                 tg.create_task(_run_and_collect(ctx))
-
-        results.extend(phase_results)
 
     return results
