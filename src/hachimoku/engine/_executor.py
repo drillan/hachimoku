@@ -134,11 +134,11 @@ async def execute_parallel(
             except Exception:
                 pass
             result = await run_agent(ctx)
+            results.append(result)
             try:
                 report_agent_complete(ctx.agent_name, result)
             except Exception:
                 pass
-            results.append(result)
 
         async def _run_phase() -> None:
             """フェーズ内の全エージェントを TaskGroup で並列実行する。"""

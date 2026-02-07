@@ -9,7 +9,7 @@ FR-RE-006: parallel 設定に応じたフェーズ順序制御。
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic_ai import Tool
 
@@ -755,6 +755,40 @@ class TestExecuteParallel:
         assert len(results) == 2
         result_names = {r.agent_name for r in results}
         assert result_names == {"agent-a", "agent-b"}
+
+    @patch("hachimoku.engine._executor.report_agent_complete")
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_result_appended_before_report_complete(
+        self, mock_run: AsyncMock, mock_report: MagicMock
+    ) -> None:
+        """結果が report_agent_complete より先に results に追加される。
+
+        CancelledError による結果損失を防止するため、
+        結果保存を進捗報告より先に実行する。
+        report_agent_complete 呼び出し時点で結果がリストに存在するかを記録して検証する。
+        """
+        collected: list[AgentResult] = []
+        was_in_collected_at_report_time: list[bool] = []
+
+        async def run_side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = run_side_effect
+
+        def record_state(agent_name: str, result: AgentResult) -> None:
+            was_in_collected_at_report_time.append(result in collected)
+
+        mock_report.side_effect = record_state
+
+        contexts = [_make_context("agent-a", Phase.MAIN)]
+        event = asyncio.Event()
+        await execute_parallel(contexts, event, collected_results=collected)
+
+        assert len(collected) == 1
+        mock_report.assert_called_once()
+        assert was_in_collected_at_report_time == [True], (
+            "result must be appended to collected before report_agent_complete is called"
+        )
 
 
 # =============================================================================
