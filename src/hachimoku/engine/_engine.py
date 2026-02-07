@@ -16,7 +16,7 @@ from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import build_execution_context
-from hachimoku.engine._executor import execute_sequential
+from hachimoku.engine._executor import execute_parallel, execute_sequential
 from hachimoku.engine._instruction import build_review_instruction
 from hachimoku.engine._progress import (
     report_load_warnings,
@@ -66,7 +66,7 @@ async def run_review(
         4. レビュー指示構築（ReviewInstructionBuilder）
         5. セレクターエージェント実行（SelectorAgent）
         6. 実行コンテキスト構築（AgentExecutionContext）
-        7. エージェント実行（Sequential）
+        7. エージェント実行（Parallel or Sequential）
         8. 結果集約（ReviewReport）
 
     Args:
@@ -129,9 +129,10 @@ async def run_review(
         for agent in selected_agents
     ]
 
-    # Step 7: エージェント実行（逐次）
+    # Step 7: エージェント実行（並列 or 逐次）
     shutdown_event = asyncio.Event()
-    results: list[AgentResult] = await execute_sequential(contexts, shutdown_event)
+    executor = execute_parallel if config.parallel else execute_sequential
+    results: list[AgentResult] = await executor(contexts, shutdown_event)
 
     # Step 8: 結果集約
     report = _build_report(results, load_result.errors)

@@ -1,7 +1,9 @@
-"""SequentialExecutor — 逐次エージェント実行。
+"""Executor — 逐次/並列エージェント実行。
 
-FR-RE-006: parallel=false の場合のフェーズ順序制御。
-フェーズ順（early → main → final）、同フェーズ内は名前辞書順で逐次実行。
+FR-RE-006: parallel 設定に応じたフェーズ順序制御。
+フェーズ順（early → main → final）で実行し、
+parallel=false では同フェーズ内を名前辞書順で逐次実行、
+parallel=true では同フェーズ内を asyncio.TaskGroup で並列実行する。
 """
 
 from __future__ import annotations
@@ -73,5 +75,60 @@ async def execute_sequential(
             result = await run_agent(ctx)
             report_agent_complete(ctx.agent_name, result)
             results.append(result)
+
+    return results
+
+
+async def execute_parallel(
+    contexts: list[AgentExecutionContext],
+    shutdown_event: asyncio.Event,
+) -> list[AgentResult]:
+    """同一フェーズ内のエージェントを並列実行する。
+
+    FR-RE-006: parallel=true の場合に使用。
+    フェーズ間は順序を保持（early → main → final）。
+    同一フェーズ内は asyncio.TaskGroup で並列実行。
+
+    各タスク内で全ての例外を捕捉し、進捗報告の失敗が
+    TaskGroup に伝播して他タスクをキャンセルすることを防止する。
+
+    Args:
+        contexts: 実行コンテキストのリスト（ソート不要、内部でグループ化する）。
+        shutdown_event: シグナルハンドラがセットする停止イベント。
+
+    Returns:
+        実行完了したエージェントの AgentResult リスト。
+        フェーズ間の順序は保持されるが、同一フェーズ内の順序は非決定的。
+    """
+    results: list[AgentResult] = []
+    grouped = group_by_phase(contexts)
+
+    for phase_contexts in grouped.values():
+        if shutdown_event.is_set():
+            return results
+
+        # asyncio は単一スレッドで動作するため、
+        # list.append は並列タスク間で安全に使用できる。
+        phase_results: list[AgentResult] = []
+
+        async def _run_and_collect(ctx: AgentExecutionContext) -> None:
+            if shutdown_event.is_set():
+                return
+            try:
+                report_agent_start(ctx.agent_name)
+            except Exception:
+                pass
+            result = await run_agent(ctx)
+            try:
+                report_agent_complete(ctx.agent_name, result)
+            except Exception:
+                pass
+            phase_results.append(result)
+
+        async with asyncio.TaskGroup() as tg:
+            for ctx in phase_contexts:
+                tg.create_task(_run_and_collect(ctx))
+
+        results.extend(phase_results)
 
     return results
