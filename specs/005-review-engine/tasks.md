@@ -36,17 +36,17 @@
 **WARNING**: このフェーズが完了するまでユーザーストーリーの実装に着手しないこと
 
 - [ ] T003 [P] ReviewTarget 判別共用体のテストを作成する（`tests/unit/engine/test_target.py`）: DiffTarget / PRTarget / FileTarget の生成・バリデーション・issue_number オプション・discriminator による型判別を検証
-- [ ] T004 [P] ToolCatalog のテストを作成する（`tests/unit/engine/test_catalog.py`）: resolve_tools() によるカテゴリ→ツール解決、validate_categories() による不正カテゴリ検出、空カテゴリ・重複カテゴリの処理を検証
+- [ ] T004 [P] ToolCatalog のテストを作成する（`tests/unit/engine/test_catalog.py`）: resolve_tools() によるカテゴリ→ツール解決と不正カテゴリ時の ValueError 送出、validate_categories() による不正カテゴリ名リスト返却を検証
 - [ ] T005 [P] ReviewInstructionBuilder のテストを作成する（`tests/unit/engine/test_instruction.py`）: build_review_instruction() の diff/PR/file 各モード出力、issue_number 付加、build_selector_instruction() のエージェント定義一覧含有を検証
 - [ ] T006 [P] ProgressReporter のテストを作成する（`tests/unit/engine/test_progress.py`）: report_agent_start/report_agent_complete/report_summary/report_load_warnings/report_selector_result の stderr 出力フォーマットを検証
 - [ ] T007 [P] ReviewReport の load_errors フィールド追加テストを作成する（`tests/unit/models/test_report.py` に追加）: load_errors のデフォルト値（空タプル）、LoadError タプルの設定・取得を検証
-- [ ] T008 ReviewTarget 判別共用体を実装する（`src/hachimoku/engine/_target.py`）: DiffTarget / PRTarget / FileTarget の Pydantic モデルと ReviewTarget Union 型を定義（contracts/review_target.py 準拠）
-- [ ] T009 ToolCatalog を実装する（`src/hachimoku/engine/_catalog.py`）: resolve_tools() / validate_categories() 関数とカテゴリ→ツールマッピング辞書を定義（contracts/tool_catalog.py 準拠）
+- [ ] T008 [P] ReviewTarget 判別共用体を実装する（`src/hachimoku/engine/_target.py`）: DiffTarget / PRTarget / FileTarget の Pydantic モデルと ReviewTarget Union 型を定義（contracts/review_target.py 準拠）
+- [ ] T009 [P] ToolCatalog を実装する（`src/hachimoku/engine/_catalog.py`）: resolve_tools() / validate_categories() を実装する（内部でカテゴリ→ツールマッピングを使用、contracts/tool_catalog.py 準拠）
 - [ ] T010 ツール関数を実装する（`src/hachimoku/engine/_tools/_git.py`, `src/hachimoku/engine/_tools/_gh.py`, `src/hachimoku/engine/_tools/_file.py`）: git_read（run_git）/ gh_read（run_gh）/ file_read（read_file, list_directory）のツール関数を定義。ホワイトリスト検証を含む（research.md R-005 準拠）
 - [ ] T011 [P] ツール関数のテストを作成する（`tests/unit/engine/test_tools.py`）: run_git / run_gh / read_file / list_directory の正常系・ホワイトリスト違反・コマンドエラーを検証
-- [ ] T012 ReviewInstructionBuilder を実装する（`src/hachimoku/engine/_instruction.py`）: build_review_instruction() / build_selector_instruction() を定義（contracts/instruction_builder.py 準拠）
-- [ ] T013 ProgressReporter を実装する（`src/hachimoku/engine/_progress.py`）: 全 report_* 関数を定義し stderr に出力（contracts/progress_reporter.py 準拠）
-- [ ] T014 ReviewReport に load_errors フィールドを追加する（`src/hachimoku/models/report.py`）: `load_errors: tuple[LoadError, ...] = ()` フィールドを追加（data-model.md / research.md R-009 準拠）
+- [ ] T012 [P] ReviewInstructionBuilder を実装する（`src/hachimoku/engine/_instruction.py`）: build_review_instruction() / build_selector_instruction() を定義（contracts/instruction_builder.py 準拠）
+- [ ] T013 [P] ProgressReporter を実装する（`src/hachimoku/engine/_progress.py`）: 全 report_* 関数を定義し stderr に出力（contracts/progress_reporter.py 準拠）
+- [ ] T014 [P] ReviewReport に load_errors フィールドを追加する（`src/hachimoku/models/report.py`）: `load_errors: tuple[LoadError, ...] = ()` フィールドを追加（data-model.md / research.md R-009 準拠）
 
 **Checkpoint**: 基盤モジュール（ReviewTarget, ToolCatalog, InstructionBuilder, ProgressReporter）が全て動作し、テストが Green であること
 
@@ -97,7 +97,7 @@
 ### Tests for User Story 1
 
 - [ ] T020 [P] [US1] AgentRunner のテストを作成する（`tests/unit/engine/test_runner.py`）: pydantic-ai TestModel を使用し、正常完了→AgentSuccess、出力スキーマ設定、ツール設定、モデル設定を検証
-- [ ] T021 [P] [US1] SelectorAgent のテストを作成する（`tests/unit/engine/test_selector.py`）: pydantic-ai TestModel を使用し、SelectorOutput の構造化出力取得、空リスト返却、選択理由の記録を検証
+- [ ] T021 [P] [US1] SelectorAgent のテストを作成する（`tests/unit/engine/test_selector.py`）: pydantic-ai TestModel を使用し、SelectorOutput の構造化出力取得、空リスト返却、選択理由の記録、セレクター失敗時の SelectorError 送出（タイムアウト・実行エラー・不正出力）を検証
 - [ ] T022 [US1] SequentialExecutor のテストを作成する（`tests/unit/engine/test_executor.py`）: フェーズ順（early → main → final）・同フェーズ内名前辞書順の逐次実行、group_by_phase() のフェーズグルーピングを検証
 
 ### Implementation for User Story 1
@@ -217,6 +217,7 @@
 ### Parallel Opportunities
 
 - Phase 2: T003, T004, T005, T006, T007 のテスト作成は全て並列実行可能
+- Phase 2: T008, T009, T012, T013, T014 の実装は互いに独立で並列実行可能
 - Phase 2: T011（ツール関数テスト）は T010 と並列可能
 - Phase 5: T020, T021 のテスト作成は並列実行可能
 - Phase 6: T029, T030 のテスト作成は並列実行可能
