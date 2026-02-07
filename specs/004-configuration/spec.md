@@ -128,7 +128,7 @@
   | `model` | `--model` | `"sonnet"` | 文字列 |
   | `timeout` | `--timeout` | `300` | 正の整数 |
   | `max_turns` | `--max-turns` | `10` | 正の整数 |
-  | `parallel` | `--parallel` | `false` | boolean |
+  | `parallel` | `--parallel` | `true` | boolean |
   | `base_branch` | `--base-branch` | `"main"` | 文字列 |
 
   **出力設定**:

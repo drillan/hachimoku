@@ -87,6 +87,19 @@ LLM 実行のトークン消費量とコストを記録します。
 | `elapsed_time` | `float` | Yes | 正の値（0は不可） |
 | `cost` | `CostInfo \| None` | No | デフォルト `None` |
 
+### AgentTruncated
+
+最大ターン数に到達した場合の部分的な結果を保持します。
+ReviewSummary 計算時には AgentSuccess と同様に有効な結果として扱います。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `status` | `Literal["truncated"]` | Yes | 固定値 `"truncated"` |
+| `agent_name` | `str` | Yes | 空文字列不可 |
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
+| `elapsed_time` | `float` | Yes | 正の値（0は不可） |
+| `turns_consumed` | `int` | Yes | 正の値（0は不可） |
+
 ### AgentError
 
 | フィールド | 型 | 必須 | 制約 |
@@ -102,19 +115,6 @@ LLM 実行のトークン消費量とコストを記録します。
 | `status` | `Literal["timeout"]` | Yes | 固定値 `"timeout"` |
 | `agent_name` | `str` | Yes | 空文字列不可 |
 | `timeout_seconds` | `float` | Yes | 正の値（0は不可） |
-
-### AgentTruncated
-
-最大ターン数に到達した場合の部分的な結果を保持します。
-ReviewSummary 計算時には AgentSuccess と同様に有効な結果として扱います。
-
-| フィールド | 型 | 必須 | 制約 |
-|-----------|---|------|------|
-| `status` | `Literal["truncated"]` | Yes | 固定値 `"truncated"` |
-| `agent_name` | `str` | Yes | 空文字列不可 |
-| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容 |
-| `elapsed_time` | `float` | Yes | 正の値（0は不可） |
-| `turns_consumed` | `int` | Yes | 正の値（0は不可） |
 
 ### デシリアライズ例
 

@@ -78,7 +78,10 @@ class AgentTruncated(HachimokuBaseModel):
     """エージェント実行の切り詰め結果。判別キー: status="truncated"。
 
     最大ターン数に到達した場合の部分的な結果を保持する。
-    ReviewSummary 計算時には AgentSuccess と同様に有効な結果として扱う。
+    ReviewSummary 計算時には AgentSuccess と同様に有効な結果として扱う（FR-RE-003）。
+
+    cost フィールドは持たない。切り詰め時点では LLM 実行が中断されており、
+    正確なコスト情報を取得できないため意図的に省略している。
 
     Attributes:
         status: 判別キー。固定値 "truncated"。
