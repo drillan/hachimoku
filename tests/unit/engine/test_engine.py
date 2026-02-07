@@ -25,7 +25,12 @@ from hachimoku.engine._engine import EngineResult, _filter_disabled_agents, run_
 from hachimoku.engine._selector import SelectorError, SelectorOutput
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.agent_result import AgentError, AgentSuccess
+from hachimoku.models.agent_result import (
+    AgentError,
+    AgentSuccess,
+    AgentTimeout,
+    AgentTruncated,
+)
 from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.report import ReviewReport
 from hachimoku.models.review import ReviewIssue
@@ -70,6 +75,27 @@ def _make_error(agent_name: str = "test-agent") -> AgentError:
     return AgentError(
         agent_name=agent_name,
         error_message="test error",
+    )
+
+
+def _make_timeout(
+    agent_name: str = "test-agent",
+    timeout_seconds: float = 300.0,
+) -> AgentTimeout:
+    """テスト用 AgentTimeout を生成するヘルパー。"""
+    return AgentTimeout(
+        agent_name=agent_name,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def _make_truncated(agent_name: str = "test-agent") -> AgentTruncated:
+    """テスト用 AgentTruncated を生成するヘルパー。"""
+    return AgentTruncated(
+        agent_name=agent_name,
+        issues=[],
+        elapsed_time=1.0,
+        turns_consumed=5,
     )
 
 
@@ -410,4 +436,82 @@ class TestRunReviewPipeline:
         agent_names = [a.name for a in available]
         assert "agent-b" not in agent_names
         assert "agent-a" in agent_names
+        assert result.exit_code == 0
+
+    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_multiple_agents_all_fail_mixed_errors_exit_code_3(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """複数エージェントが全て失敗（AgentError + AgentTimeout 混在）で exit_code=3。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(
+            agents=(
+                _make_agent("agent-a"),
+                _make_agent("agent-b"),
+                _make_agent("agent-c"),
+            ),
+        )
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a", "agent-b", "agent-c"],
+            reasoning="Selected all",
+        )
+        mock_execute.return_value = [
+            _make_error("agent-a"),
+            _make_timeout("agent-b"),
+            _make_error("agent-c"),
+        ]
+
+        result = await run_review(target=_make_target())
+
+        assert result.exit_code == 3
+        assert len(result.report.results) == 3
+        assert isinstance(result.report.results[0], AgentError)
+        assert isinstance(result.report.results[1], AgentTimeout)
+        assert isinstance(result.report.results[2], AgentError)
+
+    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_partial_failure_with_truncated_not_exit_code_3(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """AgentTruncated が含まれる部分失敗では exit_code != 3。
+
+        AgentTruncated は有効な結果として扱われる（FR-RE-003）ため、
+        AgentError や AgentTimeout と混在しても exit_code=3 にはならない。
+        """
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(
+            agents=(
+                _make_agent("agent-a"),
+                _make_agent("agent-b"),
+                _make_agent("agent-c"),
+            ),
+        )
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a", "agent-b", "agent-c"],
+            reasoning="Selected all",
+        )
+        mock_execute.return_value = [
+            _make_error("agent-a"),
+            _make_truncated("agent-b"),
+            _make_timeout("agent-c"),
+        ]
+
+        result = await run_review(target=_make_target())
+
+        assert result.exit_code != 3
+        # truncated の issues が空 → max_severity=None → exit_code=0
         assert result.exit_code == 0

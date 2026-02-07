@@ -7,7 +7,9 @@ FR-RE-004: タイムアウトと最大ターン数の制御。
 
 from __future__ import annotations
 
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from pydantic import ValidationError
 from pydantic_ai import Tool
 
 from hachimoku.agents.models import Phase
@@ -20,6 +22,7 @@ from hachimoku.models.agent_result import (
     AgentTruncated,
 )
 from hachimoku.models.schemas import get_schema
+from hachimoku.models.schemas._base import BaseAgentOutput
 
 
 def _make_context(
@@ -107,17 +110,20 @@ class TestRunAgentSuccess:
 class TestRunAgentTimeout:
     """run_agent がタイムアウト時に AgentTimeout を返すケースのテスト。"""
 
-    async def test_timeout_returns_agent_timeout(self) -> None:
-        """極短タイムアウトで AgentTimeout が返される。
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_timeout_returns_agent_timeout(
+        self, mock_agent_cls: MagicMock
+    ) -> None:
+        """asyncio.TimeoutError 発生時に AgentTimeout が返される。"""
+        mock_instance = mock_agent_cls.return_value
+        mock_instance.run = AsyncMock(side_effect=TimeoutError)
 
-        Note: TestModel は通常即座に応答するため、タイムアウトを発生させるには
-        テスト側で工夫が必要。ここでは context.timeout_seconds=0 のケースを
-        コンテキスト構築のバリデーションで弾かれるため、代替手段を使う。
-        """
-        # timeout_seconds の最小値は 1（gt=0）なので、直接 0 は設定できない。
-        # 代わりに、モックを使わず AgentTimeout の結果を確認する別アプローチが必要。
-        # → このテストは _runner.py 実装と合わせてリファクタリングする可能性あり。
-        pytest.skip("TestModel は即座に応答するため、実行時タイムアウトは困難")
+        ctx = _make_context(agent_name="timeout-agent", timeout_seconds=60)
+        result = await run_agent(ctx)
+
+        assert isinstance(result, AgentTimeout)
+        assert result.agent_name == "timeout-agent"
+        assert result.timeout_seconds == 60.0
 
     async def test_timeout_seconds_matches_context(self) -> None:
         """AgentTimeout の timeout_seconds が context の値と一致する。
@@ -227,4 +233,34 @@ class TestRunAgentError:
         )
         result = await run_agent(bad_ctx)
         assert isinstance(result, AgentError)
+        assert len(result.error_message) > 0
+
+
+# =============================================================================
+# run_agent — 出力スキーマ違反 (AgentError)
+# =============================================================================
+
+
+class TestRunAgentSchemaViolation:
+    """run_agent が出力スキーマ違反時に AgentError を返すケースのテスト。"""
+
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_validation_error_returns_agent_error(
+        self, mock_agent_cls: MagicMock
+    ) -> None:
+        """出力パース時の ValidationError が AgentError に変換される。"""
+        # BaseAgentOutput のバリデーションで実際の ValidationError を生成
+        try:
+            BaseAgentOutput.model_validate({"bad_field": "data"})
+        except ValidationError as real_error:
+            validation_error = real_error
+
+        mock_instance = mock_agent_cls.return_value
+        mock_instance.run = AsyncMock(side_effect=validation_error)
+
+        ctx = _make_context(agent_name="schema-fail-agent")
+        result = await run_agent(ctx)
+
+        assert isinstance(result, AgentError)
+        assert result.agent_name == "schema-fail-agent"
         assert len(result.error_message) > 0
