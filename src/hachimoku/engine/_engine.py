@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from pathlib import Path
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
+from pathlib import Path
 from typing import Final, Literal
 
 from hachimoku.agents import load_agents
@@ -44,7 +44,7 @@ from hachimoku.models.severity import Severity, determine_exit_code
 
 
 SHUTDOWN_TIMEOUT_SECONDS: Final[float] = 3.0
-"""SC-RE-005: SIGINT/SIGTERM 受信後、全プロセスを終了するまでの猶予時間（秒）。"""
+"""SC-RE-005: SIGINT/SIGTERM 受信後、エグゼキュータをキャンセルするまでの猶予時間（秒）。"""
 
 
 class EngineResult(HachimokuBaseModel):
@@ -70,7 +70,11 @@ async def _execute_with_shutdown_timeout(
     """シャットダウンタイムアウトを適用してエグゼキュータを実行する。
 
     SC-RE-005: shutdown_event がセットされた場合、SHUTDOWN_TIMEOUT_SECONDS 以内に
-    エグゼキュータを強制終了し、それまでに完了したエージェントの結果を返す。
+    エグゼキュータタスクをキャンセルし、それまでに完了したエージェントの結果を返す。
+
+    完了済みエージェントの結果は collected_results 共有リストに蓄積される。
+    タイムアウト後にエグゼキュータタスクがキャンセルされても、
+    既に共有リストに追加された結果は保存される。
 
     Args:
         executor_fn: execute_sequential または execute_parallel。
@@ -94,6 +98,8 @@ async def _execute_with_shutdown_timeout(
     )
 
     shutdown_waiter.cancel()
+    with suppress(asyncio.CancelledError):
+        await shutdown_waiter
 
     if executor_task in done:
         return await executor_task
@@ -105,6 +111,11 @@ async def _execute_with_shutdown_timeout(
         executor_task.cancel()
         with suppress(asyncio.CancelledError):
             await executor_task
+        print(
+            f"Warning: Shutdown timeout ({SHUTDOWN_TIMEOUT_SECONDS}s) expired, "
+            f"returning {len(collected_results)} partial result(s)",
+            file=sys.stderr,
+        )
         return collected_results
 
 

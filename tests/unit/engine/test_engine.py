@@ -885,3 +885,47 @@ class TestExecuteWithShutdownTimeout:
     def test_shutdown_timeout_constant_value(self) -> None:
         """SHUTDOWN_TIMEOUT_SECONDS が 3.0 である。"""
         assert SHUTDOWN_TIMEOUT_SECONDS == 3.0
+
+    async def test_executor_exception_propagates(self) -> None:
+        """executor が例外を送出した場合、そのまま伝播する。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            raise RuntimeError("executor crashed")
+
+        event = asyncio.Event()
+        with pytest.raises(RuntimeError, match="executor crashed"):
+            await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+    @patch("hachimoku.engine._engine.SHUTDOWN_TIMEOUT_SECONDS", 0.1)
+    async def test_shutdown_timeout_prints_stderr_warning(self) -> None:
+        """タイムアウト時に stderr に警告が出力される。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            results: list[AgentResult] = (
+                collected_results if collected_results is not None else []
+            )
+            results.append(_make_success("agent-a"))
+            await asyncio.sleep(100)
+            return results
+
+        event = asyncio.Event()
+        event.set()
+
+        import io
+
+        captured = io.StringIO()
+        with patch("sys.stderr", captured):
+            await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+        assert "Shutdown timeout" in captured.getvalue()
+        assert "1 partial result(s)" in captured.getvalue()

@@ -57,6 +57,9 @@ async def execute_sequential(
     各エージェント実行前に shutdown_event をチェックし、
     セット済みなら残りの実行をスキップする。
 
+    SC-RE-005: collected_results が指定された場合、結果を直接追加する。
+    これによりキャンセル時にも完了済みエージェントの結果が保存される。
+
     Args:
         contexts: 実行コンテキストのリスト（ソート不要、内部でグループ化する）。
         shutdown_event: シグナルハンドラがセットする停止イベント。
