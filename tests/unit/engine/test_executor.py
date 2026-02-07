@@ -15,7 +15,7 @@ from pydantic_ai import Tool
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
 from hachimoku.engine._executor import execute_sequential, group_by_phase
-from hachimoku.models.agent_result import AgentError, AgentSuccess
+from hachimoku.models.agent_result import AgentError, AgentSuccess, AgentTimeout
 from hachimoku.models.schemas import get_schema
 
 
@@ -55,6 +55,17 @@ def _make_error(agent_name: str = "test-agent") -> AgentError:
     return AgentError(
         agent_name=agent_name,
         error_message="test error",
+    )
+
+
+def _make_timeout(
+    agent_name: str = "test-agent",
+    timeout_seconds: float = 300.0,
+) -> AgentTimeout:
+    """テスト用 AgentTimeout を生成するヘルパー。"""
+    return AgentTimeout(
+        agent_name=agent_name,
+        timeout_seconds=timeout_seconds,
     )
 
 
@@ -278,3 +289,72 @@ class TestExecuteSequential:
         results = await execute_sequential(contexts, event)
 
         assert [r.agent_name for r in results] == ["alpha", "beta"]
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_timeout_partial_failure_continues(self, mock_run: AsyncMock) -> None:
+        """1つのエージェントがタイムアウトでも残りは実行される。
+
+        3エージェント中1つが AgentTimeout を返し、残り2つが AgentSuccess を返す。
+        """
+        results_map: dict[str, AgentSuccess | AgentTimeout] = {
+            "agent-a": _make_success("agent-a"),
+            "agent-b": _make_timeout("agent-b", timeout_seconds=60.0),
+            "agent-c": _make_success("agent-c"),
+        }
+
+        async def side_effect(
+            ctx: AgentExecutionContext,
+        ) -> AgentSuccess | AgentTimeout:
+            return results_map[ctx.agent_name]
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.EARLY),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.FINAL),
+        ]
+        event = asyncio.Event()
+        results = await execute_sequential(contexts, event)
+
+        assert len(results) == 3
+        assert isinstance(results[0], AgentSuccess)
+        assert isinstance(results[1], AgentTimeout)
+        assert isinstance(results[2], AgentSuccess)
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_all_agents_fail_returns_all_failures(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """全エージェントが失敗しても全結果が返される。
+
+        AgentError と AgentTimeout が混在する場合でも、executor は全結果を返す。
+        成功結果の有無はエンジン層が判定する。
+        """
+        results_map: dict[str, AgentError | AgentTimeout] = {
+            "agent-a": _make_error("agent-a"),
+            "agent-b": _make_timeout("agent-b"),
+            "agent-c": _make_error("agent-c"),
+        }
+
+        async def side_effect(
+            ctx: AgentExecutionContext,
+        ) -> AgentError | AgentTimeout:
+            return results_map[ctx.agent_name]
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.EARLY),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.FINAL),
+        ]
+        event = asyncio.Event()
+        results = await execute_sequential(contexts, event)
+
+        assert len(results) == 3
+        assert isinstance(results[0], AgentError)
+        assert isinstance(results[1], AgentTimeout)
+        assert isinstance(results[2], AgentError)
+        success_results = [r for r in results if isinstance(r, AgentSuccess)]
+        assert len(success_results) == 0
