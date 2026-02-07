@@ -5,7 +5,6 @@ FR-CLI-002: 位置引数の優先順ルールに基づくモード自動判定�
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated, Literal, Union
 
 from pydantic import Field
@@ -33,11 +32,13 @@ class FileInput(HachimokuBaseModel):
     paths: tuple[Annotated[str, Field(min_length=1)], ...] = Field(min_length=1)
 
 
-ResolvedInput = Annotated[
-    Union[DiffInput, PRInput, FileInput],
-    Field(discriminator="mode"),
-]
-"""入力モード判定結果の判別共用体。"""
+ResolvedInput = Union[DiffInput, PRInput, FileInput]
+"""入力モード判定結果の共用体型。
+
+resolve_input() の戻り値型として使用する。
+Pydantic の discriminator は model フィールドとして使う場合に機能するが、
+関数戻り値としては通常の Union で十分であり、match 文や isinstance で分岐する。
+"""
 
 
 class InputError(Exception):
