@@ -23,6 +23,14 @@
 - per-invocation オプション（`--issue`, `--force`, `--no-confirm`）は設定ファイルで永続化しない実行時パラメータであり、006-cli-interface の責務とする。本仕様のスコープ外
 - FR-015（コスト表示）に対応する設定項目 `show_cost` を出力設定に追加する
 
+### Session 2026-02-07
+
+- Q: Issue #64 により AgentSelector が pydantic-ai エージェント（セレクターエージェント）として再設計される。セレクターエージェント用の設定をどこで管理するか？ → A: `[selector]` 専用トップレベルセクションを HachimokuConfig に追加する。セレクターエージェントはレビューエージェントとは性質が異なる（選択判断用）ため、`[agents.<name>]` とは分離して管理する
+- Q: セレクターエージェントの `allowed_tools` は固定か設定可能か？ → A: `[selector]` セクションに `allowed_tools` を含め設定可能とする。デフォルト値は `["git_read", "gh_read", "file_read"]`。セレクターは git/gh コマンドの実行が必要（差分調査・エージェント選択のため）であり、レビューエージェント（TOML 定義で管理）とはツール権限の管理方式が異なる
+- Q: セレクターの `allowed_tools` に無効なカテゴリ名が指定された場合、どの時点でエラーとするか？ → A: 004-configuration の設定バリデーション時（FR-CF-004）でエラーとする。fail-fast 原則により、レビュー実行前に問題を検出する
+- Q: セレクターエージェント設定の Acceptance Scenario は US3 に含めるか独立させるか？ → A: 新しい US5「セレクターエージェント設定」として独立（P2）。セレクターはレビューエージェントとは管理方式・目的・セクション名がすべて異なるため、テストの分離性と仕様の明確さのために独立させる
+- Q: ツールカテゴリ名（git_read, gh_read, file_read）の正規の定義元はどこか？ → A: 002-domain-models にツールカテゴリ列挙型を定義し、004-configuration と 005-review-engine の両方が参照する。循環依存を回避しつつカテゴリ名を一元管理する
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - 設定ファイル階層による設定解決 (Priority: P1)
@@ -94,6 +102,24 @@
 
 ---
 
+### User Story 5 - セレクターエージェント設定 (Priority: P2)
+
+開発者が設定ファイルでセレクターエージェント（エージェント選択用 pydantic-ai エージェント）のモデル・タイムアウト・最大ターン数・許可ツールを上書きする。セレクターエージェント設定は `[selector]` セクションで管理される。Issue #64 で導入。
+
+**Why this priority**: セレクターエージェントのカスタマイズは運用上の柔軟性を提供するが、まず設定ファイルの読み込みと階層解決（P1）が安定してから取り組む。セレクターのデフォルト設定でも動作するため、優先度は P2。
+
+**Independent Test**: 設定ファイルの `[selector]` セクションでモデルや許可ツールを指定し、設定モデルの `selector` フィールドに正しく反映されることで検証可能。
+
+**Acceptance Scenarios**:
+
+1. **Given** 設定ファイルに `[selector]` セクションが存在しない, **When** 設定を解決する, **Then** セレクター設定はデフォルト値（model/timeout/max_turns はグローバル値、allowed_tools は `["git_read", "gh_read", "file_read"]`）で構成される
+2. **Given** 設定ファイルに `[selector]` セクションで `model = "haiku"` が設定されている, **When** 設定を解決する, **Then** セレクターエージェントのモデルが `"haiku"` に上書きされる
+3. **Given** 設定ファイルに `[selector]` セクションで `allowed_tools = ["git_read", "file_read"]` が設定されている, **When** 設定を解決する, **Then** セレクターエージェントの許可ツールが `["git_read", "file_read"]` に上書きされる
+4. **Given** 設定ファイルに `[selector]` セクションで `allowed_tools = ["file_write"]` が設定されている, **When** 設定を読み込む, **Then** バリデーションエラーが発生し、未登録のカテゴリ名を含むエラーメッセージが生成される
+5. **Given** 設定ファイルに `[selector]` セクションで `allowed_tools = []` が設定されている, **When** 設定を読み込む, **Then** バリデーションエラーが発生する（セレクターエージェントはツールなしでは機能できない）
+
+---
+
 ### Edge Cases
 
 - `.hachimoku/config.toml` が空ファイルの場合、全項目がデフォルト値で構成された設定が返される
@@ -105,6 +131,9 @@
 - 設定ファイル内のエージェント個別設定でエージェント名の形式が不正（アルファベット小文字・数字・ハイフン以外を含む）な場合、バリデーションエラーが発生する
 - 複数の設定ソースにエージェント個別設定がある場合、設定階層に従い上位のソースの値が優先される（項目単位でのマージ）
 - `parallel` 設定が boolean 以外の値の場合、バリデーションエラーが発生する
+- `[selector]` セクションの `allowed_tools` に未登録のカテゴリ名（例: `"file_write"`）が指定された場合、バリデーションエラーが発生する
+- `[selector]` セクションの `allowed_tools` が空リストの場合、バリデーションエラーが発生する（セレクターエージェントはツールなしでは機能できない）
+- `[selector]` セクションが存在しない場合、デフォルト値（model/timeout/max_turns はグローバル値、allowed_tools は `["git_read", "gh_read", "file_read"]`）が適用される
 
 ## Requirements *(mandatory)*
 
@@ -145,6 +174,12 @@
   |---------|--------------|----------|---------|
   | `max_files_per_review` | `--max-files` | `100` | 正の整数 |
 
+  **セレクターエージェント設定**（`[selector]` セクション、CLI からの上書き対象外）:
+  - `model`: セレクターエージェントのモデル（デフォルト: なし、グローバル `model` を使用）
+  - `timeout`: セレクターエージェントのタイムアウト（デフォルト: なし、グローバル `timeout` を使用）
+  - `max_turns`: セレクターエージェントの最大ターン数（デフォルト: なし、グローバル `max_turns` を使用）
+  - `allowed_tools`: セレクターエージェントの許可ツールカテゴリリスト（デフォルト: `["git_read", "gh_read", "file_read"]`、002-domain-models で定義されたツールカテゴリ列挙型のみ指定可能）
+
   **エージェント個別設定**（`[agents.<name>]` セクション、CLI からの上書き対象外）:
   - `enabled`: エージェントの有効/無効（デフォルト: `true`、boolean）
   - `model`: エージェント固有のモデル上書き（デフォルト: なし、グローバル `model` を使用）
@@ -164,6 +199,7 @@
   - 数値制約（`timeout` > 0、`max_turns` > 0、`max_files_per_review` > 0）
   - `output_format` の列挙値（`"markdown"` または `"json"`）
   - エージェント個別設定のエージェント名形式（アルファベット小文字・数字・ハイフンのみ）
+  - セレクターエージェント設定の `allowed_tools` のカテゴリ名が 002-domain-models で定義されたツールカテゴリ列挙型に存在すること（`git_read`, `gh_read`, `file_read` のみ許可）
 
 - **FR-CF-005**: システムは `pyproject.toml` の `[tool.hachimoku]` セクションを設定ソースとして読み込めなければならない。`pyproject.toml` はカレントディレクトリから親ディレクトリへ遡って探索する。この探索は `.hachimoku/` の探索（FR-CF-003）とは独立して行われる。`pyproject.toml` が存在しない場合、または `[tool.hachimoku]` セクションが存在しない場合はスキップする
 
@@ -175,9 +211,12 @@
 
 - **FR-CF-009**: 設定モデル（HachimokuConfig）は HachimokuBaseModel を継承し、`extra="forbid"`（未知フィールド拒否）および `frozen=True`（不変性）の制約を持たなければならない
 
+- **FR-CF-010**: システムはセレクターエージェント設定（`[selector]` セクション）を管理しなければならない。セレクター設定は model, timeout, max_turns, allowed_tools の4項目を持ち、model/timeout/max_turns が未設定の場合はグローバル設定値が適用される。allowed_tools のデフォルト値は `["git_read", "gh_read", "file_read"]` とする。セレクター設定の階層解決は FR-CF-007 に従い項目単位で行われる（Issue #64）
+
 ### Key Entities
 
-- **HachimokuConfig（設定モデル）**: 全設定項目を統合した不変モデル。実行設定（model, timeout, max_turns, parallel, base_branch）、出力設定（output_format, save_reviews, show_cost）、ファイルモード設定（max_files_per_review）、エージェント個別設定（agents マップ）を持つ。HachimokuBaseModel を継承し、厳格モード・不変モードで動作する
+- **HachimokuConfig（設定モデル）**: 全設定項目を統合した不変モデル。実行設定（model, timeout, max_turns, parallel, base_branch）、出力設定（output_format, save_reviews, show_cost）、ファイルモード設定（max_files_per_review）、セレクターエージェント設定（selector）、エージェント個別設定（agents マップ）を持つ。HachimokuBaseModel を継承し、厳格モード・不変モードで動作する
+- **SelectorConfig（セレクターエージェント設定）**: セレクターエージェント（エージェント選択用 pydantic-ai エージェント）の設定上書き情報を表す不変モデル。モデル上書き（model）、タイムアウト上書き（timeout）、最大ターン数上書き（max_turns）、許可ツールカテゴリリスト（allowed_tools、デフォルト: `["git_read", "gh_read", "file_read"]`）を持つ。model/timeout/max_turns はオプショナルで、未設定の場合はグローバル値が適用される。Issue #64 で導入
 - **AgentConfig（エージェント個別設定）**: エージェントごとの設定上書き情報を表す不変モデル。有効/無効フラグ（enabled）、モデル上書き（model）、タイムアウト上書き（timeout）、最大ターン数上書き（max_turns）を持つ。全フィールドはオプショナルで、未設定の場合はグローバル値が適用される
 - **OutputFormat（出力形式）**: レビュー結果の出力形式を表す列挙型。markdown と json の2値
 - **ConfigResolver（設定リゾルバー）**: 5層の設定ソースから最終的な HachimokuConfig を構築する処理。各ソースの読み込み・パース・バリデーションと、項目単位のマージロジックを提供する
@@ -193,6 +232,7 @@
 - **SC-CF-004**: プロジェクトのサブディレクトリからの実行時にも `.hachimoku/` が正しく検出され、設定が適用される
 - **SC-CF-005**: エージェント個別設定で `enabled = false` と設定されたエージェントが、設定モデル上で無効として表現される
 - **SC-CF-006**: `pyproject.toml` の `[tool.hachimoku]` セクションの値が `.hachimoku/config.toml` より低い優先度で正しく解決される
+- **SC-CF-007**: セレクターエージェント設定（`[selector]`）が正しくパース・バリデーションされ、デフォルト値の適用と上書きが期待通りに動作する（Issue #64）
 
 ## Assumptions
 
@@ -202,3 +242,4 @@
 - per-invocation オプション（`--issue`, `--force`, `--no-confirm`）は設定ファイルに永続化しない実行時パラメータであり、006-cli-interface の責務とする。本仕様のスコープ外
 - 設定モデルの `model` フィールドの値は文字列として保持し、実際のモデル解決（存在確認等）は 005-review-engine が担当する
 - エージェント個別設定のエージェント名は、003-agent-definition で定義されたエージェント名と一致する必要があるが、その検証は設定読み込み時点では行わない（エージェントローダーとの統合時に検証）
+- セレクターエージェント設定の `allowed_tools` バリデーションに使用するツールカテゴリ列挙型は 002-domain-models で定義される。これにより 004-configuration → 005-review-engine の循環依存を回避する（Issue #64）
