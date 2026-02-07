@@ -40,20 +40,13 @@ class SelectorConfig(HachimokuBaseModel):
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
     allowed_tools: list[ToolCategory] = Field(
-        default=[ToolCategory.GIT_READ, ToolCategory.GH_READ, ToolCategory.FILE_READ],
+        default_factory=lambda: [
+            ToolCategory.GIT_READ,
+            ToolCategory.GH_READ,
+            ToolCategory.FILE_READ,
+        ],
+        min_length=1,
     )
-
-    @field_validator("allowed_tools")
-    @classmethod
-    def validate_allowed_tools_not_empty(
-        cls,
-        v: list[ToolCategory],
-    ) -> list[ToolCategory]:
-        """allowed_tools が空リストでないことを検証する。FR-CF-004."""
-        if not v:
-            msg = "allowed_tools must not be empty"
-            raise ValueError(msg)
-        return v
 
 
 class AgentConfig(HachimokuBaseModel):
