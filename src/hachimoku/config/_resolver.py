@@ -18,6 +18,7 @@ from hachimoku.config._locator import (
 from hachimoku.models.config import HachimokuConfig
 
 _AGENTS_KEY: str = "agents"
+_SELECTOR_KEY: str = "selector"
 
 
 def _merge_agents(
@@ -60,6 +61,28 @@ def _merge_agents(
     return merged
 
 
+def _merge_selector(
+    base: dict[str, object] | None,
+    override: dict[str, object],
+) -> dict[str, object]:
+    """selector セクションをフィールド単位でマージする。
+
+    agents と異なり、selector はフラットな辞書なので単純な dict.update で済む。
+
+    Args:
+        base: 既存の selector 辞書。None の場合は空として扱う。
+        override: 上書きする selector 辞書。
+
+    Returns:
+        マージ済みの selector 辞書。
+    """
+    if base is None:
+        return dict(override)
+    merged = dict(base)
+    merged.update(override)
+    return merged
+
+
 def merge_config_layers(
     *layers: dict[str, object] | None,
 ) -> dict[str, object]:
@@ -67,6 +90,7 @@ def merge_config_layers(
 
     FR-CF-007: 後のレイヤーが先のレイヤーを上書きする。
     agents セクションはエージェント名→フィールド単位でマージする。
+    selector セクションはフィールド単位でマージする（FR-CF-010）。
     None のレイヤーはスキップされる。
 
     Args:
@@ -86,6 +110,16 @@ def merge_config_layers(
                     raise TypeError(msg)
                 result[_AGENTS_KEY] = _merge_agents(
                     result.get(_AGENTS_KEY, None),  # type: ignore[arg-type]
+                    value,
+                )
+            elif key == _SELECTOR_KEY:
+                if not isinstance(value, dict):
+                    msg = (
+                        f"'{_SELECTOR_KEY}' must be a dict, got {type(value).__name__}"
+                    )
+                    raise TypeError(msg)
+                result[_SELECTOR_KEY] = _merge_selector(
+                    result.get(_SELECTOR_KEY, None),  # type: ignore[arg-type]
                     value,
                 )
             else:

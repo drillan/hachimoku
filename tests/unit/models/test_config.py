@@ -3,12 +3,19 @@
 T003: OutputFormat enum
 T004: AgentConfig model
 T005: HachimokuConfig model
+T006: SelectorConfig model (US5, FR-CF-010)
 """
 
 import pytest
 from pydantic import ValidationError
 
-from hachimoku.models.config import AgentConfig, HachimokuConfig, OutputFormat
+from hachimoku.models.config import (
+    AgentConfig,
+    HachimokuConfig,
+    OutputFormat,
+    SelectorConfig,
+)
+from hachimoku.models.tool_category import ToolCategory
 
 
 # =============================================================================
@@ -302,3 +309,120 @@ class TestHachimokuConfigFrozen:
         config = HachimokuConfig()
         with pytest.raises(ValidationError, match="frozen"):
             config.model = "opus"  # type: ignore[misc]
+
+
+# =============================================================================
+# T006: SelectorConfig (US5, FR-CF-010)
+# =============================================================================
+
+_DEFAULT_ALLOWED_TOOLS = [
+    ToolCategory.GIT_READ,
+    ToolCategory.GH_READ,
+    ToolCategory.FILE_READ,
+]
+
+
+class TestSelectorConfigDefaults:
+    """SelectorConfig のデフォルト値テスト。"""
+
+    def test_default_model(self) -> None:
+        """model のデフォルトが None であること。"""
+        assert SelectorConfig().model is None
+
+    def test_default_timeout(self) -> None:
+        """timeout のデフォルトが None であること。"""
+        assert SelectorConfig().timeout is None
+
+    def test_default_max_turns(self) -> None:
+        """max_turns のデフォルトが None であること。"""
+        assert SelectorConfig().max_turns is None
+
+    def test_default_allowed_tools(self) -> None:
+        """allowed_tools のデフォルトが [git_read, gh_read, file_read] であること。"""
+        assert SelectorConfig().allowed_tools == _DEFAULT_ALLOWED_TOOLS
+
+
+class TestSelectorConfigValidation:
+    """SelectorConfig のバリデーションテスト (FR-CF-004)。"""
+
+    def test_model_empty_string_rejected(self) -> None:
+        """model に空文字列を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="model"):
+            SelectorConfig(model="")
+
+    def test_model_valid_string_accepted(self) -> None:
+        """model に有効な文字列を渡すと設定されること。"""
+        assert SelectorConfig(model="haiku").model == "haiku"
+
+    def test_timeout_zero_rejected(self) -> None:
+        """timeout に 0 を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="timeout"):
+            SelectorConfig(timeout=0)
+
+    def test_timeout_negative_rejected(self) -> None:
+        """timeout に負の値を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="timeout"):
+            SelectorConfig(timeout=-1)
+
+    def test_timeout_positive_accepted(self) -> None:
+        """timeout に正の値を渡すと設定されること。"""
+        assert SelectorConfig(timeout=60).timeout == 60
+
+    def test_max_turns_zero_rejected(self) -> None:
+        """max_turns に 0 を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="max_turns"):
+            SelectorConfig(max_turns=0)
+
+    def test_max_turns_negative_rejected(self) -> None:
+        """max_turns に負の値を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="max_turns"):
+            SelectorConfig(max_turns=-1)
+
+    def test_max_turns_positive_accepted(self) -> None:
+        """max_turns に正の値を渡すと設定されること。"""
+        assert SelectorConfig(max_turns=5).max_turns == 5
+
+    def test_allowed_tools_empty_rejected(self) -> None:
+        """allowed_tools に空リストを渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="allowed_tools"):
+            SelectorConfig(allowed_tools=[])
+
+    def test_allowed_tools_invalid_category_rejected(self) -> None:
+        """allowed_tools に無効なカテゴリを渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="allowed_tools"):
+            SelectorConfig(allowed_tools=["file_write"])  # type: ignore[list-item]
+
+    def test_allowed_tools_custom_subset_accepted(self) -> None:
+        """allowed_tools にカスタムサブセットを渡すと設定されること。"""
+        config = SelectorConfig(allowed_tools=["git_read", "file_read"])  # type: ignore[list-item]
+        assert config.allowed_tools == [ToolCategory.GIT_READ, ToolCategory.FILE_READ]
+
+    def test_extra_field_rejected(self) -> None:
+        """未知のキーを渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            SelectorConfig(unknown_key="value")  # type: ignore[call-arg]
+
+
+class TestSelectorConfigFrozen:
+    """SelectorConfig の frozen=True テスト。"""
+
+    def test_field_assignment_rejected(self) -> None:
+        """構築後のフィールド代入で ValidationError が発生すること。"""
+        config = SelectorConfig()
+        with pytest.raises(ValidationError, match="frozen"):
+            config.model = "opus"  # type: ignore[misc]
+
+
+class TestHachimokuConfigSelector:
+    """HachimokuConfig の selector フィールドテスト。"""
+
+    def test_default_selector(self) -> None:
+        """selector のデフォルトが SelectorConfig() であること。"""
+        config = HachimokuConfig()
+        assert config.selector == SelectorConfig()
+
+    def test_selector_from_dict(self) -> None:
+        """辞書から selector を構築できること。"""
+        config = HachimokuConfig(selector={"model": "haiku"})  # type: ignore[arg-type]
+        assert config.selector.model == "haiku"
+        assert config.selector.allowed_tools == _DEFAULT_ALLOWED_TOOLS

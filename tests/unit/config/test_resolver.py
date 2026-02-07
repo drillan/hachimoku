@@ -4,6 +4,8 @@ T025: merge_config_layers — 空レイヤー, 単一レイヤー, 上書き, No
 T026: filter_cli_overrides — None 除外, 非 None 保持, 空辞書
 T027: resolve_config — 5層統合, デフォルト値, 優先順位, エラー伝播
 T033: resolve_config — エージェント個別設定の統合テスト (US3)
+T040: merge_config_layers — selector セクションのフィールド単位マージ
+T041: resolve_config — セレクター設定の統合テスト (US5, FR-CF-010)
 """
 
 from __future__ import annotations
@@ -19,11 +21,13 @@ from pydantic import ValidationError
 
 from hachimoku.config._resolver import (
     _AGENTS_KEY,
+    _SELECTOR_KEY,
     filter_cli_overrides,
     merge_config_layers,
     resolve_config,
 )
-from hachimoku.models.config import HachimokuConfig
+from hachimoku.models.config import HachimokuConfig, SelectorConfig
+from hachimoku.models.tool_category import ToolCategory
 
 
 # ---------------------------------------------------------------------------
@@ -739,3 +743,282 @@ class TestResolveConfigAgentThreeSourceMerge:
         assert agent.timeout == 120
         # user global の max_turns は保持
         assert agent.max_turns == 5
+
+
+# ---------------------------------------------------------------------------
+# T040: merge_config_layers — selector セクションのフィールド単位マージ
+# ---------------------------------------------------------------------------
+
+
+class TestMergeConfigLayersSelectorMerge:
+    """selector セクションのフィールド単位マージ (FR-CF-007, FR-CF-010)。"""
+
+    def test_selector_field_level_merge(self) -> None:
+        """同一 selector の異なるフィールドがマージされる。"""
+        layer1: dict[str, object] = {
+            _SELECTOR_KEY: {"timeout": 60},
+        }
+        layer2: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "haiku"},
+        }
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            _SELECTOR_KEY: {"timeout": 60, "model": "haiku"},
+        }
+
+    def test_selector_field_override(self) -> None:
+        """同一 selector の同一フィールドは上位レイヤーで上書き。"""
+        layer1: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "sonnet", "timeout": 60},
+        }
+        layer2: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "haiku"},
+        }
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            _SELECTOR_KEY: {"model": "haiku", "timeout": 60},
+        }
+
+    def test_selector_only_in_lower_layer(self) -> None:
+        """下位レイヤーのみに selector がある場合はそのまま保持。"""
+        layer1: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "sonnet"},
+        }
+        layer2: dict[str, object] = {"timeout": 600}
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            _SELECTOR_KEY: {"model": "sonnet"},
+            "timeout": 600,
+        }
+
+    def test_selector_only_in_upper_layer(self) -> None:
+        """上位レイヤーのみに selector がある場合はそのまま採用。"""
+        layer1: dict[str, object] = {"timeout": 600}
+        layer2: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "opus"},
+        }
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            "timeout": 600,
+            _SELECTOR_KEY: {"model": "opus"},
+        }
+
+    def test_three_layers_selector_progressive_merge(self) -> None:
+        """3レイヤーで selector が段階的にマージされる。"""
+        layer1: dict[str, object] = {
+            _SELECTOR_KEY: {"timeout": 60},
+        }
+        layer2: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "haiku"},
+        }
+        layer3: dict[str, object] = {
+            _SELECTOR_KEY: {"max_turns": 5},
+        }
+        result = merge_config_layers(layer1, layer2, layer3)
+        assert result == {
+            _SELECTOR_KEY: {
+                "timeout": 60,
+                "model": "haiku",
+                "max_turns": 5,
+            },
+        }
+
+
+class TestMergeConfigLayersSelectorTypeError:
+    """selector セクションの非 dict 値に対する TypeError。"""
+
+    def test_selector_value_not_dict_raises_type_error(self) -> None:
+        """selector キーの値が dict でない場合は TypeError。"""
+        layer: dict[str, object] = {_SELECTOR_KEY: "invalid"}
+        with pytest.raises(TypeError, match="'selector' must be a dict"):
+            merge_config_layers(layer)
+
+
+class TestMergeConfigLayersSelectorDoesNotMutateInput:
+    """selector を含む入力辞書が変更されないことを保証する。"""
+
+    def test_input_dicts_not_mutated(self) -> None:
+        """マージ後も入力辞書は元の値のまま。"""
+        layer1: dict[str, object] = {
+            _SELECTOR_KEY: {"timeout": 60},
+        }
+        layer2: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "haiku"},
+        }
+        layer1_copy: dict[str, object] = {
+            _SELECTOR_KEY: {"timeout": 60},
+        }
+        layer2_copy: dict[str, object] = {
+            _SELECTOR_KEY: {"model": "haiku"},
+        }
+        merge_config_layers(layer1, layer2)
+        assert layer1 == layer1_copy
+        assert layer2 == layer2_copy
+
+
+# ---------------------------------------------------------------------------
+# T041: resolve_config — セレクター設定の統合テスト (US5, FR-CF-010)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveConfigSelectorDefault:
+    """[selector] セクション未指定 → デフォルト値。"""
+
+    def test_selector_defaults_when_absent(self, tmp_path: Path) -> None:
+        """[selector] セクションなしでもデフォルトの SelectorConfig が設定される。"""
+        _create_config_toml(tmp_path, 'model = "opus"\n')
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector == SelectorConfig()
+
+
+class TestResolveConfigSelectorModelOverride:
+    """[selector] model = "haiku" → モデル上書き。"""
+
+    def test_selector_model_override(self, tmp_path: Path) -> None:
+        """[selector] セクションの model がセレクター設定に反映される。"""
+        _create_config_toml(
+            tmp_path,
+            '[selector]\nmodel = "haiku"\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector.model == "haiku"
+        # 他はデフォルト
+        assert config.selector.timeout is None
+        assert config.selector.allowed_tools == [
+            ToolCategory.GIT_READ,
+            ToolCategory.GH_READ,
+            ToolCategory.FILE_READ,
+        ]
+
+
+class TestResolveConfigSelectorAllowedToolsCustom:
+    """[selector] allowed_tools = ["git_read", "file_read"] → カスタムサブセット。"""
+
+    def test_selector_allowed_tools_custom(self, tmp_path: Path) -> None:
+        """[selector] セクションの allowed_tools がカスタムサブセットに上書きされる。"""
+        _create_config_toml(
+            tmp_path,
+            '[selector]\nallowed_tools = ["git_read", "file_read"]\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector.allowed_tools == [
+            ToolCategory.GIT_READ,
+            ToolCategory.FILE_READ,
+        ]
+
+
+class TestResolveConfigSelectorInvalidAllowedTools:
+    """[selector] allowed_tools の無効値 → ValidationError。"""
+
+    def test_invalid_tool_category_rejected(self, tmp_path: Path) -> None:
+        """allowed_tools に無効カテゴリ → ValidationError。"""
+        _create_config_toml(
+            tmp_path,
+            '[selector]\nallowed_tools = ["file_write"]\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            with pytest.raises(ValidationError, match="allowed_tools"):
+                resolve_config(start_dir=tmp_path)
+
+    def test_empty_allowed_tools_rejected(self, tmp_path: Path) -> None:
+        """allowed_tools に空リスト → ValidationError。"""
+        _create_config_toml(
+            tmp_path,
+            "[selector]\nallowed_tools = []\n",
+        )
+        with _nonexistent_user_config(tmp_path):
+            with pytest.raises(ValidationError, match="allowed_tools"):
+                resolve_config(start_dir=tmp_path)
+
+
+class TestResolveConfigSelectorViaPyproject:
+    """pyproject.toml [tool.hachimoku.selector] 経由のセレクター設定。"""
+
+    def test_pyproject_selector_config_applied(self, tmp_path: Path) -> None:
+        """pyproject.toml のセレクター設定が反映される。"""
+        _create_pyproject_toml(
+            tmp_path,
+            '[tool.hachimoku.selector]\nmodel = "haiku"\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector.model == "haiku"
+
+    def test_pyproject_selector_allowed_tools(self, tmp_path: Path) -> None:
+        """pyproject.toml でセレクターの allowed_tools を設定できる。"""
+        _create_pyproject_toml(
+            tmp_path,
+            '[tool.hachimoku.selector]\nallowed_tools = ["file_read"]\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector.allowed_tools == [ToolCategory.FILE_READ]
+
+
+class TestResolveConfigSelectorFieldLevelMergeMultiSource:
+    """複数ソースの selector 設定がフィールド単位マージ。"""
+
+    def test_different_fields_merged(self, tmp_path: Path) -> None:
+        """異なるフィールドが両ソースからマージされる。
+
+        user global: selector の timeout=60
+        config.toml: selector の model="haiku"
+        → 結果: timeout=60, model="haiku" の両方が反映
+        """
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            "[selector]\ntimeout = 60\n",
+        )
+        _create_config_toml(
+            tmp_path,
+            '[selector]\nmodel = "haiku"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector.model == "haiku"
+        assert config.selector.timeout == 60
+
+    def test_allowed_tools_replaced_not_merged(self, tmp_path: Path) -> None:
+        """allowed_tools は上位レイヤーのリストで完全に置換される（要素マージではない）。"""
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            '[selector]\nallowed_tools = ["git_read", "gh_read", "file_read"]\n',
+        )
+        _create_config_toml(
+            tmp_path,
+            '[selector]\nallowed_tools = ["git_read"]\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        # config.toml が優先 → git_read のみ（user global の3要素は破棄）
+        assert config.selector.allowed_tools == [ToolCategory.GIT_READ]
+
+    def test_same_field_upper_wins(self, tmp_path: Path) -> None:
+        """同一フィールドは上位ソース（config.toml）が優先される。"""
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            '[selector]\nmodel = "sonnet"\ntimeout = 60\n',
+        )
+        _create_config_toml(
+            tmp_path,
+            '[selector]\nmodel = "haiku"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.selector.model == "haiku"
+        assert config.selector.timeout == 60

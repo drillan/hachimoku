@@ -3,6 +3,7 @@
 FR-CF-002: 設定項目の定義
 FR-CF-004: バリデーション仕様
 FR-CF-009: HachimokuBaseModel 継承
+FR-CF-010: セレクターエージェント設定
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from pydantic import Field, StrictBool, field_validator
 
 from hachimoku.agents.models import AGENT_NAME_PATTERN
 from hachimoku.models._base import HachimokuBaseModel
+from hachimoku.models.tool_category import ToolCategory
 
 # 既存の AGENT_NAME_PATTERN (str) をコンパイル済み正規表現として使用
 _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
@@ -24,6 +26,27 @@ class OutputFormat(StrEnum):
 
     MARKDOWN = "markdown"
     JSON = "json"
+
+
+class SelectorConfig(HachimokuBaseModel):
+    """セレクターエージェント設定。FR-CF-010.
+
+    model, timeout, max_turns はオプショナル（None 可）で、
+    None の場合はグローバル設定値が適用される。
+    allowed_tools はセレクターに許可されるツールカテゴリのリスト。
+    """
+
+    model: str | None = Field(default=None, min_length=1)
+    timeout: int | None = Field(default=None, gt=0)
+    max_turns: int | None = Field(default=None, gt=0)
+    allowed_tools: list[ToolCategory] = Field(
+        default_factory=lambda: [
+            ToolCategory.GIT_READ,
+            ToolCategory.GH_READ,
+            ToolCategory.FILE_READ,
+        ],
+        min_length=1,
+    )
 
 
 class AgentConfig(HachimokuBaseModel):
@@ -60,6 +83,9 @@ class HachimokuConfig(HachimokuBaseModel):
 
     # ファイルモード設定
     max_files_per_review: int = Field(default=100, gt=0)
+
+    # セレクターエージェント設定
+    selector: SelectorConfig = Field(default_factory=SelectorConfig)
 
     # エージェント個別設定
     agents: dict[str, AgentConfig] = Field(default_factory=dict)
