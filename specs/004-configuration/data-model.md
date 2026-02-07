@@ -42,7 +42,7 @@
 | `model` | `str` | `"sonnet"` | `min_length=1` | `--model` | 使用する LLM モデル名 |
 | `timeout` | `int` | `300` | `> 0` | `--timeout` | エージェント実行タイムアウト（秒） |
 | `max_turns` | `int` | `10` | `> 0` | `--max-turns` | エージェント最大ターン数 |
-| `parallel` | `bool` | `False` | - | `--parallel` | 並列実行モード |
+| `parallel` | `bool` | `True` | - | `--parallel` | 並列実行モード |
 | `base_branch` | `str` | `"main"` | `min_length=1` | `--base-branch` | diff 比較対象ブランチ |
 | `output_format` | `OutputFormat` | `OutputFormat.MARKDOWN` | enum | `--format` | 出力形式 |
 | `save_reviews` | `bool` | `True` | - | `--save-reviews` | レビュー結果蓄積の有効/無効 |

@@ -17,7 +17,7 @@ from hachimoku.config import resolve_config
 config = resolve_config()
 assert config.model == "sonnet"
 assert config.timeout == 300
-assert config.parallel is False
+assert config.parallel is True
 ```
 
 ### 2. プロジェクト設定からの読み込み

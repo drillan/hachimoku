@@ -10,6 +10,7 @@ from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
     AgentTimeout,
+    AgentTruncated,
     CostInfo,
 )
 from hachimoku.models.report import ReviewReport, ReviewSummary
@@ -232,29 +233,36 @@ class TestReviewReportValid:
         assert isinstance(report.results[0], AgentSuccess)
         assert isinstance(report.results[1], AgentError)
 
-    def test_all_three_variants_accepted(self) -> None:
-        """AgentSuccess, AgentError, AgentTimeout の3種混在で成功する。"""
+    def test_all_four_variants_accepted(self) -> None:
+        """AgentSuccess, AgentTruncated, AgentError, AgentTimeout の4種混在で成功する。"""
         success = AgentSuccess(
             agent_name="reviewer-a",
             issues=[],
             elapsed_time=1.0,
         )
-        error = AgentError(
+        truncated = AgentTruncated(
             agent_name="reviewer-b",
+            issues=[],
+            elapsed_time=3.0,
+            turns_consumed=10,
+        )
+        error = AgentError(
+            agent_name="reviewer-c",
             error_message="Connection failed",
         )
         timeout = AgentTimeout(
-            agent_name="reviewer-c",
+            agent_name="reviewer-d",
             timeout_seconds=30.0,
         )
         report = ReviewReport(
-            results=[success, error, timeout],
-            summary=self._make_summary(total_elapsed_time=1.0),
+            results=[success, truncated, error, timeout],
+            summary=self._make_summary(total_elapsed_time=4.0),
         )
-        assert len(report.results) == 3
+        assert len(report.results) == 4
         assert isinstance(report.results[0], AgentSuccess)
-        assert isinstance(report.results[1], AgentError)
-        assert isinstance(report.results[2], AgentTimeout)
+        assert isinstance(report.results[1], AgentTruncated)
+        assert isinstance(report.results[2], AgentError)
+        assert isinstance(report.results[3], AgentTimeout)
 
 
 class TestReviewReportConstraints:
