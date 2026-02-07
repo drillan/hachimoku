@@ -4,9 +4,9 @@ FR-RE-007: エージェント定義・設定・レビュー対象から実行コ
 FR-RE-004: タイムアウト・ターン数の優先順解決。
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
-from pydantic import SkipValidation
+from pydantic import ConfigDict, Field, SkipValidation, model_validator
 from pydantic_ai import Tool
 
 from hachimoku.agents.models import AgentDefinition, Phase
@@ -14,6 +14,10 @@ from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import AgentConfig, HachimokuConfig
 from hachimoku.models.schemas._base import BaseAgentOutput
 
+# pydantic-ai の Tool[None] は内部ジェネリック型 (ToolFuncEither[ToolAgentDepsT]) が
+# Pydantic のスキーマ生成と互換性がないため、TYPE_CHECKING ガードで型を分離する。
+# ランタイム: SkipValidation[tuple] → Pydantic のスキーマ生成をスキップ
+# 型チェッカー: SkipValidation[tuple[Tool[None], ...]] → 型安全性を維持
 if TYPE_CHECKING:
     _ToolsTuple = tuple[Tool[None], ...]
 else:
@@ -35,7 +39,7 @@ class AgentExecutionContext(HachimokuBaseModel):
         phase: 実行フェーズ。
     """
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     agent_name: str
     model: str
@@ -43,9 +47,19 @@ class AgentExecutionContext(HachimokuBaseModel):
     user_message: str
     output_schema: type[BaseAgentOutput]
     tools: SkipValidation[_ToolsTuple]
-    timeout_seconds: int
-    max_turns: int
+    timeout_seconds: int = Field(gt=0)
+    max_turns: int = Field(gt=0)
     phase: Phase
+
+    @model_validator(mode="after")
+    def validate_tools(self) -> Self:
+        """tools タプルの各要素が Tool インスタンスであることを検証する。"""
+        for item in self.tools:
+            if not isinstance(item, Tool):
+                raise ValueError(
+                    f"tools must contain only Tool instances, got {type(item).__name__}"
+                )
+        return self
 
 
 def build_execution_context(

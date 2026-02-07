@@ -175,6 +175,88 @@ class TestAgentExecutionContextConstraints:
         )
         assert len(ctx.tools) == 1
 
+    def test_zero_timeout_rejected(self) -> None:
+        """timeout_seconds=0 で ValidationError を送出する。"""
+        agent = _make_agent()
+        with pytest.raises(ValidationError, match="timeout_seconds"):
+            AgentExecutionContext(
+                agent_name="test-agent",
+                model="sonnet",
+                system_prompt="prompt",
+                user_message="message",
+                output_schema=agent.resolved_schema,
+                tools=(),
+                timeout_seconds=0,
+                max_turns=10,
+                phase=Phase.MAIN,
+            )
+
+    def test_negative_timeout_rejected(self) -> None:
+        """timeout_seconds=-1 で ValidationError を送出する。"""
+        agent = _make_agent()
+        with pytest.raises(ValidationError, match="timeout_seconds"):
+            AgentExecutionContext(
+                agent_name="test-agent",
+                model="sonnet",
+                system_prompt="prompt",
+                user_message="message",
+                output_schema=agent.resolved_schema,
+                tools=(),
+                timeout_seconds=-1,
+                max_turns=10,
+                phase=Phase.MAIN,
+            )
+
+    def test_zero_max_turns_rejected(self) -> None:
+        """max_turns=0 で ValidationError を送出する。"""
+        agent = _make_agent()
+        with pytest.raises(ValidationError, match="max_turns"):
+            AgentExecutionContext(
+                agent_name="test-agent",
+                model="sonnet",
+                system_prompt="prompt",
+                user_message="message",
+                output_schema=agent.resolved_schema,
+                tools=(),
+                timeout_seconds=300,
+                max_turns=0,
+                phase=Phase.MAIN,
+            )
+
+    def test_non_tool_element_in_tools_rejected(self) -> None:
+        """tools タプルに Tool 以外の要素を含む場合 ValueError を送出する。"""
+        agent = _make_agent()
+        with pytest.raises(ValueError, match="Tool"):
+            AgentExecutionContext(
+                agent_name="test-agent",
+                model="sonnet",
+                system_prompt="prompt",
+                user_message="message",
+                output_schema=agent.resolved_schema,
+                tools=("not-a-tool",),  # type: ignore[arg-type]
+                timeout_seconds=300,
+                max_turns=10,
+                phase=Phase.MAIN,
+            )
+
+    def test_multiple_tools_accepted(self) -> None:
+        """複数 Tool 要素のタプルが受け入れられる。"""
+        agent = _make_agent()
+        tool1 = _make_tool()
+        tool2 = _make_tool()
+        ctx = AgentExecutionContext(
+            agent_name="test-agent",
+            model="sonnet",
+            system_prompt="prompt",
+            user_message="message",
+            output_schema=agent.resolved_schema,
+            tools=(tool1, tool2),
+            timeout_seconds=300,
+            max_turns=10,
+            phase=Phase.MAIN,
+        )
+        assert len(ctx.tools) == 2
+
 
 # =============================================================================
 # build_execution_context — 基本動作
@@ -457,6 +539,20 @@ class TestBuildExecutionContextPartialOverride:
 
 class TestBuildExecutionContextPhaseVariants:
     """各 Phase が正しく伝播されることを検証。"""
+
+    def test_defaults_from_hachimoku_config(self) -> None:
+        """HachimokuConfig のデフォルト値がコンテキストに正しく伝播する。"""
+        agent = _make_agent()
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=HachimokuConfig(),
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.model == "sonnet"
+        assert ctx.timeout_seconds == 300
+        assert ctx.max_turns == 10
 
     def test_early_phase_propagated(self) -> None:
         """Phase.EARLY が正しく設定される。"""
