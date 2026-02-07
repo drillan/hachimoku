@@ -73,6 +73,8 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - ファイルシステム（TOML 設定ファイル） (004-configuration)
 - Python 3.13+ + pydantic-ai（エージェント実行基盤）, pydantic ≥2.12.5（バリデーション）, asyncio（並列実行・タイムアウト制御） (005-review-engine)
 - N/A（ファイルシステムは設定・エージェント定義の読み込みのみ、004/003 が担当済み） (005-review-engine)
+- Python 3.13+ + Typer ≥0.21.1（CLI フレームワーク）, pydantic ≥2.12.5（バリデーション）, pydantic-ai ≥1.56.0（エンジン経由） (006-cli-interface)
+- ファイルシステム（`.hachimoku/` ディレクトリ構造の初期化） (006-cli-interface)
 
 ## Recent Changes
 - 003-agent-definition: Added Python 3.13+ + pydantic ≥2.12.5（バリデーション）, tomllib（Python 標準ライブラリ、TOML パース）, importlib.resources（ビルトイン定義のパッケージ内配置）, fnmatch（ファイルパターンマッチング）, re（コンテンツパターンマッチング）
