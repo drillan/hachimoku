@@ -15,6 +15,8 @@ from typing import Annotated
 
 import typer
 
+from hachimoku.models.config import OutputFormat  # 既存の OutputFormat を再利用（DRY）
+
 # Typer app インスタンス。pyproject.toml から参照される。
 app = typer.Typer(
     name="8moku",
@@ -45,7 +47,7 @@ def review_callback(
     max_turns: Annotated[int | None, typer.Option("--max-turns", help="Max agent turns (positive integer).", min=1)] = None,
     parallel: Annotated[bool | None, typer.Option("--parallel/--no-parallel", help="Enable/disable parallel execution.")] = None,
     base_branch: Annotated[str | None, typer.Option("--base-branch", help="Base branch for diff mode.")] = None,
-    format: Annotated[str | None, typer.Option("--format", help="Output format: markdown or json.")] = None,
+    format: Annotated[OutputFormat | None, typer.Option("--format", help="Output format: markdown or json.")] = None,
     save_reviews: Annotated[bool | None, typer.Option("--save-reviews/--no-save-reviews", help="Save review results.")] = None,
     show_cost: Annotated[bool | None, typer.Option("--show-cost/--no-show-cost", help="Show cost information.")] = None,
     max_files: Annotated[int | None, typer.Option("--max-files", help="Max files per review (positive integer).", min=1)] = None,

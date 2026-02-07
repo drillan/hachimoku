@@ -26,7 +26,7 @@
 
 **場所**: `src/hachimoku/cli/_input_resolver.py`
 
-位置引数の解析結果を表す判別共用体。
+位置引数の解析結果を表す共用体型。
 
 | バリアント | フィールド | 型 | 説明 |
 |-----------|-----------|-----|------|
@@ -34,7 +34,8 @@
 | PRInput | pr_number | int (gt=0) | PR モード |
 | FileInput | paths | tuple[str, ...] (min_length=1) | file モード（未展開パス） |
 
-**型**: `Annotated[Union[DiffInput, PRInput, FileInput], Field(discriminator="mode")]`
+**型**: `Union[DiffInput, PRInput, FileInput]`
+**注記**: Pydantic の discriminator は model フィールドとして使う場合に機能する。`resolve_input()` の戻り値型としては通常の Union で十分であり、match 文や isinstance での分岐で型を判別する。
 **バリデーション**: PRInput と FileInput の混在は `resolve_input()` 関数がエラーを返す
 **関係**: ResolvedInput → ReviewTarget への変換を `_app.py` が行う（config の base_branch と CLI `--issue` オプションの issue_number を付加）
 
