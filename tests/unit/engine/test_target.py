@@ -70,7 +70,11 @@ class TestDiffTargetValid:
             target.base_branch = "develop"  # type: ignore[misc]
 
     def test_whitespace_only_base_branch_accepted(self) -> None:
-        """空白のみの base_branch は min_length=1 を満たすため受け入れられる。"""
+        """空白のみの base_branch は min_length=1 を満たすため受け入れられる。
+
+        注: 現時点では strip バリデーション未適用。
+        実行時の git コマンド失敗は CLI 層で捕捉される想定。
+        """
         target = DiffTarget(base_branch=" ")
         assert target.base_branch == " "
 

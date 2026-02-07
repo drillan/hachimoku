@@ -92,7 +92,7 @@ class TestBuildReviewInstructionIssue:
 
 
 class TestBuildReviewInstructionFileEdgeCases:
-    """build_review_instruction の file モードエッジケースを検証（US5-AC3, AC4）。"""
+    """build_review_instruction の file モードエッジケースを検証（US5-AC3, US5-AC4）。"""
 
     def test_glob_pattern_included_in_instruction(self) -> None:
         """glob パターンがレビュー指示に含まれる（US5-AC4）。"""
@@ -126,7 +126,7 @@ class TestBuildReviewInstructionIssueCombinations:
     """全モードにおける issue_number 有無の組み合わせを検証（FR-RE-011）。"""
 
     def test_diff_with_issue_includes_both(self) -> None:
-        """diff モード + issue_number で両方含まれる。"""
+        """diff モード + issue_number で両方含まれる（Related Issue ヘッダ含有を既存テストに追加検証）。"""
         target = DiffTarget(base_branch="main", issue_number=42)
         instruction = build_review_instruction(target)
         assert "main" in instruction
@@ -137,7 +137,7 @@ class TestBuildReviewInstructionIssueCombinations:
         """PR モード + issue_number で両方含まれる。"""
         target = PRTarget(pr_number=10, issue_number=42)
         instruction = build_review_instruction(target)
-        assert "10" in instruction
+        assert "#10" in instruction
         assert "#42" in instruction
 
     def test_file_with_issue_includes_both(self) -> None:
