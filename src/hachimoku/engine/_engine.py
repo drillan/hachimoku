@@ -133,9 +133,9 @@ async def run_review(
     # Step 7: エージェント実行（並列 or 逐次）
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
-    install_signal_handlers(shutdown_event, loop)
 
     try:
+        install_signal_handlers(shutdown_event, loop)
         executor = execute_parallel if config.parallel else execute_sequential
         results: list[AgentResult] = await executor(contexts, shutdown_event)
     finally:
