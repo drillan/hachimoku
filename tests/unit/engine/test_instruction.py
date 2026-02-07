@@ -91,6 +91,75 @@ class TestBuildReviewInstructionIssue:
         assert "Related Issue" not in instruction
 
 
+class TestBuildReviewInstructionFileEdgeCases:
+    """build_review_instruction の file モードエッジケースを検証（US5-AC3, US5-AC4）。"""
+
+    def test_glob_pattern_included_in_instruction(self) -> None:
+        """glob パターンがレビュー指示に含まれる（US5-AC4）。"""
+        target = FileTarget(paths=("src/**/*.py",))
+        instruction = build_review_instruction(target)
+        assert "src/**/*.py" in instruction
+
+    def test_directory_path_included_in_instruction(self) -> None:
+        """ディレクトリパスがレビュー指示に含まれる（US5-AC3）。"""
+        target = FileTarget(paths=("src/",))
+        instruction = build_review_instruction(target)
+        assert "src/" in instruction
+
+    def test_mixed_path_types_all_included(self) -> None:
+        """ファイル・ディレクトリ・glob の全パスがレビュー指示に含まれる。"""
+        target = FileTarget(paths=("src/main.py", "tests/", "**/*.md"))
+        instruction = build_review_instruction(target)
+        assert "src/main.py" in instruction
+        assert "tests/" in instruction
+        assert "**/*.md" in instruction
+
+    def test_paths_listed_with_bullet_format(self) -> None:
+        """各パスが '- ' プレフィックスのリスト形式で表示される。"""
+        target = FileTarget(paths=("a.py", "b/"))
+        instruction = build_review_instruction(target)
+        assert "- a.py" in instruction
+        assert "- b/" in instruction
+
+
+class TestBuildReviewInstructionIssueCombinations:
+    """全モードにおける issue_number 有無の組み合わせを検証（FR-RE-011）。"""
+
+    def test_diff_with_issue_includes_both(self) -> None:
+        """diff モード + issue_number で両方含まれる（Related Issue ヘッダ含有を既存テストに追加検証）。"""
+        target = DiffTarget(base_branch="main", issue_number=42)
+        instruction = build_review_instruction(target)
+        assert "main" in instruction
+        assert "#42" in instruction
+        assert "Related Issue" in instruction
+
+    def test_pr_with_issue_includes_both(self) -> None:
+        """PR モード + issue_number で両方含まれる。"""
+        target = PRTarget(pr_number=10, issue_number=42)
+        instruction = build_review_instruction(target)
+        assert "#10" in instruction
+        assert "#42" in instruction
+
+    def test_file_with_issue_includes_both(self) -> None:
+        """file モード + issue_number でパスと issue 両方含まれる。"""
+        target = FileTarget(paths=("src/main.py",), issue_number=42)
+        instruction = build_review_instruction(target)
+        assert "src/main.py" in instruction
+        assert "#42" in instruction
+
+    def test_pr_without_issue_excludes_related_issue(self) -> None:
+        """PR モードで issue_number=None の場合 Related Issue を含まない。"""
+        target = PRTarget(pr_number=10)
+        instruction = build_review_instruction(target)
+        assert "Related Issue" not in instruction
+
+    def test_file_without_issue_excludes_related_issue(self) -> None:
+        """file モードで issue_number=None の場合 Related Issue を含まない。"""
+        target = FileTarget(paths=("a.py",))
+        instruction = build_review_instruction(target)
+        assert "Related Issue" not in instruction
+
+
 # =============================================================================
 # build_selector_instruction
 # =============================================================================

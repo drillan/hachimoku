@@ -69,6 +69,15 @@ class TestDiffTargetValid:
         with pytest.raises(ValidationError):
             target.base_branch = "develop"  # type: ignore[misc]
 
+    def test_whitespace_only_base_branch_accepted(self) -> None:
+        """空白のみの base_branch は min_length=1 を満たすため受け入れられる。
+
+        注: 現時点では strip バリデーション未適用。
+        実行時の git コマンド失敗は CLI 層で捕捉される想定。
+        """
+        target = DiffTarget(base_branch=" ")
+        assert target.base_branch == " "
+
 
 class TestDiffTargetConstraints:
     """DiffTarget の制約違反を検証。"""
@@ -133,6 +142,11 @@ class TestPRTargetConstraints:
         with pytest.raises(ValidationError, match="issue_number"):
             PRTarget(pr_number=1, issue_number=0)
 
+    def test_negative_issue_number_rejected(self) -> None:
+        """issue_number が負で ValidationError。"""
+        with pytest.raises(ValidationError, match="issue_number"):
+            PRTarget(pr_number=1, issue_number=-5)
+
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドで extra_forbidden。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
@@ -164,6 +178,21 @@ class TestFileTargetValid:
         target = FileTarget(paths=("a.py",), issue_number=5)
         assert target.issue_number == 5
 
+    def test_glob_pattern_path_accepted(self) -> None:
+        """glob パターンがパスとして受け入れられる（US5-AC4）。"""
+        target = FileTarget(paths=("src/**/*.py",))
+        assert target.paths == ("src/**/*.py",)
+
+    def test_directory_path_accepted(self) -> None:
+        """ディレクトリパスが受け入れられる（US5-AC3）。"""
+        target = FileTarget(paths=("src/",))
+        assert target.paths == ("src/",)
+
+    def test_mixed_path_types_accepted(self) -> None:
+        """ファイル・ディレクトリ・glob パターンの混在が受け入れられる。"""
+        target = FileTarget(paths=("src/main.py", "tests/", "src/**/*.py"))
+        assert len(target.paths) == 3
+
 
 class TestFileTargetConstraints:
     """FileTarget の制約違反を検証。"""
@@ -187,6 +216,11 @@ class TestFileTargetConstraints:
         """paths に空文字列が混在する場合 ValidationError（I-3）。"""
         with pytest.raises(ValidationError):
             FileTarget(paths=("valid.py", ""))
+
+    def test_negative_issue_number_rejected(self) -> None:
+        """issue_number が負で ValidationError。"""
+        with pytest.raises(ValidationError, match="issue_number"):
+            FileTarget(paths=("a.py",), issue_number=-1)
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドで extra_forbidden。"""
@@ -224,6 +258,14 @@ class TestReviewTargetDiscriminatedUnion:
             {"mode": "file", "paths": ["src/main.py"]}
         )
         assert isinstance(result, FileTarget)
+
+    def test_deserialize_file_with_glob_patterns(self) -> None:
+        """glob パターン付き FileTarget がデシリアライズされる（US5-AC4）。"""
+        result = self.adapter.validate_python(
+            {"mode": "file", "paths": ["src/**/*.py", "tests/"]}
+        )
+        assert isinstance(result, FileTarget)
+        assert result.paths == ("src/**/*.py", "tests/")
 
     def test_invalid_mode_rejected(self) -> None:
         """不正な mode 値で ValidationError。"""
