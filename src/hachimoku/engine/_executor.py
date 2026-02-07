@@ -9,6 +9,7 @@ parallel=true では同フェーズ内を asyncio.TaskGroup で並列実行す�
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from typing import Final
 
 from hachimoku.agents.models import Phase
@@ -139,8 +140,32 @@ async def execute_parallel(
                 pass
             results.append(result)
 
-        async with asyncio.TaskGroup() as tg:
-            for ctx in phase_contexts:
-                tg.create_task(_run_and_collect(ctx))
+        async def _run_phase() -> None:
+            """フェーズ内の全エージェントを TaskGroup で並列実行する。"""
+            async with asyncio.TaskGroup() as tg:
+                for ctx in phase_contexts:
+                    tg.create_task(_run_and_collect(ctx))
+
+        phase_task = asyncio.create_task(_run_phase())
+        shutdown_waiter = asyncio.create_task(shutdown_event.wait())
+
+        done, _ = await asyncio.wait(
+            {phase_task, shutdown_waiter},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        shutdown_waiter.cancel()
+        with suppress(asyncio.CancelledError):
+            await shutdown_waiter
+
+        if phase_task not in done:
+            # シャットダウン要求 → フェーズタスク（TaskGroup）をキャンセル
+            phase_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await phase_task
+            return results
+
+        # フェーズタスク完了 → 例外があれば再送出
+        await phase_task
 
     return results

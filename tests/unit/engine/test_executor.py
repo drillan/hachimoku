@@ -594,19 +594,22 @@ class TestExecuteParallel:
         assert len(success_results) == 0
 
     @patch("hachimoku.engine._executor.run_agent")
-    async def test_shutdown_skips_tasks_within_phase(self, mock_run: AsyncMock) -> None:
-        """フェーズ内並列実行中に shutdown_event がセットされると未開始タスクがスキップされる。"""
+    async def test_shutdown_cancels_phase_and_preserves_completed(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """フェーズ内並列実行中に shutdown_event がセットされると TaskGroup がキャンセルされる。
+
+        agent-a は即座に完了して結果を返す。
+        agent-b/c は実行中（await 中）にキャンセルされる。
+        完了済みの agent-a の結果のみ保持される。
+        """
         event = asyncio.Event()
-        execution_count = 0
 
         async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
-            nonlocal execution_count
-            execution_count += 1
             if ctx.agent_name == "agent-a":
-                event.set()  # agent-a 実行中にシャットダウン
-                await asyncio.sleep(0.05)  # 他タスクに制御を渡す
-            else:
-                await asyncio.sleep(0.01)  # agent-a より先に shutdown チェックへ到達
+                return _make_success(ctx.agent_name)
+            # agent-b/c: sleep で待機 → agent-a 完了後に shutdown で cancel される
+            await asyncio.sleep(10)
             return _make_success(ctx.agent_name)
 
         mock_run.side_effect = side_effect
@@ -616,12 +619,142 @@ class TestExecuteParallel:
             _make_context("agent-b", Phase.MAIN),
             _make_context("agent-c", Phase.MAIN),
         ]
+
+        # agent-a の完了後、次の await ポイントで shutdown を発火
+        async def _delayed_shutdown() -> None:
+            await asyncio.sleep(0.05)
+            event.set()
+
+        asyncio.create_task(_delayed_shutdown())
         results = await execute_parallel(contexts, event)
 
-        # shutdown_event が _run_and_collect の先頭でチェックされるため、
-        # agent-a は実行されるが、agent-b/c はスキップされる可能性がある
-        # （タイミングにより全て実行される場合もあるため、結果数 >= 1 で検証）
-        assert len(results) >= 1
+        # agent-a は完了済み、agent-b/c はキャンセル
+        assert len(results) == 1
+        assert results[0].agent_name == "agent-a"
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_cancels_running_tasks_immediately(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """shutdown_event セット時に実行中タスクが即座にキャンセルされる。
+
+        3エージェントが10秒 sleep するところ、0.05秒後にシャットダウンすると
+        1秒未満で制御が返る（能動的キャンセルの証拠）。
+        """
+        import time
+
+        event = asyncio.Event()
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            await asyncio.sleep(10)
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.MAIN),
+        ]
+
+        async def _delayed_shutdown() -> None:
+            await asyncio.sleep(0.05)
+            event.set()
+
+        asyncio.create_task(_delayed_shutdown())
+
+        start = time.monotonic()
+        results = await execute_parallel(contexts, event)
+        elapsed = time.monotonic() - start
+
+        # 能動的キャンセル: 10秒待たずに 1 秒未満で完了
+        assert elapsed < 1.0
+        # 全エージェントがキャンセルされ、結果は空
+        assert len(results) == 0
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_preserves_completed_results_in_cancelled_phase(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """キャンセル前に完了した結果が collected_results に保持される。"""
+        event = asyncio.Event()
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            if ctx.agent_name == "agent-a":
+                return _make_success(ctx.agent_name)
+            elif ctx.agent_name == "agent-b":
+                await asyncio.sleep(0.05)
+                event.set()
+                return _make_success(ctx.agent_name)
+            else:
+                # agent-c はキャンセルされる
+                await asyncio.sleep(10)
+                return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        external: list[AgentResult] = []
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.MAIN),
+        ]
+        results = await execute_parallel(contexts, event, collected_results=external)
+
+        assert len(results) == 2
+        result_names = {r.agent_name for r in results}
+        assert result_names == {"agent-a", "agent-b"}
+        assert results is external
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_skips_subsequent_phases_after_cancellation(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """キャンセル後の後続フェーズがスキップされる。"""
+        event = asyncio.Event()
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            if ctx.agent_name == "early-fast":
+                event.set()
+                return _make_success(ctx.agent_name)
+            # early-slow はキャンセルされる
+            await asyncio.sleep(10)
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("early-fast", Phase.EARLY),
+            _make_context("early-slow", Phase.EARLY),
+            _make_context("main-agent", Phase.MAIN),
+        ]
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 1
+        assert results[0].agent_name == "early-fast"
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_no_shutdown_sentinel_does_not_affect_normal_execution(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """シャットダウンなし → sentinel が正常実行に影響しない。"""
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            await asyncio.sleep(0.01)
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+        ]
+        event = asyncio.Event()
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 2
+        result_names = {r.agent_name for r in results}
+        assert result_names == {"agent-a", "agent-b"}
 
 
 # =============================================================================
