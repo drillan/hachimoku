@@ -3,6 +3,7 @@
 T025: merge_config_layers — 空レイヤー, 単一レイヤー, 上書き, None スキップ, agents マージ
 T026: filter_cli_overrides — None 除外, 非 None 保持, 空辞書
 T027: resolve_config — 5層統合, デフォルト値, 優先順位, エラー伝播
+T033: resolve_config — エージェント個別設定の統合テスト (US3)
 """
 
 from __future__ import annotations
@@ -533,3 +534,208 @@ class TestResolveConfigPermissionError:
                     resolve_config(start_dir=tmp_path)
         finally:
             user_config_path.chmod(0o644)
+
+
+# ---------------------------------------------------------------------------
+# T033: resolve_config — エージェント個別設定の統合テスト (US3)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveConfigAgentEnabledFalse:
+    """config.toml で [agents.code-reviewer] enabled=false → 反映。"""
+
+    def test_agent_disabled_through_config(self, tmp_path: Path) -> None:
+        """config.toml でエージェントを無効化すると agents に反映される。"""
+        _create_config_toml(
+            tmp_path,
+            "[agents.code-reviewer]\nenabled = false\n",
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert "code-reviewer" in config.agents
+        assert config.agents["code-reviewer"].enabled is False
+
+    def test_agent_enabled_default_remains_true(self, tmp_path: Path) -> None:
+        """enabled を明示指定しない場合はデフォルト True のまま。"""
+        _create_config_toml(
+            tmp_path,
+            '[agents.code-reviewer]\nmodel = "haiku"\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.agents["code-reviewer"].enabled is True
+
+
+class TestResolveConfigAgentModelOverride:
+    """config.toml で [agents.code-reviewer] model="haiku" → 反映。"""
+
+    def test_agent_model_override(self, tmp_path: Path) -> None:
+        """エージェント固有のモデルが設定される。"""
+        _create_config_toml(
+            tmp_path,
+            '[agents.code-reviewer]\nmodel = "haiku"\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.agents["code-reviewer"].model == "haiku"
+
+    def test_agent_timeout_and_max_turns_override(self, tmp_path: Path) -> None:
+        """timeout と max_turns もエージェント固有に上書きできる。"""
+        _create_config_toml(
+            tmp_path,
+            "[agents.code-reviewer]\ntimeout = 600\nmax_turns = 20\n",
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.agents["code-reviewer"].timeout == 600
+        assert config.agents["code-reviewer"].max_turns == 20
+
+
+class TestResolveConfigNonexistentAgentPreserved:
+    """存在しないエージェント名のセクション → 保持（エラーとしない）。"""
+
+    def test_unknown_agent_name_preserved(self, tmp_path: Path) -> None:
+        """定義に存在しないエージェント名でも設定モデルに保持される。"""
+        _create_config_toml(
+            tmp_path,
+            "[agents.nonexistent-agent]\nenabled = false\n",
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert "nonexistent-agent" in config.agents
+        assert config.agents["nonexistent-agent"].enabled is False
+
+    def test_multiple_unknown_agents_preserved(self, tmp_path: Path) -> None:
+        """複数の未知エージェント名も全て保持される。"""
+        _create_config_toml(
+            tmp_path,
+            ('[agents.agent-a]\nenabled = false\n\n[agents.agent-b]\nmodel = "opus"\n'),
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert "agent-a" in config.agents
+        assert "agent-b" in config.agents
+        assert config.agents["agent-a"].enabled is False
+        assert config.agents["agent-b"].model == "opus"
+
+
+class TestResolveConfigAgentFieldLevelMergeMultiSource:
+    """複数ソース（config.toml + user global）のエージェント設定がフィールド単位マージ。
+
+    R-006: エージェント個別設定は、エージェント名→フィールド単位でマージされる。
+    user global (低優先度) → config.toml (高優先度) の順で適用。
+    """
+
+    def test_different_fields_merged(self, tmp_path: Path) -> None:
+        """異なるフィールドが両ソースからマージされる。
+
+        user global: code-reviewer の timeout=600
+        config.toml: code-reviewer の model="haiku"
+        → 結果: timeout=600, model="haiku" の両方が反映
+        """
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            "[agents.code-reviewer]\ntimeout = 600\n",
+        )
+        _create_config_toml(
+            tmp_path,
+            '[agents.code-reviewer]\nmodel = "haiku"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        agent = config.agents["code-reviewer"]
+        assert agent.timeout == 600
+        assert agent.model == "haiku"
+
+    def test_same_field_upper_wins(self, tmp_path: Path) -> None:
+        """同一フィールドは上位ソース（config.toml）が優先される。
+
+        user global: code-reviewer の model="sonnet", timeout=600
+        config.toml: code-reviewer の model="haiku"
+        → 結果: config.toml が優先 → model="haiku", user global の timeout=600 は保持
+        """
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            '[agents.code-reviewer]\nmodel = "sonnet"\ntimeout = 600\n',
+        )
+        _create_config_toml(
+            tmp_path,
+            '[agents.code-reviewer]\nmodel = "haiku"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        agent = config.agents["code-reviewer"]
+        # config.toml が優先 → model="haiku"
+        assert agent.model == "haiku"
+        # user global にしかない timeout は保持
+        assert agent.timeout == 600
+
+
+class TestResolveConfigAgentViaPyproject:
+    """pyproject.toml [tool.hachimoku.agents.*] 経由のエージェント個別設定。"""
+
+    def test_pyproject_agent_config_applied(self, tmp_path: Path) -> None:
+        """pyproject.toml のエージェント設定が反映される。"""
+        _create_pyproject_toml(
+            tmp_path,
+            '[tool.hachimoku.agents.code-reviewer]\nmodel = "haiku"\n',
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.agents["code-reviewer"].model == "haiku"
+
+    def test_pyproject_agent_enabled_false(self, tmp_path: Path) -> None:
+        """pyproject.toml でエージェントを無効化できる。"""
+        _create_pyproject_toml(
+            tmp_path,
+            "[tool.hachimoku.agents.code-reviewer]\nenabled = false\n",
+        )
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.agents["code-reviewer"].enabled is False
+
+
+class TestResolveConfigAgentThreeSourceMerge:
+    """3 ソース（user global + pyproject.toml + config.toml）のエージェントマージ優先順位。"""
+
+    def test_three_source_agent_priority(self, tmp_path: Path) -> None:
+        """config.toml > pyproject.toml > user global の優先順位でマージされる。
+
+        user global: code-reviewer の max_turns=5
+        pyproject.toml: code-reviewer の timeout=120, model="sonnet"
+        config.toml: code-reviewer の model="haiku"
+        → 結果: model="haiku" (config.toml), timeout=120 (pyproject), max_turns=5 (user)
+        """
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            "[agents.code-reviewer]\nmax_turns = 5\n",
+        )
+        _create_pyproject_toml(
+            tmp_path,
+            '[tool.hachimoku.agents.code-reviewer]\ntimeout = 120\nmodel = "sonnet"\n',
+        )
+        _create_config_toml(
+            tmp_path,
+            '[agents.code-reviewer]\nmodel = "haiku"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        agent = config.agents["code-reviewer"]
+        # config.toml が最高優先 → model="haiku"
+        assert agent.model == "haiku"
+        # pyproject.toml の timeout は保持
+        assert agent.timeout == 120
+        # user global の max_turns は保持
+        assert agent.max_turns == 5
