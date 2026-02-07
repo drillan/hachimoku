@@ -1,8 +1,9 @@
-"""SequentialExecutor のテスト。
+"""Executor のテスト。
 
 T022: group_by_phase のフェーズグルーピングと
 execute_sequential の逐次実行（フェーズ順・名前辞書順）を検証する。
-FR-RE-006: parallel=false の場合のフェーズ順序制御。
+T034: execute_parallel の並列実行（同一フェーズ内並列、フェーズ間順序保持）を検証する。
+FR-RE-006: parallel 設定に応じたフェーズ順序制御。
 """
 
 from __future__ import annotations
@@ -14,7 +15,11 @@ from pydantic_ai import Tool
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
-from hachimoku.engine._executor import execute_sequential, group_by_phase
+from hachimoku.engine._executor import (
+    execute_parallel,
+    execute_sequential,
+    group_by_phase,
+)
 from hachimoku.models.agent_result import AgentError, AgentSuccess, AgentTimeout
 from hachimoku.models.schemas import get_schema
 
@@ -358,3 +363,186 @@ class TestExecuteSequential:
         assert isinstance(results[2], AgentError)
         success_results = [r for r in results if isinstance(r, AgentSuccess)]
         assert len(success_results) == 0
+
+
+# =============================================================================
+# execute_parallel — 並列実行
+# =============================================================================
+
+
+class TestExecuteParallel:
+    """execute_parallel のテスト。
+
+    T034: 同一フェーズ内の並列実行、フェーズ間の順序保持、個別失敗許容を検証。
+    run_agent をモック化してツール実行を回避する。
+    """
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_same_phase_runs_concurrently(self, mock_run: AsyncMock) -> None:
+        """同一フェーズ内のエージェントが並行実行される。
+
+        3エージェントにそれぞれ 0.1 秒の sleep を入れる。
+        逐次なら 0.3 秒以上かかるところ、並列なら 0.15 秒程度で完了する。
+        """
+        import time
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            await asyncio.sleep(0.1)
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.MAIN),
+        ]
+        event = asyncio.Event()
+
+        start = time.monotonic()
+        results = await execute_parallel(contexts, event)
+        elapsed = time.monotonic() - start
+
+        assert len(results) == 3
+        # 並列実行なので合計 0.3 秒ではなく 0.15 秒程度で完了するはず
+        assert elapsed < 0.25
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_phases_execute_in_order(self, mock_run: AsyncMock) -> None:
+        """フェーズ間は early → main → final の順で実行される。
+
+        各フェーズの完了順を記録して、フェーズ順序が保持されることを検証する。
+        """
+        phase_completion_order: list[str] = []
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            phase_completion_order.append(ctx.agent_name)
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("main-agent", Phase.MAIN),
+            _make_context("early-agent", Phase.EARLY),
+            _make_context("final-agent", Phase.FINAL),
+        ]
+        event = asyncio.Event()
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 3
+        # early が最初、final が最後であること
+        assert phase_completion_order.index(
+            "early-agent"
+        ) < phase_completion_order.index("main-agent")
+        assert phase_completion_order.index(
+            "main-agent"
+        ) < phase_completion_order.index("final-agent")
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_individual_failure_does_not_affect_others(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """並列実行中に1つが失敗しても他は正常完了する。"""
+        results_map: dict[str, AgentSuccess | AgentError] = {
+            "agent-a": _make_success("agent-a"),
+            "agent-b": _make_error("agent-b"),
+            "agent-c": _make_success("agent-c"),
+        }
+
+        async def side_effect(
+            ctx: AgentExecutionContext,
+        ) -> AgentSuccess | AgentError:
+            return results_map[ctx.agent_name]
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.MAIN),
+        ]
+        event = asyncio.Event()
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 3
+        result_names = {r.agent_name for r in results}
+        assert result_names == {"agent-a", "agent-b", "agent-c"}
+        error_results = [r for r in results if isinstance(r, AgentError)]
+        assert len(error_results) == 1
+        assert error_results[0].agent_name == "agent-b"
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_before_start(self, mock_run: AsyncMock) -> None:
+        """shutdown_event がセット済み → 実行なし。"""
+        contexts = [_make_context("agent-a")]
+        event = asyncio.Event()
+        event.set()
+
+        results = await execute_parallel(contexts, event)
+
+        assert results == []
+        mock_run.assert_not_called()
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_after_first_phase(self, mock_run: AsyncMock) -> None:
+        """最初のフェーズ完了後に shutdown → 残りフェーズスキップ。"""
+        event = asyncio.Event()
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            if ctx.phase == Phase.EARLY:
+                event.set()  # early フェーズ完了後にシャットダウン
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("early-agent", Phase.EARLY),
+            _make_context("main-agent", Phase.MAIN),
+            _make_context("final-agent", Phase.FINAL),
+        ]
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 1
+        assert results[0].agent_name == "early-agent"
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_empty_contexts(self, mock_run: AsyncMock) -> None:
+        """空リスト → 空結果。"""
+        event = asyncio.Event()
+        results = await execute_parallel([], event)
+
+        assert results == []
+        mock_run.assert_not_called()
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_timeout_in_parallel_does_not_affect_others(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """並列実行中に1つがタイムアウトでも他は正常完了する。"""
+        results_map: dict[str, AgentSuccess | AgentTimeout] = {
+            "agent-a": _make_success("agent-a"),
+            "agent-b": _make_timeout("agent-b", timeout_seconds=60.0),
+            "agent-c": _make_success("agent-c"),
+        }
+
+        async def side_effect(
+            ctx: AgentExecutionContext,
+        ) -> AgentSuccess | AgentTimeout:
+            return results_map[ctx.agent_name]
+
+        mock_run.side_effect = side_effect
+
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+            _make_context("agent-c", Phase.MAIN),
+        ]
+        event = asyncio.Event()
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 3
+        success_results = [r for r in results if isinstance(r, AgentSuccess)]
+        timeout_results = [r for r in results if isinstance(r, AgentTimeout)]
+        assert len(success_results) == 2
+        assert len(timeout_results) == 1
+        assert timeout_results[0].agent_name == "agent-b"

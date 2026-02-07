@@ -2,7 +2,9 @@
 
 T026: EngineResult モデル検証、_filter_disabled_agents、
 run_review パイプラインの統合テスト。
+T037: parallel 設定による実行モード切り替えテスト。
 FR-RE-002: エージェント実行パイプライン全体の統括。
+FR-RE-006: parallel 設定に応じたフェーズ順序制御。
 FR-RE-009: 全エージェント失敗時の exit_code=3。
 FR-RE-010: 空選択時の正常終了（exit_code=0）。
 FR-RE-014: load_errors のレポート記録。
@@ -255,9 +257,10 @@ class TestRunReviewPipeline:
     """run_review パイプラインの統合テスト。
 
     内部依存をモック化し、パイプラインのオーケストレーションロジックを検証する。
+    デフォルト config.parallel=True のため execute_parallel をモック化する。
     """
 
-    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
@@ -350,7 +353,7 @@ class TestRunReviewPipeline:
         assert len(result.report.load_errors) == 1
         assert result.report.load_errors[0].source == "broken.toml"
 
-    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
@@ -374,7 +377,7 @@ class TestRunReviewPipeline:
 
         assert result.exit_code == 3
 
-    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
@@ -401,7 +404,7 @@ class TestRunReviewPipeline:
 
         assert result.exit_code == 1
 
-    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
@@ -438,7 +441,7 @@ class TestRunReviewPipeline:
         assert "agent-a" in agent_names
         assert result.exit_code == 0
 
-    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
@@ -476,7 +479,7 @@ class TestRunReviewPipeline:
         assert isinstance(result.report.results[1], AgentTimeout)
         assert isinstance(result.report.results[2], AgentError)
 
-    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
@@ -515,3 +518,76 @@ class TestRunReviewPipeline:
         assert result.exit_code != 3
         # truncated の issues が空 → max_severity=None → exit_code=0
         assert result.exit_code == 0
+
+
+# =============================================================================
+# run_review — parallel 設定による実行モード切り替え
+# =============================================================================
+
+
+class TestRunReviewParallelSwitch:
+    """T037: parallel 設定による execute_parallel / execute_sequential の切り替え。
+
+    FR-RE-006: parallel=true で並列実行、parallel=false で逐次実行。
+    """
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_parallel_true_calls_execute_parallel(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_seq: AsyncMock,
+        mock_par: AsyncMock,
+    ) -> None:
+        """parallel=true で execute_parallel が呼ばれる。"""
+        mock_config.return_value = HachimokuConfig(parallel=True)
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+        )
+        mock_par.return_value = [_make_success("agent-a")]
+
+        result = await run_review(target=_make_target())
+
+        mock_par.assert_called_once()
+        mock_seq.assert_not_called()
+        assert result.exit_code == 0
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.execute_sequential")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_parallel_false_calls_execute_sequential(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_seq: AsyncMock,
+        mock_par: AsyncMock,
+    ) -> None:
+        """parallel=false で execute_sequential が呼ばれる。"""
+        mock_config.return_value = HachimokuConfig(parallel=False)
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+        )
+        mock_seq.return_value = [_make_success("agent-a")]
+
+        result = await run_review(target=_make_target())
+
+        mock_seq.assert_called_once()
+        mock_par.assert_not_called()
+        assert result.exit_code == 0
+
+    def test_default_config_parallel_is_true(self) -> None:
+        """HachimokuConfig のデフォルトで parallel=True。"""
+        config = HachimokuConfig()
+        assert config.parallel is True
