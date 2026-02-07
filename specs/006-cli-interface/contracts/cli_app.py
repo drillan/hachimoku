@@ -11,17 +11,11 @@ FR-CLI-014: エラーメッセージに解決方法を含む。
 from __future__ import annotations
 
 import sys
-from enum import StrEnum
 from typing import Annotated
 
 import typer
 
-
-class OutputFormat(StrEnum):
-    """CLI 出力形式。Typer が自動的にバリデーションする。"""
-
-    MARKDOWN = "markdown"
-    JSON = "json"
+from hachimoku.models.config import OutputFormat  # 既存の OutputFormat を再利用（DRY）
 
 # Typer app インスタンス。pyproject.toml から参照される。
 app = typer.Typer(

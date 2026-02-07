@@ -34,7 +34,7 @@
 - [ ] T004 [P] `tests/unit/cli/test_exit_code.py` に ExitCode の TDD テストを作成する（IntEnum 性質、値の検証、EngineResult.exit_code からの変換）。contracts/exit_code.py の仕様に準拠
 - [ ] T005 [P] Red 確認: T004 のテストが失敗することを確認する
 - [ ] T006 [P] `src/hachimoku/cli/_exit_code.py` に ExitCode IntEnum を実装する（contracts/exit_code.py 準拠）
-- [ ] T006b `src/hachimoku/models/severity.py` の `EXIT_CODE_SUCCESS`, `EXIT_CODE_CRITICAL`, `EXIT_CODE_IMPORTANT` 定数と `determine_exit_code()` の戻り値型を `ExitCode` メンバーに置き換える。`_engine.py` の `_determine_exit_code()` および `EngineResult.exit_code` の型を `ExitCode` に統一する。既存テストの更新を含む
+- [ ] T006b `src/hachimoku/models/severity.py` の `EXIT_CODE_SUCCESS`, `EXIT_CODE_CRITICAL`, `EXIT_CODE_IMPORTANT` 定数と `determine_exit_code()` の戻り値型を `ExitCode` メンバーに置き換える。`src/hachimoku/engine/_engine.py` の `_determine_exit_code()` 内で直接返している `Literal` 値（`return 3` 等）を `ExitCode` メンバーに置き換え、`EngineResult.exit_code` の型を `Literal[0, 1, 2, 3]` から `ExitCode` に変更する。`models/__init__.py` の公開 API 更新と既存テストの更新を含む
 - [ ] T007 `src/hachimoku/cli/__init__.py` に公開 API（`app`, `main`）を定義し、`src/hachimoku/__init__.py` から `cli.main()` への委譲を設定する
 - [ ] T008 品質チェック: `ruff check --fix . && ruff format . && mypy .`
 
@@ -60,7 +60,7 @@
 
 - [ ] T012 [US1] `src/hachimoku/cli/_input_resolver.py` に ResolvedInput 型（DiffInput, PRInput, FileInput）、InputError 例外、`resolve_input()` 関数を実装する。contracts/input_resolver.py 準拠
 - [ ] T013 [US1] `src/hachimoku/cli/_app.py` に Typer app 定義、`main()` 関数、`review_callback()` を実装する。入力モード判定の呼び出しと InputError → 終了コード 4 のエラーハンドリングを含む。contracts/cli_app.py 準拠（レビュー実行はスタブ、US2 で完成）
-- [ ] T014 [US1] `config` 予約サブコマンドを `_app.py` に実装する（未実装エラー、終了コード 4）。research.md R-009 準拠
+- [ ] T014 [US1] `config` 予約サブコマンドを `_app.py` に実装する（未実装エラー、終了コード 4）。research.md R-009 準拠。※ `_app.py` 構築と同時に登録する方が効率的なため US1 に含める
 - [ ] T015 [US1] 品質チェック: `ruff check --fix . && ruff format . && mypy .`
 
 **Checkpoint**: 入力モード判定が正しく動作し、`8moku --help` でヘルプが表示される。レビュー実行自体は US2 で接続する
@@ -198,7 +198,7 @@
 
 ### Parallel Opportunities
 
-- **Phase 2**: T004, T005, T006 は並行可能（ExitCode テストと実装）
+- **Phase 2**: T004 と T006 は異なるファイルへの並行作成は可能だが、TDD フロー（T004 → T005 → T006）を遵守する
 - **Phase 3**: T009, T010 は並行可能（InputResolver テストと App テスト）
 - **Phase 5 と Phase 3**: US3（init）は US1 完了を待たずに Phase 2 完了後から開始可能
 - **Phase 7 と Phase 3-6**: US5（agents）は他ストーリーと独立して実装可能
