@@ -113,6 +113,7 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - **FR-DM-007**: システムは各出力スキーマでエージェントの出力を型検証し、必須フィールドの欠損・型不一致・制約違反を検出できなければならない（親仕様 FR-004 の実現）
 - **FR-DM-008**: システムは Severity から終了コードへのマッピングを定義しなければならない。Critical → 1、Important → 2、Suggestion/Nitpick/問題なし → 0 とする（親仕様 FR-009 の基盤）。なお、実行エラー（終了コード 3）と入力エラー（終了コード 4）は Severity とは独立したエラー状態であり、005-review-engine および 006-cli-interface がそれぞれ定義する
 - **FR-DM-009**: 全モデルおよびスキーマは追加フィールドを拒否する厳格モードで動作しなければならない（想定外のデータ混入を防止する）
+- **FR-DM-012**: システムはエージェントに許可されるツールのカテゴリを ToolCategory 列挙型（StrEnum）として定義しなければならない。現在は読み取り専用の3カテゴリ（git_read, gh_read, file_read）を定義する。004-configuration (FR-CF-004) の allowed_tools バリデーションと 005-review-engine (FR-RE-016) の ToolCatalog が参照する。循環依存を回避するため本仕様（002-domain-models）に配置する
 - **FR-DM-010**: Severity の列挙値はすべての入力経路で大文字・小文字を区別せず受け付けなければならない。内部表現は PascalCase（Critical, Important, Suggestion, Nitpick）で統一して保持する
 - **FR-DM-011**: JSONL 蓄積用のレビュー履歴レコード（ReviewHistoryRecord）を判別共用体（Discriminated Union）として定義しなければならない。以下の3つのバリアントモデルを定義し、判別キー（`review_mode` フィールドの固定値）で型を一意に特定する:
   - **DiffReviewRecord**: review_mode="diff"、コミットハッシュ（必須、完全40文字の16進数文字列）、ブランチ名（必須）、レビュー実行日時（必須）、AgentResult リスト（必須）、全体サマリー（必須）
@@ -144,6 +145,7 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - **MultiDimensionalAnalysis（多次元分析）**: BaseAgentOutput を継承。複数の評価軸でスコアリングする出力スキーマ。型設計分析エージェントが使用する
 - **CategoryClassification（カテゴリ分類）**: BaseAgentOutput を継承。カテゴリ別に問題を分類する出力スキーマ。コメント分析エージェントが使用する
 - **ImprovementSuggestions（改善提案）**: BaseAgentOutput を継承。具体的な改善提案のリストを提供する出力スキーマ。コード簡潔化エージェントが使用する
+- **ToolCategory（ツールカテゴリ）**: エージェントに許可されるツールのカテゴリを表す StrEnum 列挙型。git_read（Git 読み取り）、gh_read（GitHub 読み取り）、file_read（ファイル読み取り）の3カテゴリを定義する。004-configuration の allowed_tools バリデーションと 005-review-engine の ToolCatalog が参照する共有定義。循環依存回避のため 002-domain-models に配置する
 - **SCHEMA_REGISTRY（スキーマレジストリ）**: スキーマ名から対応するスキーマモデルへのマッピングを管理するレジストリ。エージェント定義ファイルの `output_schema` フィールドからスキーマを解決する際に使用する
 
 ## Success Criteria *(mandatory)*
