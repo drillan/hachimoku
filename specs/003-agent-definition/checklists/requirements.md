@@ -1,4 +1,4 @@
-# Specification Quality Checklist: エージェント定義・ローダー・セレクター
+# Specification Quality Checklist: エージェント定義・ローダー
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-02-06

@@ -1,4 +1,4 @@
-# Tasks: エージェント定義・ローダー・セレクター
+# Tasks: エージェント定義・ローダー
 
 **Input**: Design documents from `/specs/003-agent-definition/`
 **Prerequisites**: plan.md, spec.md, data-model.md, contracts/agent.py, research.md, quickstart.md
@@ -86,30 +86,7 @@
 
 ---
 
-## Phase 4: User Story 2 — 変更内容に基づくエージェント自動選択 (Priority: P1)
-
-**Goal**: レビュー対象（ファイルパス・差分内容）に基づいて ApplicabilityRule を評価し、適用すべきエージェントを Phase 順でソートして返す。
-
-**Independent Test**: テスト用 AgentDefinition をコード内で直接構築し、様々なファイルパス/コンテンツの組み合わせでセレクターの挙動を検証。ローダーに依存しない。
-
-### Tests for US2
-
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [ ] T025 Write `_matches` tests in `tests/unit/agents/test_selector.py` — always=true で常に True、file_patterns マッチ（basename での fnmatch）、file_patterns 不一致、content_patterns マッチ（re.search）、content_patterns 不一致、file_patterns と content_patterns の OR 条件、両方空かつ always=false で False
-- [ ] T026 [P] Write `select_agents` tests in `tests/unit/agents/test_selector.py` — 複数エージェントからの選択、Phase 順ソート（early→main→final）、同 Phase 内の名前辞書順ソート、空リスト入力、全エージェント不適用時の空リスト返却
-
-### Implementation for US2
-
-- [ ] T027 Implement `_matches(rule: ApplicabilityRule, file_paths: list[str], content: str) -> bool` in `src/hachimoku/agents/selector.py` — always チェック → file_patterns の fnmatch.fnmatch(basename, pattern) → content_patterns の re.search(pattern, content) の OR 評価
-- [ ] T028 Implement `select_agents(agents, file_paths, content) -> list[AgentDefinition]` in `src/hachimoku/agents/selector.py` — _matches で適用判定 → (PHASE_ORDER[phase], name) タプルでソート
-- [ ] T029 Run all US2 tests green: `uv --directory $PROJECT_ROOT run pytest tests/unit/agents/test_selector.py -v`
-
-**Checkpoint**: セレクターが適用ルールに基づいてエージェントを正しく選択・ソート。全テスト green
-
----
-
-## Phase 5: User Story 3 — カスタムエージェント定義によるレビュー拡張 (Priority: P2)
+## Phase 4: User Story 3 — カスタムエージェント定義によるレビュー拡張 (Priority: P2)
 
 **Goal**: `.hachimoku/agents/` からカスタムエージェントを読み込み、ビルトインとの統合（同名上書き・部分失敗許容）を実現する。
 
@@ -132,11 +109,11 @@
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 5: Polish & Cross-Cutting Concerns
 
 **Purpose**: 公開 API 整備、品質チェック、quickstart 検証
 
-- [ ] T035 Update `src/hachimoku/agents/__init__.py` with public API exports — `Phase`, `PHASE_ORDER`, `ApplicabilityRule`, `AgentDefinition`, `LoadError`, `LoadResult`, `load_builtin_agents`, `load_custom_agents`, `load_agents`, `select_agents`
+- [ ] T035 Update `src/hachimoku/agents/__init__.py` with public API exports — `Phase`, `PHASE_ORDER`, `ApplicabilityRule`, `AgentDefinition`, `LoadError`, `LoadResult`, `load_builtin_agents`, `load_custom_agents`, `load_agents`
 - [ ] T036 Run full test suite: `uv --directory $PROJECT_ROOT run pytest -v`
 - [ ] T037 Run quality checks: `uv --directory $PROJECT_ROOT run ruff check --fix . && uv --directory $PROJECT_ROOT run ruff format . && uv --directory $PROJECT_ROOT run mypy .`
 - [ ] T038 Run quickstart.md validation — quickstart.md の使用例コードが実際の API と一致することを確認
@@ -150,20 +127,18 @@
 - **Setup (Phase 1)**: No dependencies — can start immediately
 - **Foundational (Phase 2)**: Depends on Phase 1 — BLOCKS all user stories
 - **US1+US4 (Phase 3)**: Depends on Phase 2 models
-- **US2 (Phase 4)**: Depends on Phase 2 models only (ローダーに非依存)
-- **US3 (Phase 5)**: Depends on Phase 3 loader implementation
-- **Polish (Phase 6)**: Depends on all user stories complete
+- **US3 (Phase 4)**: Depends on Phase 3 loader implementation
+- **Polish (Phase 5)**: Depends on all user stories complete
 
 ### User Story Dependencies
 
 - **US1+US4 (P1)**: Phase 2 完了後に開始可能。他の US に依存しない
-- **US2 (P1)**: Phase 2 完了後に開始可能。US1/US4 に依存しない（テスト用 AgentDefinition を直接構築）
 - **US3 (P2)**: Phase 3（US1+US4）完了後に開始。ローダーの `_load_single_agent` と `load_builtin_agents` を前提とする
 
 ### Within Each Phase
 
 - テストを先に書き、FAIL を確認してから実装
-- モデル → ローダー → セレクターの順
+- モデル → ローダーの順
 - 各フェーズ完了時にチェックポイントで検証
 
 ### Parallel Opportunities
@@ -171,8 +146,6 @@
 - **Phase 1**: T002, T003 は T001 と並列可能（[P]）
 - **Phase 2**: T004〜T007 のテストは順次（同一ファイル）、T008〜T011 の実装は順次（同一ファイル `models.py`）
 - **Phase 3**: T014, T015 のテストは並列可能。T018〜T023 の TOML ファイル作成は全て並列可能（[P]）
-- **Phase 4**: T025, T026 のテストは並列可能（[P] は T026 のみ — 同一ファイルだが異なる関数のテスト）
-- **US1+US4 (Phase 3) と US2 (Phase 4)**: Phase 2 完了後に並列実行可能
 
 ---
 
@@ -188,34 +161,22 @@ Task: T022 "Create comment-analyzer.toml"
 Task: T023 "Create code-simplifier.toml"
 ```
 
-## Parallel Example: Phase 3 + Phase 4
-
-```text
-# After Phase 2 completion, US1+US4 and US2 can proceed in parallel:
-Developer A: Phase 3 (US1+US4) — Loader + Builtin TOMLs
-Developer B: Phase 4 (US2) — Selector
-```
-
----
-
 ## Implementation Strategy
 
-### MVP First (US1+US4 + US2)
+### MVP First (US1+US4)
 
 1. Complete Phase 1: Setup
 2. Complete Phase 2: Foundational models
 3. Complete Phase 3: US1+US4 (Loader + Builtin TOMLs)
-4. Complete Phase 4: US2 (Selector)
-5. **STOP and VALIDATE**: 6ビルトインエージェントの読み込み + ファイル/コンテンツベースの選択が動作
-6. MVP complete — 基本レビュー実行の前提が整う
+4. **STOP and VALIDATE**: 6ビルトインエージェントの読み込みが動作
+5. MVP complete — 基本レビュー実行の前提が整う
 
 ### Incremental Delivery
 
 1. Setup + Foundational → モデル定義完成
-2. US1+US4 → ビルトインエージェント読み込み完成（MVP core）
-3. US2 → エージェント自動選択完成（MVP complete）
-4. US3 → カスタムエージェント拡張追加（拡張性）
-5. Polish → 公開 API 整備・品質確認
+2. US1+US4 → ビルトインエージェント読み込み完成（MVP complete）
+3. US3 → カスタムエージェント拡張追加（拡張性）
+4. Polish → 公開 API 整備・品質確認
 
 ---
 

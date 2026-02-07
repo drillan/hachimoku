@@ -12,7 +12,7 @@
 
 ### Session 2026-02-07
 
-- 親仕様 FR-001, FR-002, FR-004, FR-006, FR-007, FR-013, FR-018, FR-022, FR-024 および US1, US2, US9 を本仕様で実現する
+- 親仕様 FR-001, FR-002, FR-004, FR-005, FR-006, FR-007, FR-013, FR-018, FR-022, FR-024 および US1, US2, US9 を本仕様で実現する
 - README.md の依存関係に基づき、002（ドメインモデル）、003（エージェント定義）、004（設定）の3仕様に依存する
 - エージェントの実行基盤として pydantic-ai を採用し、`output_type` による構造化出力制御を利用する（002-domain-models Clarification で確定）
 - エージェント定義の `model` フィールドの値解決は本仕様の責務（003-agent-definition Assumptions で明記）

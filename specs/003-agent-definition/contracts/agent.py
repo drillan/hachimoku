@@ -1,6 +1,6 @@
 """003-agent-definition インターフェース契約.
 
-このファイルはエージェント定義・ローダー・セレクターの公開 API を型シグネチャとして定義する。
+このファイルはエージェント定義・ローダーの公開 API を型シグネチャとして定義する。
 実装は src/hachimoku/agents/ に配置される。
 
 NOTE: このファイルは仕様ドキュメントであり、実行可能コードではない。
@@ -54,15 +54,13 @@ PHASE_ORDER = {
 
 
 class ApplicabilityRule(HachimokuBaseModel):
-    """エージェントの適用条件。
+    """エージェントの適用条件（005-review-engine の SelectorAgent が参照する判断ガイダンス）。
 
-    条件評価ロジック:
-    1. always = True → 常に適用
-    2. file_patterns のいずれかにファイル名（basename）がマッチ → 適用
-    3. content_patterns のいずれかにコンテンツがマッチ → 適用
-    4. 上記いずれも該当しない → 不適用
+    - always = true: SelectorAgent は他の条件に関わらず当該エージェントを選択すべきことを示すガイダンス
+    - file_patterns: SelectorAgent がレビュー対象のファイルとの関連性を判断する際のガイダンス（fnmatch 互換グロブパターン）
+    - content_patterns: SelectorAgent がレビュー対象のコンテンツとの関連性を判断する際のガイダンス（Python `re` 互換正規表現）
 
-    条件 2 と 3 は OR 関係。
+    実際の評価ロジック（エージェント選択）は 005-review-engine の SelectorAgent が担当する。
     """
 
     always: bool = False
@@ -200,25 +198,3 @@ def load_agents(custom_dir: Path | None = None) -> LoadResult:
     ...
 
 
-# =============================================================================
-# AgentSelector（セレクター関数群）
-# =============================================================================
-
-
-def select_agents(
-    agents: list[AgentDefinition],
-    file_paths: list[str],
-    content: str,
-) -> list[AgentDefinition]:
-    """適用ルールに基づいてエージェントを選択し、Phase 順でソートして返す。
-
-    Args:
-        agents: 選択候補のエージェント定義リスト。
-        file_paths: レビュー対象のファイルパスリスト。
-        content: 差分内容（diff/PR モード）またはファイル内容（file モード）。
-
-    Returns:
-        適用されるエージェントを Phase 順（early → main → final）、
-        同 Phase 内は名前の辞書順でソートしたリスト。
-    """
-    ...

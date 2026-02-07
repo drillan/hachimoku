@@ -2,7 +2,7 @@
 
 ## 概要
 
-エージェント定義・ローダー・セレクターの実装ガイド。TOML 形式のエージェント定義ファイルを読み込み、レビュー対象に基づいて適用すべきエージェントを選択する。
+エージェント定義・ローダーの実装ガイド。TOML 形式のエージェント定義ファイルを読み込み、AgentDefinition モデルとして構築する。ApplicabilityRule は 005-review-engine の SelectorAgent が参照する判断ガイダンスとして機能する。
 
 ## 前提条件
 
@@ -38,13 +38,6 @@
 
 **依存**: Phase 1 のモデル（バリデーション用）
 
-### Phase 4: セレクター実装（`agents/selector.py`）
-
-1. `_matches(rule, file_paths, content)` - 適用ルール評価
-2. `select_agents(agents, file_paths, content)` - エージェント選択 + Phase 順ソート
-
-**依存**: Phase 1 のモデル, `fnmatch`, `re`
-
 ## 使用例
 
 ### エージェント定義の読み込み
@@ -63,28 +56,6 @@ for agent in result.agents:
     print(f"  {agent.name}: {agent.description}")
 for error in result.errors:
     print(f"  ERROR [{error.source}]: {error.message}")
-```
-
-### エージェント選択
-
-```python
-from hachimoku.agents.selector import select_agents
-
-# diff モードの例
-selected = select_agents(
-    agents=result.agents,
-    file_paths=["src/auth.py", "tests/test_auth.py"],
-    content="def login(username: str, password: str) -> bool:\n    try:\n        ...\n    except Exception:\n        pass\n",
-)
-
-for agent in selected:
-    print(f"  [{agent.phase}] {agent.name}")
-# Output:
-#   [main] code-reviewer        (always=true)
-#   [main] silent-failure-hunter (content_patterns matched: try/except)
-#   [main] pr-test-analyzer     (file_patterns matched: test_*.py)
-#   [main] type-design-analyzer (content_patterns matched: def ...)
-#   [final] code-simplifier     (always=true)
 ```
 
 ### カスタムエージェント定義（TOML）
@@ -113,8 +84,7 @@ content_patterns = ["sql", "query", "exec", "eval"]
 tests/unit/agents/
 ├── __init__.py
 ├── test_models.py      # Phase, ApplicabilityRule, AgentDefinition, LoadError, LoadResult
-├── test_loader.py      # load_builtin_agents, load_custom_agents, load_agents
-└── test_selector.py    # select_agents, _matches
+└── test_loader.py      # load_builtin_agents, load_custom_agents, load_agents
 ```
 
 各テストファイルは対応する実装モジュールの1対1対応。
