@@ -89,8 +89,8 @@ async def execute_parallel(
     フェーズ間は順序を保持（early → main → final）。
     同一フェーズ内は asyncio.TaskGroup で並列実行。
 
-    run_agent() は全ての例外を内部で捕捉し AgentResult を返すため、
-    TaskGroup 内で例外が伝播することはない。
+    各タスク内で全ての例外を捕捉し、進捗報告の失敗が
+    TaskGroup に伝播して他タスクをキャンセルすることを防止する。
 
     Args:
         contexts: 実行コンテキストのリスト（ソート不要、内部でグループ化する）。
@@ -98,6 +98,7 @@ async def execute_parallel(
 
     Returns:
         実行完了したエージェントの AgentResult リスト。
+        フェーズ間の順序は保持されるが、同一フェーズ内の順序は非決定的。
     """
     results: list[AgentResult] = []
     grouped = group_by_phase(contexts)
@@ -106,12 +107,22 @@ async def execute_parallel(
         if shutdown_event.is_set():
             return results
 
+        # asyncio は単一スレッドで動作するため、
+        # list.append は並列タスク間で安全に使用できる。
         phase_results: list[AgentResult] = []
 
         async def _run_and_collect(ctx: AgentExecutionContext) -> None:
-            report_agent_start(ctx.agent_name)
+            if shutdown_event.is_set():
+                return
+            try:
+                report_agent_start(ctx.agent_name)
+            except Exception:
+                pass
             result = await run_agent(ctx)
-            report_agent_complete(ctx.agent_name, result)
+            try:
+                report_agent_complete(ctx.agent_name, result)
+            except Exception:
+                pass
             phase_results.append(result)
 
         async with asyncio.TaskGroup() as tg:
