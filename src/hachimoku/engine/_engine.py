@@ -18,6 +18,7 @@ from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import build_execution_context
 from hachimoku.engine._executor import execute_parallel, execute_sequential
 from hachimoku.engine._instruction import build_review_instruction
+from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
 from hachimoku.engine._progress import (
     report_load_warnings,
     report_selector_result,
@@ -131,8 +132,14 @@ async def run_review(
 
     # Step 7: エージェント実行（並列 or 逐次）
     shutdown_event = asyncio.Event()
-    executor = execute_parallel if config.parallel else execute_sequential
-    results: list[AgentResult] = await executor(contexts, shutdown_event)
+    loop = asyncio.get_running_loop()
+    install_signal_handlers(shutdown_event, loop)
+
+    try:
+        executor = execute_parallel if config.parallel else execute_sequential
+        results: list[AgentResult] = await executor(contexts, shutdown_event)
+    finally:
+        uninstall_signal_handlers(loop)
 
     # Step 8: 結果集約
     report = _build_report(results, load_result.errors)
