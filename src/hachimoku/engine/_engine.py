@@ -7,6 +7,7 @@ FR-RE-002: エージェント実行パイプライン全体を統括する。
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -105,7 +106,8 @@ async def run_review(
             len(selector_output.selected_agents),
             selector_output.reasoning,
         )
-    except SelectorError:
+    except SelectorError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return _build_empty_engine_result(load_result.errors, exit_code=3)
 
     # 空選択 → 正常終了
@@ -241,7 +243,6 @@ def _aggregate_cost(results: list[AgentResult]) -> CostInfo | None:
     return CostInfo(
         input_tokens=total_input,
         output_tokens=total_output,
-        total_cost=0.0,
     )
 
 

@@ -78,7 +78,6 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             cost=CostInfo(
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
-                total_cost=0.0,
             ),
         )
 
