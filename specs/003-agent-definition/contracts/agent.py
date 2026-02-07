@@ -196,5 +196,3 @@ def load_agents(custom_dir: Path | None = None) -> LoadResult:
         統合された読み込み結果。
     """
     ...
-
-
