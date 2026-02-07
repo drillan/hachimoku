@@ -35,6 +35,7 @@ from hachimoku.models.schemas import (
     get_schema,
     register_schema,
 )
+from hachimoku.models.tool_category import ToolCategory
 from hachimoku.models.severity import (
     EXIT_CODE_CRITICAL,
     EXIT_CODE_IMPORTANT,
@@ -79,6 +80,7 @@ __all__ = [
     "Severity",
     "SeverityClassified",
     "TestGapAssessment",
+    "ToolCategory",
     "determine_exit_code",
     "get_schema",
     "register_schema",
