@@ -39,21 +39,55 @@ def review_callback(
     # 位置引数（可変長）
     args: Annotated[
         list[str] | None,
-        typer.Argument(default=None, help="Review target: PR number, file paths, or empty for diff mode."),
+        typer.Argument(
+            default=None,
+            help="Review target: PR number, file paths, or empty for diff mode.",
+        ),
     ] = None,
     # 設定上書きオプション
     model: Annotated[str | None, typer.Option(help="LLM model name.")] = None,
-    timeout: Annotated[int | None, typer.Option(help="Timeout in seconds (positive integer).", min=1)] = None,
-    max_turns: Annotated[int | None, typer.Option("--max-turns", help="Max agent turns (positive integer).", min=1)] = None,
-    parallel: Annotated[bool | None, typer.Option("--parallel/--no-parallel", help="Enable/disable parallel execution.")] = None,
-    base_branch: Annotated[str | None, typer.Option("--base-branch", help="Base branch for diff mode.")] = None,
-    format: Annotated[OutputFormat | None, typer.Option("--format", help="Output format: markdown or json.")] = None,
-    save_reviews: Annotated[bool | None, typer.Option("--save-reviews/--no-save-reviews", help="Save review results.")] = None,
-    show_cost: Annotated[bool | None, typer.Option("--show-cost/--no-show-cost", help="Show cost information.")] = None,
-    max_files: Annotated[int | None, typer.Option("--max-files", help="Max files per review (positive integer).", min=1)] = None,
+    timeout: Annotated[
+        int | None, typer.Option(help="Timeout in seconds (positive integer).", min=1)
+    ] = None,
+    max_turns: Annotated[
+        int | None,
+        typer.Option("--max-turns", help="Max agent turns (positive integer).", min=1),
+    ] = None,
+    parallel: Annotated[
+        bool | None,
+        typer.Option(
+            "--parallel/--no-parallel", help="Enable/disable parallel execution."
+        ),
+    ] = None,
+    base_branch: Annotated[
+        str | None, typer.Option("--base-branch", help="Base branch for diff mode.")
+    ] = None,
+    format: Annotated[
+        OutputFormat | None,
+        typer.Option("--format", help="Output format: markdown or json."),
+    ] = None,
+    save_reviews: Annotated[
+        bool | None,
+        typer.Option("--save-reviews/--no-save-reviews", help="Save review results."),
+    ] = None,
+    show_cost: Annotated[
+        bool | None,
+        typer.Option("--show-cost/--no-show-cost", help="Show cost information."),
+    ] = None,
+    max_files: Annotated[
+        int | None,
+        typer.Option(
+            "--max-files", help="Max files per review (positive integer).", min=1
+        ),
+    ] = None,
     # per-invocation オプション
-    issue: Annotated[int | None, typer.Option("--issue", help="GitHub Issue number for context.", min=1)] = None,
-    no_confirm: Annotated[bool, typer.Option("--no-confirm", help="Skip confirmation prompts.")] = False,
+    issue: Annotated[
+        int | None,
+        typer.Option("--issue", help="GitHub Issue number for context.", min=1),
+    ] = None,
+    no_confirm: Annotated[
+        bool, typer.Option("--no-confirm", help="Skip confirmation prompts.")
+    ] = False,
 ) -> None:
     """Execute a code review (default command).
 
@@ -79,7 +113,9 @@ def review_callback(
 
 @app.command()
 def init(
-    force: Annotated[bool, typer.Option("--force", help="Overwrite existing files.")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", help="Overwrite existing files.")
+    ] = False,
 ) -> None:
     """Initialize .hachimoku/ directory with default configuration and agent definitions."""
     ...
@@ -87,7 +123,9 @@ def init(
 
 @app.command()
 def agents(
-    name: Annotated[str | None, typer.Argument(default=None, help="Agent name for detailed info.")] = None,
+    name: Annotated[
+        str | None, typer.Argument(default=None, help="Agent name for detailed info.")
+    ] = None,
 ) -> None:
     """List or inspect agent definitions."""
     ...

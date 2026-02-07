@@ -71,7 +71,9 @@ def _generate_config_template() -> str:
     ...
 
 
-def _copy_builtin_agents(agents_dir: Path, *, force: bool) -> tuple[list[Path], list[Path]]:
+def _copy_builtin_agents(
+    agents_dir: Path, *, force: bool
+) -> tuple[list[Path], list[Path]]:
     """ビルトインエージェント定義を agents_dir にコピーする。
 
     importlib.resources で hachimoku.agents._builtin パッケージからファイルを取得する。

@@ -27,7 +27,13 @@ from hachimoku.agents.models import (
     LoadResult,
     Phase,
 )
-from hachimoku.engine._engine import EngineResult, _filter_disabled_agents, run_review
+from hachimoku.engine._engine import (
+    SHUTDOWN_TIMEOUT_SECONDS,
+    EngineResult,
+    _execute_with_shutdown_timeout,
+    _filter_disabled_agents,
+    run_review,
+)
 from hachimoku.engine._selector import SelectorError, SelectorOutput
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
@@ -744,3 +750,138 @@ class TestRunReviewSignalIntegration:
         assert result.exit_code == 0
         mock_install.assert_not_called()
         mock_uninstall.assert_not_called()
+
+
+# =============================================================================
+# _execute_with_shutdown_timeout — 3秒シャットダウンタイムアウト
+# =============================================================================
+
+
+class TestExecuteWithShutdownTimeout:
+    """_execute_with_shutdown_timeout のテスト。
+
+    SC-RE-005: SIGINT 受信後3秒以内に全プロセス終了。
+    """
+
+    async def test_normal_completion_no_shutdown(self) -> None:
+        """シャットダウンなしで正常完了 → 全結果返却。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            results: list[AgentResult] = (
+                collected_results if collected_results is not None else []
+            )
+            results.append(_make_success("agent-a"))
+            return results
+
+        event = asyncio.Event()
+        results = await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+        assert len(results) == 1
+        assert results[0].agent_name == "agent-a"
+
+    async def test_shutdown_executor_finishes_within_deadline(self) -> None:
+        """シャットダウン後、executor が期限内に完了 → 正常結果。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            results: list[AgentResult] = (
+                collected_results if collected_results is not None else []
+            )
+            results.append(_make_success("agent-a"))
+            return results
+
+        event = asyncio.Event()
+        event.set()
+        results = await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+        assert len(results) == 1
+        assert results[0].agent_name == "agent-a"
+
+    @patch("hachimoku.engine._engine.SHUTDOWN_TIMEOUT_SECONDS", 0.1)
+    async def test_shutdown_timeout_returns_partial_results(self) -> None:
+        """3秒タイムアウト → 完了済み結果のみ返却。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            results: list[AgentResult] = (
+                collected_results if collected_results is not None else []
+            )
+            results.append(_make_success("agent-a"))
+            await asyncio.sleep(100)
+            results.append(_make_success("agent-b"))
+            return results
+
+        event = asyncio.Event()
+        event.set()
+        results = await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+        assert len(results) == 1
+        assert results[0].agent_name == "agent-a"
+
+    @patch("hachimoku.engine._engine.SHUTDOWN_TIMEOUT_SECONDS", 0.1)
+    async def test_shutdown_timeout_cancels_executor(self) -> None:
+        """タイムアウトで executor タスクがキャンセルされる。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        cancelled = False
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            nonlocal cancelled
+            results: list[AgentResult] = (
+                collected_results if collected_results is not None else []
+            )
+            try:
+                await asyncio.sleep(100)
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
+            return results
+
+        event = asyncio.Event()
+        event.set()
+        await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+        assert cancelled
+
+    async def test_shutdown_before_any_agent_starts(self) -> None:
+        """executor が即座に空リストを返す → 空結果。"""
+        from hachimoku.models.agent_result import AgentResult
+
+        async def mock_executor(
+            contexts: list[object],
+            shutdown_event: asyncio.Event,
+            collected_results: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            results: list[AgentResult] = (
+                collected_results if collected_results is not None else []
+            )
+            if shutdown_event.is_set():
+                return results
+            return results
+
+        event = asyncio.Event()
+        event.set()
+        results = await _execute_with_shutdown_timeout(mock_executor, [], event)  # type: ignore[arg-type]
+
+        assert results == []
+
+    def test_shutdown_timeout_constant_value(self) -> None:
+        """SHUTDOWN_TIMEOUT_SECONDS が 3.0 である。"""
+        assert SHUTDOWN_TIMEOUT_SECONDS == 3.0

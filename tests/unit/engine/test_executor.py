@@ -20,7 +20,12 @@ from hachimoku.engine._executor import (
     execute_sequential,
     group_by_phase,
 )
-from hachimoku.models.agent_result import AgentError, AgentSuccess, AgentTimeout
+from hachimoku.models.agent_result import (
+    AgentError,
+    AgentResult,
+    AgentSuccess,
+    AgentTimeout,
+)
 from hachimoku.models.schemas import get_schema
 
 
@@ -617,3 +622,142 @@ class TestExecuteParallel:
         # agent-a は実行されるが、agent-b/c はスキップされる可能性がある
         # （タイミングにより全て実行される場合もあるため、結果数 >= 1 で検証）
         assert len(results) >= 1
+
+
+# =============================================================================
+# collected_results パラメータ — 共有結果リスト
+# =============================================================================
+
+
+class TestSequentialCollectedResults:
+    """execute_sequential の collected_results パラメータのテスト。
+
+    SC-RE-005: シャットダウンタイムアウト時に部分結果を保存するための共有リスト。
+    """
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_results_appended_to_external_list(self, mock_run: AsyncMock) -> None:
+        """外部リストに結果が蓄積される。"""
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        external: list[AgentResult] = []
+        contexts = [
+            _make_context("agent-a", Phase.EARLY),
+            _make_context("agent-b", Phase.MAIN),
+        ]
+        event = asyncio.Event()
+        results = await execute_sequential(contexts, event, collected_results=external)
+
+        assert len(external) == 2
+        assert results is external
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_none_creates_internal_list(self, mock_run: AsyncMock) -> None:
+        """collected_results=None（デフォルト）で内部リストが作成される。"""
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [_make_context("agent-a")]
+        event = asyncio.Event()
+        results = await execute_sequential(contexts, event)
+
+        assert len(results) == 1
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_preserves_completed_in_external_list(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """シャットダウン時に外部リストに完了済み結果が保存される。"""
+        event = asyncio.Event()
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            if ctx.agent_name == "agent-a":
+                event.set()
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        external: list[AgentResult] = []
+        contexts = [
+            _make_context("agent-a", Phase.EARLY),
+            _make_context("agent-b", Phase.MAIN),
+        ]
+        results = await execute_sequential(contexts, event, collected_results=external)
+
+        assert len(external) == 1
+        assert external[0].agent_name == "agent-a"
+        assert results is external
+
+
+class TestParallelCollectedResults:
+    """execute_parallel の collected_results パラメータのテスト。
+
+    SC-RE-005: シャットダウンタイムアウト時に部分結果を保存するための共有リスト。
+    """
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_results_appended_to_external_list(self, mock_run: AsyncMock) -> None:
+        """外部リストに結果が蓄積される。"""
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        external: list[AgentResult] = []
+        contexts = [
+            _make_context("agent-a", Phase.MAIN),
+            _make_context("agent-b", Phase.MAIN),
+        ]
+        event = asyncio.Event()
+        results = await execute_parallel(contexts, event, collected_results=external)
+
+        assert len(external) == 2
+        assert results is external
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_none_creates_internal_list(self, mock_run: AsyncMock) -> None:
+        """collected_results=None（デフォルト）で内部リストが作成される。"""
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        contexts = [_make_context("agent-a")]
+        event = asyncio.Event()
+        results = await execute_parallel(contexts, event)
+
+        assert len(results) == 1
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_shutdown_preserves_completed_in_external_list(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """並列フェーズ完了後のシャットダウンで外部リストに結果が保存される。"""
+        event = asyncio.Event()
+
+        async def side_effect(ctx: AgentExecutionContext) -> AgentSuccess:
+            if ctx.phase == Phase.EARLY:
+                event.set()
+            return _make_success(ctx.agent_name)
+
+        mock_run.side_effect = side_effect
+
+        external: list[AgentResult] = []
+        contexts = [
+            _make_context("early-agent", Phase.EARLY),
+            _make_context("main-agent", Phase.MAIN),
+        ]
+        results = await execute_parallel(contexts, event, collected_results=external)
+
+        assert len(external) == 1
+        assert external[0].agent_name == "early-agent"
+        assert results is external
