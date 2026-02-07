@@ -26,7 +26,7 @@
 ### Session 2026-02-07
 
 - Q: Issue #64 により AgentSelector が pydantic-ai エージェント（セレクターエージェント）として再設計される。セレクターエージェント用の設定をどこで管理するか？ → A: `[selector]` 専用トップレベルセクションを HachimokuConfig に追加する。セレクターエージェントはレビューエージェントとは性質が異なる（選択判断用）ため、`[agents.<name>]` とは分離して管理する
-- Q: セレクターエージェントの `allowed_tools` は固定か設定可能か？ → A: `[selector]` セクションに `allowed_tools` を含め設定可能とする。デフォルト値は `["git_read", "gh_read", "file_read"]`。セレクターは git/gh コマンドの実行が必要（差分調査・エージェント選択のため）であり、レビューエージェント（TOML 定義で管理）とはツール権限の管理方式が異なる
+- Q: セレクターエージェントの `allowed_tools` は固定か設定可能か？ → A: `[selector]` セクションに `allowed_tools` を含め設定可能とする。デフォルト値は `["git_read", "gh_read", "file_read"]`。セレクターは git/gh コマンドの実行が必要（差分調査・エージェント選択のため）であり、レビューエージェント（TOML 定義で管理）とはツール権限の管理方式が異なる。`file_read` を含む根拠: セレクターはディレクトリ構成やプロジェクト構成ファイル（例: `package.json`）を確認してプロジェクト特性を判断し、適切なエージェントを選択する場合がある
 - Q: セレクターの `allowed_tools` に無効なカテゴリ名が指定された場合、どの時点でエラーとするか？ → A: 004-configuration の設定バリデーション時（FR-CF-004）でエラーとする。fail-fast 原則により、レビュー実行前に問題を検出する
 - Q: セレクターエージェント設定の Acceptance Scenario は US3 に含めるか独立させるか？ → A: 新しい US5「セレクターエージェント設定」として独立（P2）。セレクターはレビューエージェントとは管理方式・目的・セクション名がすべて異なるため、テストの分離性と仕様の明確さのために独立させる
 - Q: ツールカテゴリ名（git_read, gh_read, file_read）の正規の定義元はどこか？ → A: 002-domain-models にツールカテゴリ列挙型を定義し、004-configuration と 005-review-engine の両方が参照する。循環依存を回避しつつカテゴリ名を一元管理する
@@ -199,7 +199,7 @@
   - 数値制約（`timeout` > 0、`max_turns` > 0、`max_files_per_review` > 0）
   - `output_format` の列挙値（`"markdown"` または `"json"`）
   - エージェント個別設定のエージェント名形式（アルファベット小文字・数字・ハイフンのみ）
-  - セレクターエージェント設定の `allowed_tools` のカテゴリ名が 002-domain-models で定義されたツールカテゴリ列挙型に存在すること（`git_read`, `gh_read`, `file_read` のみ許可）
+  - セレクターエージェント設定の `allowed_tools` のカテゴリ名が 002-domain-models で定義されたツールカテゴリ列挙型に存在すること（現在: `git_read`, `gh_read`, `file_read`）
 
 - **FR-CF-005**: システムは `pyproject.toml` の `[tool.hachimoku]` セクションを設定ソースとして読み込めなければならない。`pyproject.toml` はカレントディレクトリから親ディレクトリへ遡って探索する。この探索は `.hachimoku/` の探索（FR-CF-003）とは独立して行われる。`pyproject.toml` が存在しない場合、または `[tool.hachimoku]` セクションが存在しない場合はスキップする
 
