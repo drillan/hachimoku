@@ -7,6 +7,7 @@ FR-CLI-004: stdout/stderr ストリーム分離。
 FR-CLI-006: CLI オプション対応表。
 FR-CLI-009: ファイル・ディレクトリ・glob パターンの展開。
 FR-CLI-011: max_files_per_review 超過時の確認プロンプト。
+FR-CLI-012: agents サブコマンド。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
 """
@@ -16,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import tomllib
+from pathlib import Path
 from typing import Annotated
 
 import click
@@ -23,6 +25,7 @@ import typer
 from pydantic import ValidationError
 from typer.core import TyperGroup
 
+from hachimoku.agents import LoadResult, load_agents, load_builtin_agents
 from hachimoku.cli._file_resolver import FileResolutionError, resolve_files
 from hachimoku.cli._init_handler import InitError, run_init
 from hachimoku.cli._input_resolver import (
@@ -33,7 +36,7 @@ from hachimoku.cli._input_resolver import (
     ResolvedInput,
     resolve_input,
 )
-from hachimoku.config import resolve_config
+from hachimoku.config import find_project_root, resolve_config
 from hachimoku.engine import run_review
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig, OutputFormat
@@ -41,6 +44,11 @@ from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.report import ReviewReport
 
 _REVIEW_ARGS_KEY = "_review_args"
+
+
+def _is_git_repository() -> bool:
+    """カレントディレクトリが Git リポジトリ内かどうか判定する。"""
+    return Path(".git").exists()
 
 
 class _ReviewGroup(TyperGroup):
@@ -204,7 +212,18 @@ def review_callback(
         )
         raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
 
-    # 3.5. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
+    # 3.5. diff/PR モード: Git リポジトリチェック
+    if isinstance(resolved, (DiffInput, PRInput)) and not _is_git_repository():
+        mode = "diff" if isinstance(resolved, DiffInput) else "PR"
+        print(
+            f"Error: {mode} mode requires a Git repository.\n"
+            "Run 'git init' to initialize a Git repository, "
+            "or use file mode to review specific files.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+    # 3.6. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
     if isinstance(resolved, FileInput):
         try:
             resolved_files = resolve_files(resolved.paths)
@@ -246,7 +265,11 @@ def review_callback(
     except (KeyboardInterrupt, SystemExit):
         raise
     except Exception as e:
-        print(f"Error: Review execution failed: {e}", file=sys.stderr)
+        print(
+            f"Error: Review execution failed: {e}\n"
+            "Check your configuration and network connection. Use --help for options.",
+            file=sys.stderr,
+        )
         raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from e
 
     # 6. stdout にレポート出力
@@ -270,8 +293,6 @@ def init(
     ] = False,
 ) -> None:
     """Initialize .hachimoku/ directory with default configuration and agent definitions."""
-    from pathlib import Path
-
     try:
         result = run_init(Path.cwd(), force=force)
     except InitError as e:
@@ -294,6 +315,102 @@ def init(
             "\nAll files already exist. Use --force to overwrite.",
             file=sys.stderr,
         )
+
+
+@app.command()
+def agents(
+    name: Annotated[
+        str | None, typer.Argument(help="Agent name for detailed info.")
+    ] = None,
+) -> None:
+    """List or inspect agent definitions."""
+    project_root = find_project_root(Path.cwd())
+    custom_dir = (project_root / ".hachimoku" / "agents") if project_root else None
+
+    result = load_agents(custom_dir=custom_dir)
+    builtin_result = load_builtin_agents()
+    builtin_names = {a.name for a in builtin_result.agents}
+
+    for error in result.errors:
+        print(
+            f"Warning: Failed to load agent '{error.source}': {error.message}",
+            file=sys.stderr,
+        )
+
+    if name is None:
+        _print_agents_list(result, builtin_names)
+    else:
+        _print_agent_detail(name, result, builtin_names)
+
+
+# --- agents サブコマンド表示ヘルパー ---
+
+_LIST_NAME_WIDTH = 28
+_LIST_MODEL_WIDTH = 32
+_LIST_PHASE_WIDTH = 8
+
+_SYSTEM_PROMPT_SUMMARY_LINES = 3
+
+
+def _print_agents_list(result: LoadResult, builtin_names: set[str]) -> None:
+    """エージェント一覧をテーブル形式で stdout に表示する。"""
+    header = (
+        f"{'NAME':<{_LIST_NAME_WIDTH}}"
+        f"{'MODEL':<{_LIST_MODEL_WIDTH}}"
+        f"{'PHASE':<{_LIST_PHASE_WIDTH}}"
+        f"{'SCHEMA'}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    for agent in sorted(result.agents, key=lambda a: a.name):
+        custom_marker = "  [custom]" if agent.name not in builtin_names else ""
+        line = (
+            f"{agent.name:<{_LIST_NAME_WIDTH}}"
+            f"{agent.model:<{_LIST_MODEL_WIDTH}}"
+            f"{agent.phase.value:<{_LIST_PHASE_WIDTH}}"
+            f"{agent.output_schema}{custom_marker}"
+        )
+        print(line)
+
+
+def _print_agent_detail(name: str, result: LoadResult, builtin_names: set[str]) -> None:
+    """エージェント詳細を stdout に表示する。見つからない場合は終了コード 4。"""
+    agent = next((a for a in result.agents if a.name == name), None)
+    if agent is None:
+        available = ", ".join(sorted(a.name for a in result.agents))
+        print(
+            f"Error: Agent '{name}' not found.\nAvailable agents: {available}",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+    custom_marker = " [custom]" if name not in builtin_names else ""
+    print(f"Name:             {agent.name}{custom_marker}")
+    print(f"Description:      {agent.description}")
+    print(f"Model:            {agent.model}")
+    print(f"Phase:            {agent.phase.value}")
+    print(f"Output Schema:    {agent.output_schema}")
+
+    app_rule = agent.applicability
+    if app_rule.always:
+        print("Applicability:    always")
+    else:
+        if app_rule.file_patterns:
+            print(f"File Patterns:    {', '.join(app_rule.file_patterns)}")
+        if app_rule.content_patterns:
+            print(f"Content Patterns: {', '.join(app_rule.content_patterns)}")
+
+    if agent.allowed_tools:
+        print(f"Allowed Tools:    {', '.join(agent.allowed_tools)}")
+    else:
+        print("Allowed Tools:    (none)")
+
+    prompt_lines = agent.system_prompt.strip().splitlines()
+    summary = "\n".join(prompt_lines[:_SYSTEM_PROMPT_SUMMARY_LINES])
+    if len(prompt_lines) > _SYSTEM_PROMPT_SUMMARY_LINES:
+        summary += "\n..."
+    print(f"System Prompt:\n{summary}")
 
 
 @app.command()

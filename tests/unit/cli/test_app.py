@@ -27,11 +27,17 @@ from hachimoku.cli._init_handler import InitError, InitResult
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.exit_code import ExitCode
+from hachimoku.agents import LoadError
 from tests.unit.cli.conftest import (
+    PATCH_FIND_PROJECT_ROOT,
+    PATCH_LOAD_AGENTS,
+    PATCH_LOAD_BUILTIN_AGENTS,
     PATCH_RESOLVE_CONFIG,
     PATCH_RESOLVE_FILES,
     PATCH_RUN_REVIEW,
+    make_agent_definition,
     make_engine_result,
+    make_load_result,
     setup_mocks,
 )
 
@@ -611,6 +617,17 @@ class TestReviewRunReviewError:
         assert "error" in result.output.lower()
         assert "Engine failed" in result.output
 
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_run_review_exception_contains_hint(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """run_review 例外のエラーメッセージに解決方法ヒントが含まれる（FR-CLI-014）。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_run_review.side_effect = RuntimeError("Engine failed")
+        result = runner.invoke(app)
+        assert "--help" in result.output
+
 
 class TestReviewConfigError:
     """設定解決エラーのハンドリング（C-2）。"""
@@ -948,3 +965,380 @@ class TestReviewCallbackFileModeResolution:
         setup_mocks(mock_config, mock_run_review)
         runner.invoke(app, ["123"])
         mock_resolve_files.assert_not_called()
+
+
+# --- US5 テスト（agents サブコマンド） ---
+
+
+class TestAgentsSubcommand:
+    """agents サブコマンドのテスト（FR-CLI-012）。"""
+
+    def test_agents_help_exits_with_zero(self) -> None:
+        """agents --help → exit 0。"""
+        result = runner.invoke(app, ["agents", "--help"])
+        assert result.exit_code == 0
+
+    def test_help_shows_agents_subcommand(self) -> None:
+        """--help に agents サブコマンド情報が含まれる。"""
+        result = runner.invoke(app, ["--help"])
+        assert "agents" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_list_shows_builtin_agents(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """引数なし → ビルトインエージェント名が出力に含まれる。"""
+        agent = make_agent_definition(name="code-reviewer", model="sonnet")
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents"])
+        assert "code-reviewer" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_list_shows_table_headers(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """一覧にテーブルヘッダーが含まれる。"""
+        agent = make_agent_definition()
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents"])
+        assert "NAME" in result.output
+        assert "MODEL" in result.output
+        assert "PHASE" in result.output
+        assert "SCHEMA" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_list_shows_custom_marker(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """カスタムエージェントに [custom] マーカーが付与される。"""
+        builtin = make_agent_definition(name="code-reviewer")
+        custom = make_agent_definition(name="my-custom")
+        mock_load_agents.return_value = make_load_result(agents=(builtin, custom))
+        mock_load_builtin.return_value = make_load_result(agents=(builtin,))
+        result = runner.invoke(app, ["agents"])
+        # code-reviewer 行には [custom] がない
+        for line in result.output.splitlines():
+            if "code-reviewer" in line:
+                assert "[custom]" not in line
+            if "my-custom" in line:
+                assert "[custom]" in line
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_list_exits_with_zero(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """一覧表示 → exit 0。"""
+        agent = make_agent_definition()
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents"])
+        assert result.exit_code == 0
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_agent_info(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """エージェント名指定 → description, model, phase, output_schema が含まれる。"""
+        agent = make_agent_definition(
+            name="code-reviewer",
+            model="sonnet",
+            phase="main",
+            output_schema="scored_issues",
+            description="Code quality review",
+        )
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "code-reviewer"])
+        assert "Code quality review" in result.output
+        assert "sonnet" in result.output
+        assert "main" in result.output
+        assert "scored_issues" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_applicability(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """詳細表示に applicability 情報が含まれる。"""
+        agent = make_agent_definition(name="code-reviewer")
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "code-reviewer"])
+        # デフォルトは always=True
+        assert "always" in result.output.lower()
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_system_prompt_summary(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """詳細表示に system_prompt 概要が含まれる。"""
+        agent = make_agent_definition(name="code-reviewer")
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "code-reviewer"])
+        assert "System Prompt" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_exits_with_zero(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """詳細表示 → exit 0。"""
+        agent = make_agent_definition(name="code-reviewer")
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "code-reviewer"])
+        assert result.exit_code == 0
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_nonexistent_exits_with_four(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """存在しないエージェント → exit 4。"""
+        agent = make_agent_definition(name="code-reviewer")
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "nonexistent"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_nonexistent_shows_error_with_hint(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """エラーに利用可能エージェント名が含まれる（FR-CLI-014）。"""
+        agent = make_agent_definition(name="code-reviewer")
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "nonexistent"])
+        assert "nonexistent" in result.output
+        assert "code-reviewer" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_list_with_load_errors_shows_warnings(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """LoadResult.errors → 出力に警告が含まれる。"""
+        agent = make_agent_definition(name="code-reviewer")
+        error = LoadError(source="bad-agent.toml", message="Invalid TOML syntax")
+        mock_load_agents.return_value = make_load_result(
+            agents=(agent,), errors=(error,)
+        )
+        mock_load_builtin.return_value = make_load_result(agents=(agent,))
+        result = runner.invoke(app, ["agents"])
+        assert "bad-agent.toml" in result.output
+        assert "code-reviewer" in result.output
+
+
+# --- Polish テスト（エッジケース） ---
+
+PATCH_GIT_EXISTS = "hachimoku.cli._app._is_git_repository"
+
+
+class TestEdgeCases:
+    """全ストーリー横断のエッジケーステスト（T035）。"""
+
+    # --- PR 番号 + ファイルパスの同時指定 ---
+
+    def test_pr_number_and_file_path_mixed_exits_with_error(self) -> None:
+        """PR 番号とファイルパスの同時指定 → 終了コード 4。"""
+        result = runner.invoke(app, ["123", "src/auth.py"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    def test_pr_number_and_file_path_mixed_shows_error(self) -> None:
+        """混在エラーメッセージが出力される。"""
+        result = runner.invoke(app, ["123", "src/auth.py"])
+        assert "error" in result.output.lower()
+
+    # --- init/agents と同名ファイルの扱い ---
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_string_routes_to_subcommand(self, mock_run_init: MagicMock) -> None:
+        """'init' 引数はサブコマンドとして解釈される。"""
+        mock_run_init.return_value = InitResult()
+        result = runner.invoke(app, ["init"])
+        mock_run_init.assert_called_once()
+        assert result.exit_code == 0
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_dot_slash_init_routes_to_file_mode(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """'./init' 引数はパスライク文字列として file モードになる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/init",))
+        result = runner.invoke(app, ["./init"])
+        assert result.exit_code == 0
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, FileTarget)
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_string_routes_to_subcommand(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """'agents' 引数はサブコマンドとして解釈される。"""
+        agent = make_agent_definition()
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents"])
+        assert result.exit_code == 0
+        mock_load_agents.assert_called_once()
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_dot_slash_agents_routes_to_file_mode(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """'./agents' 引数はパスライク文字列として file モードになる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/agents",))
+        result = runner.invoke(app, ["./agents"])
+        assert result.exit_code == 0
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, FileTarget)
+
+    # --- --format 不正値 ---
+
+    def test_invalid_format_exits_with_error(self) -> None:
+        """--format に不正な値 → 終了コードが非ゼロ。"""
+        result = runner.invoke(app, ["--format", "invalid"])
+        assert result.exit_code != 0
+
+    # --- --timeout 不正値 ---
+
+    def test_timeout_zero_exits_with_error(self) -> None:
+        """--timeout 0 → min=1 バリデーションエラー。"""
+        result = runner.invoke(app, ["--timeout", "0"])
+        assert result.exit_code != 0
+
+    def test_timeout_negative_exits_with_error(self) -> None:
+        """--timeout -1 → min=1 バリデーションエラー。"""
+        result = runner.invoke(app, ["--timeout", "-1"])
+        assert result.exit_code != 0
+
+    # --- --issue 不正値 ---
+
+    def test_issue_zero_exits_with_error(self) -> None:
+        """--issue 0 → min=1 バリデーションエラー。"""
+        result = runner.invoke(app, ["--issue", "0"])
+        assert result.exit_code != 0
+
+    # --- Git リポジトリ外での diff/PR モード ---
+
+    @patch(PATCH_GIT_EXISTS, return_value=False)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_diff_mode_outside_git_repo_exits_with_4(
+        self, mock_config: MagicMock, _mock_git: MagicMock
+    ) -> None:
+        """diff モードで Git リポジトリ外 → 終了コード 4。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app)
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_GIT_EXISTS, return_value=False)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_diff_mode_outside_git_repo_shows_hint(
+        self, mock_config: MagicMock, _mock_git: MagicMock
+    ) -> None:
+        """diff モード Git 外エラーに解決方法ヒントが含まれる。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app)
+        assert "git" in result.output.lower()
+
+    @patch(PATCH_GIT_EXISTS, return_value=False)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_pr_mode_outside_git_repo_exits_with_4(
+        self, mock_config: MagicMock, _mock_git: MagicMock
+    ) -> None:
+        """PR モードで Git リポジトリ外 → 終了コード 4。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app, ["123"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_GIT_EXISTS, return_value=False)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_pr_mode_outside_git_repo_shows_hint(
+        self, mock_config: MagicMock, _mock_git: MagicMock
+    ) -> None:
+        """PR モード Git 外エラーに解決方法ヒントが含まれる。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app, ["123"])
+        assert "git" in result.output.lower()
