@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tomllib
 from typing import Annotated
 
 import click
 import typer
+from pydantic import ValidationError
 from typer.core import TyperGroup
 
 from hachimoku.cli._input_resolver import (
@@ -119,7 +121,7 @@ def review_callback(
     base_branch: Annotated[
         str | None, typer.Option("--base-branch", help="Base branch for diff mode.")
     ] = None,
-    format: Annotated[
+    output_format: Annotated[
         OutputFormat | None,
         typer.Option("--format", help="Output format: markdown or json."),
     ] = None,
@@ -142,6 +144,7 @@ def review_callback(
         int | None,
         typer.Option("--issue", help="GitHub Issue number for context.", min=1),
     ] = None,
+    # US4（file モード）で max_files_per_review 超過時の確認スキップに使用予定
     no_confirm: Annotated[
         bool, typer.Option("--no-confirm", help="Skip confirmation prompts.")
     ] = False,
@@ -172,14 +175,29 @@ def review_callback(
         max_turns=max_turns,
         parallel=parallel,
         base_branch=base_branch,
-        format=format,
+        output_format=output_format,
         save_reviews=save_reviews,
         show_cost=show_cost,
         max_files=max_files,
     )
 
     # 3. config 解決（DiffTarget の base_branch 取得用）
-    config = resolve_config(cli_overrides=config_overrides)
+    try:
+        config = resolve_config(cli_overrides=config_overrides)
+    except (ValidationError, tomllib.TOMLDecodeError) as e:
+        print(
+            f"Error: Invalid configuration: {e}\n"
+            "Check .hachimoku/config.toml for syntax errors or invalid values.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from e
+    except PermissionError as e:
+        print(
+            f"Error: Cannot read configuration file: {e}\n"
+            "Check file permissions for .hachimoku/config.toml.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from e
 
     # 4. ReviewTarget 構築
     target = _build_target(resolved, config, issue)
@@ -189,12 +207,20 @@ def review_callback(
         result = asyncio.run(
             run_review(target=target, config_overrides=config_overrides)
         )
+    except (KeyboardInterrupt, SystemExit):
+        raise
     except Exception as e:
         print(f"Error: Review execution failed: {e}", file=sys.stderr)
-        raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None
+        raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from e
 
     # 6. stdout にレポート出力
-    report_text = _format_report(result.report, config.output_format)
+    # 007-output-format 未実装のため、暫定的に JSON のみサポート
+    effective_format = (
+        config.output_format
+        if config.output_format == OutputFormat.JSON
+        else OutputFormat.JSON
+    )
+    report_text = _format_report(result.report, effective_format)
     print(report_text)
 
     # 7. 終了コード
@@ -219,7 +245,7 @@ def _build_config_overrides(
     max_turns: int | None,
     parallel: bool | None,
     base_branch: str | None,
-    format: OutputFormat | None,
+    output_format: OutputFormat | None,
     save_reviews: bool | None,
     show_cost: bool | None,
     max_files: int | None,
@@ -227,9 +253,7 @@ def _build_config_overrides(
     """CLI オプションから config_overrides 辞書を構築する。
 
     None 値は「未指定」として除外する。
-    CLI パラメータ名と config キー名の対応:
-        format → output_format
-        max_files → max_files_per_review
+    CLI オプション名 --max-files は config キー max_files_per_review に対応する。
     """
     raw: dict[str, object] = {
         "model": model,
@@ -237,7 +261,7 @@ def _build_config_overrides(
         "max_turns": max_turns,
         "parallel": parallel,
         "base_branch": base_branch,
-        "output_format": format,
+        "output_format": output_format,
         "save_reviews": save_reviews,
         "show_cost": show_cost,
         "max_files_per_review": max_files,
@@ -260,11 +284,13 @@ def _build_target(
 
 
 def _format_report(report: ReviewReport, output_format: OutputFormat) -> str:
-    """レポートを文字列に変換する（暫定実装）。
+    """レポートを文字列に変換する。
 
-    007-output-format で正式なフォーマッターに置き換え予定。
+    JSON 形式のみサポート。Markdown 形式は 007-output-format で実装予定。
     """
     if output_format == OutputFormat.JSON:
         return report.model_dump_json(indent=2)
-    # MARKDOWN（暫定: JSON ダンプで代替）
-    return report.model_dump_json(indent=2)
+    raise NotImplementedError(
+        "Markdown format is not yet implemented (see 007-output-format). "
+        "Use --format json."
+    )
