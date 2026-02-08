@@ -9,19 +9,14 @@ hachimoku（8moku）は、複数の専門エージェントを用いてコード
 ## 主な特徴
 
 - 3つのレビューモード: diff（ブランチ差分）、PR（GitHub PR）、file（指定ファイル）
-- 6つのビルトインエージェント（コード品質、サイレント障害、テストカバレッジ、型設計、コメント、簡潔化）
+- ビルトインエージェント: コード品質、サイレント障害、テストカバレッジ、型設計、コメント、簡潔化
 - TOML ベースのエージェント定義でカスタムエージェントを追加可能
 - 逐次実行・並列実行を選択可能
-- Markdown / JSON 出力対応
-- レビュー履歴の自動蓄積（`.hachimoku/reviews/`）
+- JSON 出力対応（Markdown は今後対応予定）
 
 ## インストール
 
-```bash
-pip install hachimoku
-```
-
-### 開発版のインストール
+現在 PyPI には未公開です。ソースからインストールしてください。
 
 ```bash
 git clone https://github.com/drillan/hachimoku.git
@@ -70,14 +65,14 @@ uv sync
 | `8moku init [--force]` | `.hachimoku/` ディレクトリを初期化 |
 | `8moku agents [NAME]` | エージェント定義の一覧・詳細表示 |
 
-主なオプション:
+主なレビューオプション:
 
 | オプション | 説明 |
 |-----------|------|
 | `--model TEXT` | LLM モデル名 |
 | `--timeout INTEGER` | タイムアウト秒数 |
 | `--parallel / --no-parallel` | 並列実行の有効/無効 |
-| `--format [markdown\|json]` | 出力形式 |
+| `--format json` | 出力形式 |
 | `--base-branch TEXT` | diff モードのベースブランチ |
 | `--issue INTEGER` | コンテキスト用 GitHub Issue 番号 |
 | `--no-confirm` | 確認プロンプトをスキップ |

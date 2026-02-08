@@ -10,19 +10,7 @@
 - Python 3.13 以上
 - Git（diff モード・PR モードで必要）
 
-## pip でインストール
-
-```bash
-pip install hachimoku
-```
-
-## uv でインストール
-
-```bash
-uv add hachimoku
-```
-
-## 開発版のインストール
+## ソースからインストール
 
 リポジトリをクローンして依存関係を同期します:
 

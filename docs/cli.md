@@ -39,9 +39,9 @@ hachimoku は `8moku` と `hachimoku` の2つのコマンド名を提供しま�
 8moku src/
 ```
 
-### グローバルオプション
+### レビューオプション
 
-すべてのコマンドに共通するオプションです。レビューコマンドで使用した場合、設定ファイルの値を上書きします。
+レビューコマンドのオプションです。設定ファイルの値を上書きします。
 
 | オプション | 型 | 説明 |
 |-----------|-----|------|
@@ -50,7 +50,7 @@ hachimoku は `8moku` と `hachimoku` の2つのコマンド名を提供しま�
 | `--max-turns INTEGER` | int (min: 1) | エージェントの最大ターン数 |
 | `--parallel / --no-parallel` | bool | 並列実行の有効/無効 |
 | `--base-branch TEXT` | str | diff モードのベースブランチ |
-| `--format [markdown\|json]` | OutputFormat | 出力形式 |
+| `--format json` | OutputFormat | 出力形式（現在は JSON のみ対応） |
 | `--save-reviews / --no-save-reviews` | bool | レビュー結果の保存 |
 | `--show-cost / --no-show-cost` | bool | コスト情報の表示 |
 | `--max-files INTEGER` | int (min: 1) | レビュー対象の最大ファイル数 |
@@ -121,7 +121,7 @@ file モードでは以下の処理が行われます:
 
 ## config (Planned)
 
-設定管理サブコマンドは v0.1 では未実装です。`.hachimoku/config.toml` を直接編集してください。
+設定管理サブコマンドは未実装です。`.hachimoku/config.toml` を直接編集してください。
 
 ## 出力ストリーム
 
