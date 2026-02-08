@@ -27,6 +27,7 @@ from hachimoku.agents.models import (
     LoadResult,
     Phase,
 )
+from hachimoku.cli._exit_code import ExitCode
 from hachimoku.engine._engine import (
     SHUTDOWN_TIMEOUT_SECONDS,
     EngineResult,
@@ -140,7 +141,7 @@ class TestEngineResultValid:
                 total_elapsed_time=0.0,
             ),
         )
-        result = EngineResult(report=report, exit_code=0)
+        result = EngineResult(report=report, exit_code=ExitCode.SUCCESS)
         assert result.exit_code == 0
         assert result.report is report
 
@@ -160,9 +161,9 @@ class TestEngineResultValid:
                 total_elapsed_time=0.0,
             ),
         )
-        result = EngineResult(report=report, exit_code=0)
+        result = EngineResult(report=report, exit_code=ExitCode.SUCCESS)
         with pytest.raises(Exception):
-            result.exit_code = 1  # type: ignore[misc]
+            result.exit_code = ExitCode.CRITICAL  # type: ignore[misc]
 
     def test_all_exit_codes_valid(self) -> None:
         """exit_code の全有効値（0, 1, 2, 3）が構築できる。"""

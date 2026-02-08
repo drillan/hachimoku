@@ -11,7 +11,9 @@ import sys
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final
+
+from hachimoku.cli._exit_code import ExitCode
 
 from hachimoku.agents import load_agents
 from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
@@ -56,7 +58,7 @@ class EngineResult(HachimokuBaseModel):
     """
 
     report: ReviewReport
-    exit_code: Literal[0, 1, 2, 3]
+    exit_code: ExitCode
 
 
 async def _execute_with_shutdown_timeout(
@@ -175,11 +177,15 @@ async def run_review(
         )
     except SelectorError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        return _build_empty_engine_result(load_result.errors, exit_code=3)
+        return _build_empty_engine_result(
+            load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
+        )
 
     # 空選択 → 正常終了
     if not selector_output.selected_agents:
-        return _build_empty_engine_result(load_result.errors, exit_code=0)
+        return _build_empty_engine_result(
+            load_result.errors, exit_code=ExitCode.SUCCESS
+        )
 
     # Step 6: 実行コンテキスト構築
     selected_agents = _resolve_selected_agents(
@@ -325,7 +331,7 @@ def _aggregate_cost(results: list[AgentResult]) -> CostInfo | None:
 def _determine_exit_code(
     results: list[AgentResult],
     summary: ReviewSummary,
-) -> Literal[0, 1, 2, 3]:
+) -> ExitCode:
     """実行結果から終了コードを決定する。
 
     FR-RE-009: 全エージェント失敗 → exit_code=3。
@@ -333,20 +339,14 @@ def _determine_exit_code(
     """
     has_valid = any(isinstance(r, (AgentSuccess, AgentTruncated)) for r in results)
     if not has_valid:
-        return 3
+        return ExitCode.EXECUTION_ERROR
 
-    code = determine_exit_code(summary.max_severity)
-    # determine_exit_code は 0, 1, 2 のいずれかを返す
-    if code == 1:
-        return 1
-    if code == 2:
-        return 2
-    return 0
+    return determine_exit_code(summary.max_severity)
 
 
 def _build_empty_engine_result(
     load_errors: tuple[LoadError, ...],
-    exit_code: Literal[0, 3],
+    exit_code: ExitCode,
 ) -> EngineResult:
     """空のレビューレポートを含む EngineResult を構築する。"""
     report = ReviewReport(

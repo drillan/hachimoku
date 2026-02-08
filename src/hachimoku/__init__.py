@@ -1,2 +1,5 @@
 def main() -> None:
-    print("Hello from hachimoku!")
+    """パッケージエントリポイント。cli.main() に委譲する。"""
+    from hachimoku.cli import main as cli_main
+
+    cli_main()
