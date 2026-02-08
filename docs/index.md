@@ -52,6 +52,8 @@ Severity（4段階重大度）、ReviewIssue（問題の統一表現）、AgentR
 :maxdepth: 2
 :caption: Contents
 
+installation
+cli
 agents
 configuration
 models
