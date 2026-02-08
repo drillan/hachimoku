@@ -36,10 +36,8 @@ from hachimoku.models.schemas import (
     register_schema,
 )
 from hachimoku.models.tool_category import ToolCategory
+from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.severity import (
-    EXIT_CODE_CRITICAL,
-    EXIT_CODE_IMPORTANT,
-    EXIT_CODE_SUCCESS,
     SEVERITY_ORDER,
     Severity,
     determine_exit_code,
@@ -60,9 +58,7 @@ __all__ = [
     "DiffReviewRecord",
     "DimensionScore",
     "DuplicateSchemaError",
-    "EXIT_CODE_CRITICAL",
-    "EXIT_CODE_IMPORTANT",
-    "EXIT_CODE_SUCCESS",
+    "ExitCode",
     "FileLocation",
     "FileReviewRecord",
     "HachimokuBaseModel",

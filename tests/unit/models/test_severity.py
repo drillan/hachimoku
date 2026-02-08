@@ -5,10 +5,8 @@ FR-DM-001: 重大度を4段階で定義し、順序関係を持つ。
 
 import pytest
 
+from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.severity import (
-    EXIT_CODE_CRITICAL,
-    EXIT_CODE_IMPORTANT,
-    EXIT_CODE_SUCCESS,
     SEVERITY_ORDER,
     Severity,
     determine_exit_code,
@@ -190,25 +188,6 @@ class TestSeverityComparisonWithNonSeverity:
             Severity.CRITICAL > 0  # type: ignore[operator]  # noqa: B015
 
 
-class TestExitCodeConstants:
-    """終了コード定数の値を検証。"""
-
-    def test_exit_code_success_is_zero(self) -> None:
-        assert EXIT_CODE_SUCCESS == 0
-
-    def test_exit_code_critical_is_one(self) -> None:
-        assert EXIT_CODE_CRITICAL == 1
-
-    def test_exit_code_important_is_two(self) -> None:
-        assert EXIT_CODE_IMPORTANT == 2
-
-    def test_constants_are_int(self) -> None:
-        """終了コード定数はすべて int 型である。"""
-        assert isinstance(EXIT_CODE_SUCCESS, int)
-        assert isinstance(EXIT_CODE_CRITICAL, int)
-        assert isinstance(EXIT_CODE_IMPORTANT, int)
-
-
 class TestDetermineExitCode:
     """determine_exit_code() の終了コード決定ロジックを検証。
 
@@ -221,23 +200,28 @@ class TestDetermineExitCode:
 
     def test_critical_returns_exit_code_critical(self) -> None:
         """AS1: Critical の問題 → 終了コード 1。"""
-        assert determine_exit_code(Severity.CRITICAL) == EXIT_CODE_CRITICAL
+        assert determine_exit_code(Severity.CRITICAL) == ExitCode.CRITICAL
 
     def test_important_returns_exit_code_important(self) -> None:
         """AS2: Important のみ → 終了コード 2。"""
-        assert determine_exit_code(Severity.IMPORTANT) == EXIT_CODE_IMPORTANT
+        assert determine_exit_code(Severity.IMPORTANT) == ExitCode.IMPORTANT
 
     def test_suggestion_returns_exit_code_success(self) -> None:
         """AS3: Suggestion → 終了コード 0。"""
-        assert determine_exit_code(Severity.SUGGESTION) == EXIT_CODE_SUCCESS
+        assert determine_exit_code(Severity.SUGGESTION) == ExitCode.SUCCESS
 
     def test_nitpick_returns_exit_code_success(self) -> None:
         """AS3: Nitpick → 終了コード 0。"""
-        assert determine_exit_code(Severity.NITPICK) == EXIT_CODE_SUCCESS
+        assert determine_exit_code(Severity.NITPICK) == ExitCode.SUCCESS
 
     def test_none_returns_exit_code_success(self) -> None:
         """AS4: 問題なし (None) → 終了コード 0。"""
-        assert determine_exit_code(None) == EXIT_CODE_SUCCESS
+        assert determine_exit_code(None) == ExitCode.SUCCESS
+
+    def test_return_type_is_exit_code(self) -> None:
+        """戻り値型が ExitCode である。"""
+        result = determine_exit_code(Severity.CRITICAL)
+        assert isinstance(result, ExitCode)
 
     def test_unknown_severity_raises_value_error(self) -> None:
         """未知の Severity 値は ValueError を送出する。"""

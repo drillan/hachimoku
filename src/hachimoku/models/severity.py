@@ -10,6 +10,8 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Final
 
+from hachimoku.models.exit_code import ExitCode
+
 
 SEVERITY_ORDER: Final[Mapping[str, int]] = MappingProxyType(
     {
@@ -19,10 +21,6 @@ SEVERITY_ORDER: Final[Mapping[str, int]] = MappingProxyType(
         "Critical": 3,
     }
 )
-
-EXIT_CODE_SUCCESS: Final[int] = 0
-EXIT_CODE_CRITICAL: Final[int] = 1
-EXIT_CODE_IMPORTANT: Final[int] = 2
 
 
 class Severity(StrEnum):
@@ -71,26 +69,26 @@ class Severity(StrEnum):
         return self._order() >= other._order()
 
 
-def determine_exit_code(max_severity: Severity | None) -> int:
+def determine_exit_code(max_severity: Severity | None) -> ExitCode:
     """最大重大度から終了コードを決定する。
 
     Args:
         max_severity: レビュー結果の最大重大度。問題なしの場合は None。
 
     Returns:
-        終了コード (0, 1, 2)。
+        ExitCode (SUCCESS, CRITICAL, IMPORTANT)。
 
     Raises:
         ValueError: 未知の Severity 値が渡された場合。
     """
     if max_severity is None:
-        return EXIT_CODE_SUCCESS
+        return ExitCode.SUCCESS
 
-    severity_to_exit_code: dict[Severity, int] = {
-        Severity.CRITICAL: EXIT_CODE_CRITICAL,
-        Severity.IMPORTANT: EXIT_CODE_IMPORTANT,
-        Severity.SUGGESTION: EXIT_CODE_SUCCESS,
-        Severity.NITPICK: EXIT_CODE_SUCCESS,
+    severity_to_exit_code: dict[Severity, ExitCode] = {
+        Severity.CRITICAL: ExitCode.CRITICAL,
+        Severity.IMPORTANT: ExitCode.IMPORTANT,
+        Severity.SUGGESTION: ExitCode.SUCCESS,
+        Severity.NITPICK: ExitCode.SUCCESS,
     }
 
     if max_severity not in severity_to_exit_code:
