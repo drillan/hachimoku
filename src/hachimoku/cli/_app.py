@@ -5,6 +5,8 @@ FR-CLI-002: 位置引数からの入力モード判定。
 FR-CLI-003: 終了コード。
 FR-CLI-004: stdout/stderr ストリーム分離。
 FR-CLI-006: CLI オプション対応表。
+FR-CLI-009: ファイル・ディレクトリ・glob パターンの展開。
+FR-CLI-011: max_files_per_review 超過時の確認プロンプト。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
 """
@@ -21,9 +23,11 @@ import typer
 from pydantic import ValidationError
 from typer.core import TyperGroup
 
+from hachimoku.cli._file_resolver import FileResolutionError, resolve_files
 from hachimoku.cli._init_handler import InitError, run_init
 from hachimoku.cli._input_resolver import (
     DiffInput,
+    FileInput,
     InputError,
     PRInput,
     ResolvedInput,
@@ -145,7 +149,7 @@ def review_callback(
         int | None,
         typer.Option("--issue", help="GitHub Issue number for context.", min=1),
     ] = None,
-    # US4（file モード）で max_files_per_review 超過時の確認スキップに使用予定
+    # FR-CLI-011: max_files_per_review 超過時の確認スキップ
     no_confirm: Annotated[
         bool, typer.Option("--no-confirm", help="Skip confirmation prompts.")
     ] = False,
@@ -199,6 +203,37 @@ def review_callback(
             file=sys.stderr,
         )
         raise typer.Exit(code=ExitCode.INPUT_ERROR) from e
+
+    # 3.5. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
+    if isinstance(resolved, FileInput):
+        try:
+            resolved_files = resolve_files(resolved.paths)
+        except FileResolutionError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+
+        if resolved_files is None:
+            print(
+                "No files found matching the specified paths.",
+                file=sys.stderr,
+            )
+            raise typer.Exit(code=ExitCode.SUCCESS)
+
+        for warning in resolved_files.warnings:
+            print(f"Warning: {warning}", file=sys.stderr)
+
+        file_count = len(resolved_files.paths)
+        if file_count > config.max_files_per_review and not no_confirm:
+            confirmed = typer.confirm(
+                f"{file_count} files found, exceeding limit of "
+                f"{config.max_files_per_review}. Continue?",
+                abort=False,
+                err=True,
+            )
+            if not confirmed:
+                raise typer.Exit(code=ExitCode.SUCCESS)
+
+        resolved = FileInput(paths=resolved_files.paths)
 
     # 4. ReviewTarget 構築
     target = _build_target(resolved, config, issue)
