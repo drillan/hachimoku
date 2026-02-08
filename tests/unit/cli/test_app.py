@@ -5,8 +5,8 @@ FR-CLI-002: 位置引数からの入力モード判定（review_callback 経由�
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
 
-NOTE: Typer の CliRunner は mix_stderr をサポートしないため、
-stderr 出力は result.output（混合出力）で検証する。
+NOTE: Typer の CliRunner は stderr 分離パラメータを公開しないため、
+stderr 出力は result.output（stdout + stderr 混合出力）で検証する。
 """
 
 from __future__ import annotations

@@ -9,13 +9,14 @@ FR-CLI-014: エラーメッセージに解決方法を含む。
 from __future__ import annotations
 
 import sys
-from typing import Any
 
 import click
 import typer
 from typer.core import TyperGroup
 
 from hachimoku.cli._input_resolver import InputError, resolve_input
+
+_REVIEW_ARGS_KEY = "_review_args"
 
 
 class _ReviewGroup(TyperGroup):
@@ -26,7 +27,8 @@ class _ReviewGroup(TyperGroup):
     このクラスは resolve_command が失敗した場合に callback へ引数を渡す。
     """
 
-    def invoke(self, ctx: click.Context) -> Any:
+    # click.Group.invoke の戻り値型が object であり、オーバーライドのため合わせている
+    def invoke(self, ctx: click.Context) -> object:
         if not ctx._protected_args:
             if self.invoke_without_command:
                 with ctx:
@@ -39,14 +41,17 @@ class _ReviewGroup(TyperGroup):
 
         try:
             cmd_name, cmd, remaining = self.resolve_command(ctx, args)
-        except click.UsageError:
+        except click.UsageError as exc:
+            if "No such command" not in str(exc):
+                raise
             ctx.ensure_object(dict)
-            ctx.obj["_review_args"] = args
+            ctx.obj[_REVIEW_ARGS_KEY] = args
             ctx.invoked_subcommand = None
             with ctx:
                 return click.Command.invoke(self, ctx)
 
-        assert cmd is not None
+        if cmd is None:
+            ctx.fail(f"Could not resolve command: {args}")
         with ctx:
             ctx.invoked_subcommand = cmd_name
             click.Command.invoke(self, ctx)
@@ -90,7 +95,7 @@ def review_callback(
         return
 
     obj = ctx.ensure_object(dict)
-    args: list[str] = obj.get("_review_args", [])
+    args: list[str] = obj.get(_REVIEW_ARGS_KEY, [])
 
     try:
         resolved = resolve_input(args or None)

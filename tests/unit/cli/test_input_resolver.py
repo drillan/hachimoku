@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from pydantic import ValidationError
+
 from hachimoku.cli._input_resolver import (
     DiffInput,
     FileInput,
@@ -18,6 +20,7 @@ from hachimoku.cli._input_resolver import (
     ResolvedInput,
     _is_existing_path,
     _is_path_like,
+    _is_positive_integer,
     resolve_input,
 )
 
@@ -31,7 +34,7 @@ class TestDiffInputModel:
 
     def test_is_frozen(self) -> None:
         result = DiffInput()
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ValidationError, match="frozen"):
             result.mode = "other"  # type: ignore[assignment]
 
 
@@ -47,14 +50,10 @@ class TestPRInputModel:
         assert result.pr_number == 42
 
     def test_pr_number_must_be_positive(self) -> None:
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="greater_than"):
             PRInput(pr_number=0)
 
     def test_pr_number_negative_rejected(self) -> None:
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="greater_than"):
             PRInput(pr_number=-1)
 
@@ -71,14 +70,10 @@ class TestFileInputModel:
         assert result.paths == ("src/auth.py", "src/api.py")
 
     def test_paths_must_not_be_empty(self) -> None:
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="too_short"):
             FileInput(paths=())
 
     def test_path_element_must_not_be_empty_string(self) -> None:
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="too_short"):
             FileInput(paths=("",))
 
@@ -206,6 +201,39 @@ class TestResolveInputError:
         """'-1' は正の整数ではないので InputError。"""
         with pytest.raises(InputError):
             resolve_input(["-1"])
+
+
+class TestIsPositiveInteger:
+    """_is_positive_integer() ヘルパー関数の境界値検証。"""
+
+    def test_positive_integer(self) -> None:
+        assert _is_positive_integer("123") is True
+
+    def test_one(self) -> None:
+        assert _is_positive_integer("1") is True
+
+    def test_zero_is_not_positive(self) -> None:
+        assert _is_positive_integer("0") is False
+
+    def test_negative_is_not_positive(self) -> None:
+        assert _is_positive_integer("-1") is False
+
+    def test_plus_prefix_is_positive(self) -> None:
+        """'+1' は int() で正の整数として解釈される。"""
+        assert _is_positive_integer("+1") is True
+
+    def test_leading_zero_is_positive(self) -> None:
+        """'01' は int() で 1 として解釈される。"""
+        assert _is_positive_integer("01") is True
+
+    def test_float_string_is_not_integer(self) -> None:
+        assert _is_positive_integer("1.5") is False
+
+    def test_non_numeric_string(self) -> None:
+        assert _is_positive_integer("abc") is False
+
+    def test_empty_string(self) -> None:
+        assert _is_positive_integer("") is False
 
 
 class TestIsPathLike:

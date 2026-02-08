@@ -128,4 +128,9 @@ def _is_path_like(arg: str) -> bool:
 
 def _is_existing_path(arg: str) -> bool:
     """引数がファイルシステム上に存在するパスかどうかを判定する。"""
-    return bool(arg) and os.path.exists(arg)
+    if not arg:
+        return False
+    try:
+        return os.path.exists(arg)
+    except (OSError, ValueError):
+        return False
