@@ -13,7 +13,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Final
 
-from hachimoku.cli._exit_code import ExitCode
+from hachimoku.models.exit_code import ExitCode
 
 from hachimoku.agents import load_agents
 from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
@@ -54,7 +54,7 @@ class EngineResult(HachimokuBaseModel):
 
     Attributes:
         report: 生成されたレビューレポート。
-        exit_code: 終了コード（0=成功, 1=Critical, 2=Important, 3=実行エラー）。
+        exit_code: 終了コード（ExitCode.SUCCESS/CRITICAL/IMPORTANT/EXECUTION_ERROR）。
     """
 
     report: ReviewReport

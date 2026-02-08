@@ -6,7 +6,9 @@ contracts/exit_code.py の仕様に準拠。
 
 from enum import IntEnum
 
-from hachimoku.cli._exit_code import ExitCode
+import pytest
+
+from hachimoku.models.exit_code import ExitCode
 
 
 class TestExitCodeValues:
@@ -76,3 +78,19 @@ class TestExitCodeFromEngineResult:
             code = ExitCode(value)
             assert isinstance(code, ExitCode)
             assert code == value
+
+
+class TestExitCodeInvalidValues:
+    """無効な値での ExitCode 構築を検証する。"""
+
+    def test_negative_value_raises_value_error(self) -> None:
+        with pytest.raises(ValueError):
+            ExitCode(-1)
+
+    def test_out_of_range_value_raises_value_error(self) -> None:
+        with pytest.raises(ValueError):
+            ExitCode(5)
+
+    def test_large_value_raises_value_error(self) -> None:
+        with pytest.raises(ValueError):
+            ExitCode(999)

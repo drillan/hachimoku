@@ -10,7 +10,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Final
 
-from hachimoku.cli._exit_code import ExitCode
+from hachimoku.models.exit_code import ExitCode
 
 
 SEVERITY_ORDER: Final[Mapping[str, int]] = MappingProxyType(

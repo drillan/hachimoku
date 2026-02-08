@@ -5,7 +5,7 @@ FR-DM-001: 重大度を4段階で定義し、順序関係を持つ。
 
 import pytest
 
-from hachimoku.cli._exit_code import ExitCode
+from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.severity import (
     SEVERITY_ORDER,
     Severity,
@@ -186,25 +186,6 @@ class TestSeverityComparisonWithNonSeverity:
     def test_gt_with_int_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="'>' not supported"):
             Severity.CRITICAL > 0  # type: ignore[operator]  # noqa: B015
-
-
-class TestExitCodeConstants:
-    """ExitCode IntEnum の値を検証。"""
-
-    def test_exit_code_success_is_zero(self) -> None:
-        assert ExitCode.SUCCESS == 0
-
-    def test_exit_code_critical_is_one(self) -> None:
-        assert ExitCode.CRITICAL == 1
-
-    def test_exit_code_important_is_two(self) -> None:
-        assert ExitCode.IMPORTANT == 2
-
-    def test_constants_are_int(self) -> None:
-        """ExitCode メンバーはすべて int 型である。"""
-        assert isinstance(ExitCode.SUCCESS, int)
-        assert isinstance(ExitCode.CRITICAL, int)
-        assert isinstance(ExitCode.IMPORTANT, int)
 
 
 class TestDetermineExitCode:

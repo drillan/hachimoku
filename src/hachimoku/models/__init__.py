@@ -36,7 +36,7 @@ from hachimoku.models.schemas import (
     register_schema,
 )
 from hachimoku.models.tool_category import ToolCategory
-from hachimoku.cli._exit_code import ExitCode
+from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.severity import (
     SEVERITY_ORDER,
     Severity,

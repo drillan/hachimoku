@@ -1,4 +1,4 @@
-"""ExitCode — CLI 終了コードの定義。
+"""ExitCode — 終了コードの定義。
 
 FR-CLI-003: レビュー結果と入力状態に応じた終了コード。
 """
@@ -7,10 +7,9 @@ from enum import IntEnum
 
 
 class ExitCode(IntEnum):
-    """CLI 終了コード。
+    """プロセス終了コード。
 
-    0-3 は EngineResult.exit_code からの直接変換。
-    4 は CLI 層で直接判定される入力エラー。
+    0-3 はレビューエンジンの結果に対応し、4 は CLI 層固有の入力エラー。
     """
 
     SUCCESS = 0

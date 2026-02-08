@@ -27,7 +27,7 @@ from hachimoku.agents.models import (
     LoadResult,
     Phase,
 )
-from hachimoku.cli._exit_code import ExitCode
+from hachimoku.models.exit_code import ExitCode
 from hachimoku.engine._engine import (
     SHUTDOWN_TIMEOUT_SECONDS,
     EngineResult,

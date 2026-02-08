@@ -14,6 +14,13 @@ app = typer.Typer(
 )
 
 
+@app.callback(invoke_without_command=True)
+def _review_callback(ctx: typer.Context) -> None:
+    """マルチエージェントコードレビューを実行する。"""
+    if ctx.invoked_subcommand is None:
+        ctx.get_help()
+
+
 def main() -> None:
     """CLI エントリポイント。
 
