@@ -15,6 +15,7 @@ FR-CLI-014: エラーメッセージに解決方法を含む。
 from __future__ import annotations
 
 import asyncio
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -46,9 +47,29 @@ from hachimoku.models.report import ReviewReport
 _REVIEW_ARGS_KEY = "_review_args"
 
 
+_GIT_CHECK_TIMEOUT_SECONDS = 5
+
+
 def _is_git_repository() -> bool:
-    """カレントディレクトリが Git リポジトリ内かどうか判定する。"""
-    return Path(".git").exists()
+    """カレントディレクトリが Git リポジトリ内かどうか判定する。
+
+    サブディレクトリや worktree 環境でも正しく動作するよう
+    ``git rev-parse --git-dir`` を使用する。
+    """
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            check=True,
+            timeout=_GIT_CHECK_TIMEOUT_SECONDS,
+        )
+        return True
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+    ):
+        return False
 
 
 class _ReviewGroup(TyperGroup):
@@ -324,14 +345,22 @@ def agents(
     ] = None,
 ) -> None:
     """List or inspect agent definitions."""
-    project_root = find_project_root(Path.cwd())
-    custom_dir = (project_root / ".hachimoku" / "agents") if project_root else None
+    try:
+        project_root = find_project_root(Path.cwd())
+        custom_dir = (project_root / ".hachimoku" / "agents") if project_root else None
+        result = load_agents(custom_dir=custom_dir)
+        builtin_result = load_builtin_agents()
+    except Exception as e:
+        print(
+            f"Error: Failed to load agent definitions: {e}\n"
+            "Run '8moku init' to initialize the project, or check directory permissions.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None
 
-    result = load_agents(custom_dir=custom_dir)
-    builtin_result = load_builtin_agents()
     builtin_names = {a.name for a in builtin_result.agents}
 
-    for error in result.errors:
+    for error in (*builtin_result.errors, *result.errors):
         print(
             f"Warning: Failed to load agent '{error.source}': {error.message}",
             file=sys.stderr,

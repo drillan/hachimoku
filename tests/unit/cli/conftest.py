@@ -49,18 +49,23 @@ def make_agent_definition(
     phase: str = "main",
     output_schema: str = "scored_issues",
     description: str = "Test agent description",
+    system_prompt: str = "Test system prompt for testing purposes.",
+    applicability: dict[str, object] | None = None,
+    allowed_tools: tuple[str, ...] = (),
 ) -> AgentDefinition:
     """テスト用の最小 AgentDefinition を生成する。"""
-    return AgentDefinition.model_validate(
-        {
-            "name": name,
-            "description": description,
-            "model": model,
-            "output_schema": output_schema,
-            "system_prompt": "Test system prompt for testing purposes.",
-            "phase": phase,
-        }
-    )
+    data: dict[str, object] = {
+        "name": name,
+        "description": description,
+        "model": model,
+        "output_schema": output_schema,
+        "system_prompt": system_prompt,
+        "phase": phase,
+        "allowed_tools": allowed_tools,
+    }
+    if applicability is not None:
+        data["applicability"] = applicability
+    return AgentDefinition.model_validate(data)
 
 
 def make_load_result(

@@ -16,6 +16,7 @@ stderr 出力は result.output（stdout + stderr 混合出力）で検証する�
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import ValidationError
@@ -1192,6 +1193,177 @@ class TestAgentsSubcommand:
         assert "bad-agent.toml" in result.output
         assert "code-reviewer" in result.output
 
+    # --- S-1: 詳細表示の分岐カバレッジ ---
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_file_patterns(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """applicability.file_patterns が表示される。"""
+        agent = make_agent_definition(
+            name="typed-agent",
+            applicability={"file_patterns": ["*.py", "*.ts"]},
+        )
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "typed-agent"])
+        assert "*.py" in result.output
+        assert "*.ts" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_content_patterns(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """applicability.content_patterns が表示される。"""
+        agent = make_agent_definition(
+            name="hunt-agent",
+            applicability={"content_patterns": [r"try\s*:"]},
+        )
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "hunt-agent"])
+        assert r"try\s*:" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_allowed_tools(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """allowed_tools が設定されている場合にツール名が表示される。"""
+        agent = make_agent_definition(
+            name="tooled-agent",
+            allowed_tools=("git_read", "file_read"),
+        )
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "tooled-agent"])
+        assert "git_read" in result.output
+        assert "file_read" in result.output
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_truncates_long_system_prompt(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """system_prompt が 4 行以上の場合に '...' で切り詰められる。"""
+        long_prompt = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
+        agent = make_agent_definition(name="verbose-agent", system_prompt=long_prompt)
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        result = runner.invoke(app, ["agents", "verbose-agent"])
+        assert "Line 3" in result.output
+        assert "..." in result.output
+        assert "Line 4" not in result.output
+
+    # --- S-2: 詳細表示での [custom] マーカー ---
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_detail_shows_custom_marker(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """詳細表示でカスタムエージェントに [custom] マーカーが付与される。"""
+        builtin = make_agent_definition(name="code-reviewer")
+        custom = make_agent_definition(name="my-custom")
+        mock_load_agents.return_value = make_load_result(agents=(builtin, custom))
+        mock_load_builtin.return_value = make_load_result(agents=(builtin,))
+        result = runner.invoke(app, ["agents", "my-custom"])
+        assert "[custom]" in result.output
+
+    # --- S-3: find_project_root がパスを返すケース ---
+
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    @patch(PATCH_FIND_PROJECT_ROOT)
+    def test_agents_passes_custom_dir_when_project_root_found(
+        self,
+        mock_root: MagicMock,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+    ) -> None:
+        """find_project_root がパスを返す場合に custom_dir が正しく渡される。"""
+        mock_root.return_value = Path("/home/user/project")
+        agent = make_agent_definition()
+        result_obj = make_load_result(agents=(agent,))
+        mock_load_agents.return_value = result_obj
+        mock_load_builtin.return_value = result_obj
+        runner.invoke(app, ["agents"])
+        call_kwargs = mock_load_agents.call_args.kwargs
+        assert call_kwargs["custom_dir"] == Path("/home/user/project/.hachimoku/agents")
+
+    # --- C-2: agents() の例外処理 ---
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_AGENTS, side_effect=OSError("Permission denied"))
+    def test_agents_load_exception_exits_with_3(
+        self,
+        _mock_load: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """load_agents() 例外 → exit 3（EXECUTION_ERROR）。"""
+        result = runner.invoke(app, ["agents"])
+        assert result.exit_code == ExitCode.EXECUTION_ERROR
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_AGENTS, side_effect=OSError("Permission denied"))
+    def test_agents_load_exception_shows_hint(
+        self,
+        _mock_load: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """load_agents() 例外にヒント付きエラーメッセージが含まれる。"""
+        result = runner.invoke(app, ["agents"])
+        assert "8moku init" in result.output
+
+    # --- I-1: builtin_result.errors の警告出力 ---
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_LOAD_BUILTIN_AGENTS)
+    @patch(PATCH_LOAD_AGENTS)
+    def test_agents_list_shows_builtin_load_errors(
+        self,
+        mock_load_agents: MagicMock,
+        mock_load_builtin: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """builtin_result.errors も警告として出力される。"""
+        agent = make_agent_definition(name="code-reviewer")
+        builtin_error = LoadError(
+            source="broken-builtin.toml", message="Schema not found"
+        )
+        mock_load_agents.return_value = make_load_result(agents=(agent,))
+        mock_load_builtin.return_value = make_load_result(
+            agents=(agent,), errors=(builtin_error,)
+        )
+        result = runner.invoke(app, ["agents"])
+        assert "broken-builtin.toml" in result.output
+
 
 # --- Polish テスト（エッジケース） ---
 
@@ -1342,3 +1514,23 @@ class TestEdgeCases:
         mock_config.return_value = HachimokuConfig()
         result = runner.invoke(app, ["123"])
         assert "git" in result.output.lower()
+
+    # --- S-4: file モードは Git リポジトリ外でも動作 ---
+
+    @patch(PATCH_GIT_EXISTS, return_value=False)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_file_mode_works_outside_git_repo(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_git: MagicMock,
+    ) -> None:
+        """file モードは Git リポジトリ外でも正常終了する。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        result = runner.invoke(app, ["src/auth.py"])
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
