@@ -22,13 +22,16 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from hachimoku.cli._app import app
+from hachimoku.cli._file_resolver import FileResolutionError, ResolvedFiles
 from hachimoku.cli._init_handler import InitError, InitResult
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.exit_code import ExitCode
 from tests.unit.cli.conftest import (
     PATCH_RESOLVE_CONFIG,
+    PATCH_RESOLVE_FILES,
     PATCH_RUN_REVIEW,
+    make_engine_result,
     setup_mocks,
 )
 
@@ -114,27 +117,37 @@ class TestReviewCallbackFileMode:
     """パスライク引数で file モード判定を検証する。"""
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
     @patch(PATCH_RESOLVE_CONFIG)
     def test_path_like_arg_exits_with_zero(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
     ) -> None:
         """パスライク引数 → file モード → 正常終了。"""
         setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
     @patch(PATCH_RESOLVE_CONFIG)
     def test_path_like_arg_calls_run_review_with_file_target(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
     ) -> None:
         """パスライク引数 → FileTarget で run_review が呼ばれる。"""
         setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
         runner.invoke(app, ["src/auth.py"])
         mock_run_review.assert_called_once()
         target = mock_run_review.call_args.kwargs["target"]
         assert isinstance(target, FileTarget)
-        assert "src/auth.py" in target.paths
+        assert "/abs/src/auth.py" in target.paths
 
 
 class TestReviewCallbackError:
@@ -209,17 +222,22 @@ class TestReviewExecution:
         assert target.pr_number == 123
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
     @patch(PATCH_RESOLVE_CONFIG)
     def test_file_mode_calls_run_review(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
     ) -> None:
         """パスライク引数 → FileTarget で run_review が呼ばれる。"""
         setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
         target = mock_run_review.call_args.kwargs["target"]
         assert isinstance(target, FileTarget)
-        assert target.paths == ("src/auth.py",)
+        assert target.paths == ("/abs/src/auth.py",)
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -538,12 +556,17 @@ class TestReviewIssueOption:
         assert target.issue_number == 50
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
     @patch(PATCH_RESOLVE_CONFIG)
     def test_issue_passed_to_file_target(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
     ) -> None:
         """file モード + --issue → FileTarget.issue_number に設定される。"""
         setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
         # NOTE: --issue は位置引数より前に配置する（上記同様の理由）。
         runner.invoke(app, ["--issue", "50", "src/auth.py"])
         target = mock_run_review.call_args.kwargs["target"]
@@ -711,3 +734,217 @@ class TestInitSubcommand:
         )
         result = runner.invoke(app, ["init"])
         assert "--force" in result.output
+
+
+# --- US4 テスト（file モード: ファイル解決と確認プロンプト） ---
+
+
+class TestReviewCallbackFileModeResolution:
+    """file モード: resolve_files 呼び出しと確認プロンプト（FR-CLI-009, FR-CLI-011）。"""
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_file_mode_calls_resolve_files(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """file モードで resolve_files が呼ばれる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/tmp/a.py",))
+        runner.invoke(app, ["src/auth.py"])
+        mock_resolve_files.assert_called_once()
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_resolved_paths_passed_to_file_target(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """resolve_files の結果が FileTarget.paths に渡される。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        runner.invoke(app, ["src/auth.py"])
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, FileTarget)
+        assert target.paths == ("/abs/src/auth.py",)
+
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_file_resolution_error_exits_with_4(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """FileResolutionError → exit code 4。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_resolve_files.side_effect = FileResolutionError("Not found")
+        result = runner.invoke(app, ["nonexistent.py"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_file_resolution_error_shows_message(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """FileResolutionError のメッセージが出力される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_resolve_files.side_effect = FileResolutionError(
+            "File not found: 'x.py'. Check the file path."
+        )
+        result = runner.invoke(app, ["x.py"])
+        assert "File not found" in result.output
+
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_empty_result_exits_with_0(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """resolve_files が None → exit code 0。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_resolve_files.return_value = None
+        result = runner.invoke(app, ["src/"])
+        assert result.exit_code == ExitCode.SUCCESS
+
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_empty_result_shows_message(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """empty result → "No files found" メッセージ。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_resolve_files.return_value = None
+        result = runner.invoke(app, ["src/"])
+        assert "no files found" in result.output.lower()
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_warnings_printed_to_output(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """resolve_files の warnings が出力される。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(
+            paths=("/tmp/a.py",),
+            warnings=("Skipping symlink cycle: /x -> /y",),
+        )
+        result = runner.invoke(app, ["src/"])
+        assert "Skipping symlink cycle" in result.output
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_max_files_exceeded_no_confirm_continues(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """--no-confirm + max_files 超過 → 確認なしで続行。"""
+        mock_config.return_value = HachimokuConfig(max_files_per_review=1)
+        mock_run_review.return_value = make_engine_result()
+        mock_resolve_files.return_value = ResolvedFiles(
+            paths=("/tmp/a.py", "/tmp/b.py")
+        )
+        result = runner.invoke(app, ["--no-confirm", "src/"])
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
+
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_max_files_exceeded_user_denies_exits_0(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """max_files 超過 + ユーザー拒否 → exit code 0。"""
+        mock_config.return_value = HachimokuConfig(max_files_per_review=1)
+        mock_resolve_files.return_value = ResolvedFiles(
+            paths=("/tmp/a.py", "/tmp/b.py")
+        )
+        result = runner.invoke(app, ["src/"], input="n\n")
+        assert result.exit_code == 0
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_max_files_exceeded_user_confirms_continues(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """max_files 超過 + ユーザー承認 → レビュー続行。"""
+        mock_config.return_value = HachimokuConfig(max_files_per_review=1)
+        mock_run_review.return_value = make_engine_result()
+        mock_resolve_files.return_value = ResolvedFiles(
+            paths=("/tmp/a.py", "/tmp/b.py")
+        )
+        result = runner.invoke(app, ["src/"], input="y\n")
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
+
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_max_files_exceeded_prompt_contains_counts(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """確認プロンプトにファイル数と上限値が含まれる。"""
+        mock_config.return_value = HachimokuConfig(max_files_per_review=5)
+        mock_resolve_files.return_value = ResolvedFiles(
+            paths=tuple(f"/tmp/f{i}.py" for i in range(10))
+        )
+        result = runner.invoke(app, ["src/"], input="n\n")
+        assert "10 files found" in result.output
+        assert "5" in result.output
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_max_files_not_exceeded_no_prompt(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """max_files 未超過 → プロンプトなしで続行。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/tmp/a.py",))
+        result = runner.invoke(app, ["src/auth.py"])
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
+        # 確認プロンプトが表示されていないことを検証
+        assert "exceeding limit" not in result.output
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_diff_mode_does_not_call_resolve_files(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """diff モードでは resolve_files が呼ばれない。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app)
+        mock_resolve_files.assert_not_called()
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_pr_mode_does_not_call_resolve_files(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """PR モードでは resolve_files が呼ばれない。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app, ["123"])
+        mock_resolve_files.assert_not_called()

@@ -11,6 +11,7 @@ from hachimoku.models.report import ReviewReport, ReviewSummary
 
 PATCH_RUN_REVIEW = "hachimoku.cli._app.run_review"
 PATCH_RESOLVE_CONFIG = "hachimoku.cli._app.resolve_config"
+PATCH_RESOLVE_FILES = "hachimoku.cli._app.resolve_files"
 
 
 def make_engine_result(exit_code: ExitCode = ExitCode.SUCCESS) -> EngineResult:
