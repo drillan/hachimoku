@@ -5,6 +5,8 @@ FR-CLI-002: 位置引数からの入力モード判定（review_callback 経由�
 FR-CLI-003: 終了コードの検証。
 FR-CLI-004: stdout/stderr ストリーム分離。
 FR-CLI-006: CLI オプション対応表。
+FR-CLI-007: .hachimoku/ ディレクトリ構造の初期化。
+FR-CLI-008: 既存ファイルのスキップと --force による上書き。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
 

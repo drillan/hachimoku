@@ -156,7 +156,7 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
     1. Git リポジトリ確認（.git/ の存在）
     2. .hachimoku/ ディレクトリ作成
     3. .hachimoku/config.toml 生成（コメント付きテンプレート）
-    4. .hachimoku/agents/ にビルトイン6エージェント定義コピー
+    4. .hachimoku/agents/ にビルトインエージェント定義コピー
     5. .hachimoku/reviews/ ディレクトリ作成
 
     Args:
@@ -167,7 +167,7 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
         InitResult: 作成・スキップされたファイル情報。
 
     Raises:
-        InitError: Git リポジトリ外での実行等。
+        InitError: Git リポジトリ外での実行、ファイルシステム操作エラー等。
     """
     _ensure_git_repository(project_root)
 
@@ -179,21 +179,27 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
     created: list[Path] = []
     skipped: list[Path] = []
 
-    # ディレクトリ作成（常に exist_ok=True で安全）
-    hachimoku_dir.mkdir(parents=True, exist_ok=True)
-    agents_dir.mkdir(exist_ok=True)
-    reviews_dir.mkdir(exist_ok=True)
+    try:
+        # ディレクトリ作成（常に exist_ok=True で安全）
+        hachimoku_dir.mkdir(parents=True, exist_ok=True)
+        agents_dir.mkdir(exist_ok=True)
+        reviews_dir.mkdir(exist_ok=True)
 
-    # config.toml 生成
-    if config_path.exists() and not force:
-        skipped.append(config_path)
-    else:
-        config_path.write_text(_generate_config_template(), encoding="utf-8")
-        created.append(config_path)
+        # config.toml 生成
+        if config_path.exists() and not force:
+            skipped.append(config_path)
+        else:
+            config_path.write_text(_generate_config_template(), encoding="utf-8")
+            created.append(config_path)
 
-    # ビルトインエージェント定義コピー
-    agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
-    created.extend(agent_created)
-    skipped.extend(agent_skipped)
+        # ビルトインエージェント定義コピー
+        agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
+        created.extend(agent_created)
+        skipped.extend(agent_skipped)
+    except OSError as e:
+        raise InitError(
+            f"Failed to initialize .hachimoku/: {e}\n"
+            "Check directory permissions and available disk space."
+        ) from e
 
     return InitResult(created=tuple(created), skipped=tuple(skipped))

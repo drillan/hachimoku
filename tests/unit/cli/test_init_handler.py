@@ -210,8 +210,8 @@ class TestGenerateConfigTemplate:
 class TestCopyBuiltinAgents:
     """_copy_builtin_agents の動作を検証する。"""
 
-    def test_copies_six_agents(self, tmp_path: Path) -> None:
-        """6つの .toml ファイルがコピーされる。"""
+    def test_copies_all_builtin_agents(self, tmp_path: Path) -> None:
+        """全ビルトイン .toml ファイルがコピーされる。"""
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         created, _skipped = _copy_builtin_agents(agents_dir, force=False)
@@ -289,8 +289,8 @@ class TestRunInit:
         run_init(tmp_path)
         assert (tmp_path / ".hachimoku" / "config.toml").is_file()
 
-    def test_creates_agents_dir_with_six_files(self, tmp_path: Path) -> None:
-        """.hachimoku/agents/ に6ファイルが作成される。"""
+    def test_creates_agents_dir_with_all_builtins(self, tmp_path: Path) -> None:
+        """.hachimoku/agents/ に全ビルトインファイルが作成される。"""
         (tmp_path / ".git").mkdir()
         run_init(tmp_path)
         agents_dir = tmp_path / ".hachimoku" / "agents"
@@ -308,8 +308,9 @@ class TestRunInit:
         """InitResult.created に作成した全ファイルパスが含まれる。"""
         (tmp_path / ".git").mkdir()
         result = run_init(tmp_path)
-        # config.toml + 6 agents = 7 files
-        assert len(result.created) == 7
+        # config.toml + builtin agents
+        expected_count = 1 + len(BUILTIN_AGENT_NAMES)
+        assert len(result.created) == expected_count
         assert result.skipped == ()
 
     def test_non_git_repo_raises_init_error(self, tmp_path: Path) -> None:
@@ -358,7 +359,8 @@ class TestRunInit:
 
         # force で再実行
         result = run_init(tmp_path, force=True)
-        assert len(result.created) == 7
+        expected_count = 1 + len(BUILTIN_AGENT_NAMES)
+        assert len(result.created) == expected_count
         assert result.skipped == ()
         # テンプレートに上書きされている
         assert config_path.read_text() != "# custom config"
@@ -377,3 +379,28 @@ class TestRunInit:
         second = run_init(tmp_path)
         assert len(second.created) == 0
         assert len(second.skipped) == len(first.created)
+
+    def test_permission_error_raises_init_error(self, tmp_path: Path) -> None:
+        """ディレクトリ作成権限がない場合 InitError が送出される。"""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / ".git").mkdir()
+        # 書き込み不可にして .hachimoku/ 作成を失敗させる
+        project.chmod(0o555)
+        try:
+            with pytest.raises(InitError, match="permissions|Permission"):
+                run_init(project)
+        finally:
+            project.chmod(0o755)
+
+    def test_permission_error_contains_hint(self, tmp_path: Path) -> None:
+        """FS エラー時のメッセージに解決方法ヒントが含まれる。"""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / ".git").mkdir()
+        project.chmod(0o555)
+        try:
+            with pytest.raises(InitError, match="Check directory permissions"):
+                run_init(project)
+        finally:
+            project.chmod(0o755)
