@@ -19,6 +19,12 @@ _GLOB_SPECIAL_CHARS = frozenset("*?[")
 class ResolvedFiles(HachimokuBaseModel):
     """ファイル解決結果。
 
+    resolve_files() が構築する。paths は以下の不変条件を持つ:
+    - 全要素が絶対パス
+    - ソート済み（辞書順）
+    - 重複排除済み
+    - 通常ファイルのみ（ディレクトリは含まない）
+
     Attributes:
         paths: 展開・正規化済みのファイルパスリスト（文字列）。
         warnings: 循環参照等の警告メッセージ。
@@ -68,7 +74,15 @@ def _expand_directory(
     file_paths: list[str] = []
     warnings: list[str] = []
 
-    for entry in sorted(dir_path.iterdir()):
+    try:
+        entries = sorted(dir_path.iterdir())
+    except PermissionError as e:
+        raise FileResolutionError(
+            f"Permission denied: '{dir_path}'. "
+            "Check directory permissions and try again."
+        ) from e
+
+    for entry in entries:
         if entry.is_file():
             file_paths.append(str(entry.resolve()))
         elif entry.is_dir():
@@ -133,7 +147,11 @@ def _expand_single_path(
     if resolved.is_dir():
         return _expand_directory(path, seen_real_dirs)
 
-    return [], []
+    # 5. 通常ファイルでもディレクトリでもない（ソケット、パイプ等）
+    raise FileResolutionError(
+        f"Unsupported file type: '{raw_path}' (not a regular file or directory). "
+        "Only regular files and directories are supported."
+    )
 
 
 def resolve_files(raw_paths: tuple[str, ...]) -> ResolvedFiles | None:
@@ -148,11 +166,11 @@ def resolve_files(raw_paths: tuple[str, ...]) -> ResolvedFiles | None:
     Raises:
         FileResolutionError: 指定パスが存在しない場合。
     """
-    seen_real_dirs: set[Path] = set()
     all_files: list[str] = []
     all_warnings: list[str] = []
 
     for raw_path in raw_paths:
+        seen_real_dirs: set[Path] = set()
         files, warnings = _expand_single_path(raw_path, seen_real_dirs)
         all_files.extend(files)
         all_warnings.extend(warnings)

@@ -143,6 +143,19 @@ class TestExpandSinglePathFile:
         with pytest.raises(FileResolutionError, match="Check the file path"):
             _expand_single_path("/nonexistent/path/file.py", set())
 
+    def test_unsupported_file_type_raises_error(self, tmp_path: Path) -> None:
+        """通常ファイルでもディレクトリでもないパス → FileResolutionError。"""
+        import socket
+
+        sock_path = tmp_path / "test.sock"
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            s.bind(str(sock_path))
+            with pytest.raises(FileResolutionError, match="Unsupported file type"):
+                _expand_single_path(str(sock_path), set())
+        finally:
+            s.close()
+
 
 # --- _expand_single_path: ディレクトリ ---
 
@@ -186,6 +199,18 @@ class TestExpandSinglePathDirectory:
         paths, warnings = _expand_single_path(str(empty), set())
         assert paths == []
         assert warnings == []
+
+    def test_permission_denied_raises_error(self, tmp_path: Path) -> None:
+        """読み取り権限なしのディレクトリ → FileResolutionError。"""
+        no_read = tmp_path / "no_read"
+        no_read.mkdir()
+        (no_read / "file.py").write_text("content")
+        no_read.chmod(0o000)
+        try:
+            with pytest.raises(FileResolutionError, match="Permission denied"):
+                _expand_single_path(str(no_read), set())
+        finally:
+            no_read.chmod(0o755)
 
 
 # --- _expand_single_path: glob パターン ---
@@ -240,6 +265,21 @@ class TestExpandSinglePathGlob:
         assert len(paths) == 2
         names = {Path(p).name for p in paths}
         assert names == {"file1.txt", "file2.txt"}
+
+    def test_glob_matching_directory_expands_contents(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """glob がディレクトリにマッチした場合、内容を再帰展開する。"""
+        monkeypatch.chdir(tmp_path)
+        sub = tmp_path / "subdir"
+        sub.mkdir()
+        (sub / "nested.py").write_text("nested")
+        (tmp_path / "top.py").write_text("top")
+        # * パターンで subdir/ にもマッチする
+        paths, _ = _expand_single_path("*", set())
+        names = {Path(p).name for p in paths}
+        assert "nested.py" in names
+        assert "top.py" in names
 
 
 # --- _expand_single_path: シンボリックリンク ---
@@ -414,3 +454,16 @@ class TestResolveFiles:
         empty.mkdir()
         result = resolve_files((str(empty),))
         assert result is None
+
+    def test_duplicate_directory_across_paths_not_skipped(self, tmp_path: Path) -> None:
+        """同じディレクトリを複数パスで指定しても循環参照扱いにならない。"""
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "file.py").write_text("content")
+        # sub を直接パスで2回指定
+        result = resolve_files((str(sub), str(sub)))
+        assert result is not None
+        # 重複排除で1ファイル
+        assert len(result.paths) == 1
+        # 循環参照の警告は出ない（重複排除で処理される）
+        assert not any("symlink cycle" in w.lower() for w in result.warnings)

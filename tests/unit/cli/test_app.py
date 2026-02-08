@@ -889,6 +889,20 @@ class TestReviewCallbackFileModeResolution:
         assert result.exit_code == 0
         mock_run_review.assert_called_once()
 
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_max_files_exceeded_prompt_contains_counts(
+        self, mock_config: MagicMock, mock_resolve_files: MagicMock
+    ) -> None:
+        """確認プロンプトにファイル数と上限値が含まれる。"""
+        mock_config.return_value = HachimokuConfig(max_files_per_review=5)
+        mock_resolve_files.return_value = ResolvedFiles(
+            paths=tuple(f"/tmp/f{i}.py" for i in range(10))
+        )
+        result = runner.invoke(app, ["src/"], input="n\n")
+        assert "10 files found" in result.output
+        assert "5" in result.output
+
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_FILES)
     @patch(PATCH_RESOLVE_CONFIG)

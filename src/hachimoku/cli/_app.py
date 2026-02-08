@@ -195,14 +195,14 @@ def review_callback(
             "Check .hachimoku/config.toml for syntax errors or invalid values.",
             file=sys.stderr,
         )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from e
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
     except PermissionError as e:
         print(
             f"Error: Cannot read configuration file: {e}\n"
             "Check file permissions for .hachimoku/config.toml.",
             file=sys.stderr,
         )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from e
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
 
     # 3.5. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
     if isinstance(resolved, FileInput):
