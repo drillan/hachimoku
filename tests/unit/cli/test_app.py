@@ -5,6 +5,8 @@ FR-CLI-002: 位置引数からの入力モード判定（review_callback 経由�
 FR-CLI-003: 終了コードの検証。
 FR-CLI-004: stdout/stderr ストリーム分離。
 FR-CLI-006: CLI オプション対応表。
+FR-CLI-007: .hachimoku/ ディレクトリ構造の初期化。
+FR-CLI-008: 既存ファイルのスキップと --force による上書き。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
 
@@ -20,6 +22,7 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from hachimoku.cli._app import app
+from hachimoku.cli._init_handler import InitError, InitResult
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.exit_code import ExitCode
@@ -28,6 +31,8 @@ from tests.unit.cli.conftest import (
     PATCH_RUN_REVIEW,
     setup_mocks,
 )
+
+PATCH_RUN_INIT = "hachimoku.cli._app.run_init"
 
 runner = CliRunner()
 
@@ -613,3 +618,96 @@ class TestReviewConfigError:
         mock_config.side_effect = PermissionError("Permission denied")
         result = runner.invoke(app)
         assert result.exit_code == 4
+
+
+# --- US3 テスト ---
+
+
+class TestInitSubcommand:
+    """init サブコマンドの CLI 統合テスト。FR-CLI-007."""
+
+    def test_init_help_exits_with_zero(self) -> None:
+        """init --help が正常終了する。"""
+        result = runner.invoke(app, ["init", "--help"])
+        assert result.exit_code == 0
+
+    def test_init_help_contains_description(self) -> None:
+        """init --help に説明が含まれる。"""
+        result = runner.invoke(app, ["init", "--help"])
+        assert "Initialize" in result.output
+
+    def test_help_shows_init_subcommand(self) -> None:
+        """--help に init サブコマンド情報が含まれる。"""
+        result = runner.invoke(app, ["--help"])
+        assert "init" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_calls_run_init(self, mock_run_init: MagicMock) -> None:
+        """init が run_init を呼び出す。"""
+        mock_run_init.return_value = InitResult()
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0
+        mock_run_init.assert_called_once()
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_force_passes_flag(self, mock_run_init: MagicMock) -> None:
+        """init --force が force=True で run_init を呼ぶ。"""
+        mock_run_init.return_value = InitResult()
+        runner.invoke(app, ["init", "--force"])
+        _, kwargs = mock_run_init.call_args
+        assert kwargs["force"] is True
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_default_no_force(self, mock_run_init: MagicMock) -> None:
+        """--force なしでは force=False。"""
+        mock_run_init.return_value = InitResult()
+        runner.invoke(app, ["init"])
+        _, kwargs = mock_run_init.call_args
+        assert kwargs["force"] is False
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_error_exits_with_four(self, mock_run_init: MagicMock) -> None:
+        """InitError で終了コード 4。"""
+        mock_run_init.side_effect = InitError("Not a Git repository")
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_error_shows_message(self, mock_run_init: MagicMock) -> None:
+        """InitError のメッセージが出力される。"""
+        mock_run_init.side_effect = InitError("Not a Git repository")
+        result = runner.invoke(app, ["init"])
+        assert "Not a Git repository" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_shows_created_files(self, mock_run_init: MagicMock) -> None:
+        """成功時に作成ファイルが表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            created=(Path("/tmp/config.toml"),),
+        )
+        result = runner.invoke(app, ["init"])
+        assert "Created:" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_shows_skipped_files(self, mock_run_init: MagicMock) -> None:
+        """既存ファイルのスキップ情報が表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            skipped=(Path("/tmp/config.toml"),),
+        )
+        result = runner.invoke(app, ["init"])
+        assert "Skipped" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_all_exist_shows_hint(self, mock_run_init: MagicMock) -> None:
+        """全ファイル既存時に --force ヒントが表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            skipped=(Path("/tmp/config.toml"),),
+        )
+        result = runner.invoke(app, ["init"])
+        assert "--force" in result.output
