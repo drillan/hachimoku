@@ -21,6 +21,7 @@ import typer
 from pydantic import ValidationError
 from typer.core import TyperGroup
 
+from hachimoku.cli._init_handler import InitError, run_init
 from hachimoku.cli._input_resolver import (
     DiffInput,
     InputError,
@@ -225,6 +226,39 @@ def review_callback(
 
     # 7. 終了コード
     raise typer.Exit(code=result.exit_code)
+
+
+@app.command()
+def init(
+    force: Annotated[
+        bool, typer.Option("--force", help="Overwrite existing files with defaults.")
+    ] = False,
+) -> None:
+    """Initialize .hachimoku/ directory with default configuration and agent definitions."""
+    from pathlib import Path
+
+    try:
+        result = run_init(Path.cwd(), force=force)
+    except InitError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+
+    for path in result.created:
+        print(f"  Created: {path}", file=sys.stderr)
+    for path in result.skipped:
+        print(f"  Skipped (already exists): {path}", file=sys.stderr)
+
+    if result.created:
+        print(
+            f"\nInitialized .hachimoku/ "
+            f"({len(result.created)} created, {len(result.skipped)} skipped).",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "\nAll files already exist. Use --force to overwrite.",
+            file=sys.stderr,
+        )
 
 
 @app.command()
