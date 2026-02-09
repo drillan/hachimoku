@@ -378,17 +378,6 @@ class TestReviewConfigOverrides:
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
-    def test_provider_option(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """--provider → config_overrides に "provider" キーが含まれる。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--provider", "anthropic"])
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["provider"] == "anthropic"
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
     def test_no_options_empty_overrides(
         self, mock_config: MagicMock, mock_run_review: AsyncMock
     ) -> None:
@@ -406,7 +395,6 @@ class TestReviewConfigOverrides:
             "save_reviews",
             "show_cost",
             "max_files_per_review",
-            "provider",
         }
         assert not (set(overrides.keys()) & config_keys)
 

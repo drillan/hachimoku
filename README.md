@@ -69,28 +69,27 @@ uv sync
 
 | オプション | 説明 |
 |-----------|------|
-| `--model TEXT` | LLM モデル名 |
+| `--model TEXT` | LLM モデル名（プレフィックス付き: `claudecode:` or `anthropic:`） |
 | `--timeout INTEGER` | タイムアウト秒数 |
 | `--parallel / --no-parallel` | 並列実行の有効/無効 |
-| `--provider TEXT` | LLM プロバイダー（`claudecode` or `anthropic`） |
 | `--format json` | 出力形式 |
 | `--base-branch TEXT` | diff モードのベースブランチ |
 | `--issue INTEGER` | コンテキスト用 GitHub Issue 番号 |
 | `--no-confirm` | 確認プロンプトをスキップ |
 
-## プロバイダー
+## モデルプレフィックス
 
-hachimoku は2つの LLM プロバイダーをサポートしています:
+hachimoku はモデル名のプレフィックスでプロバイダーを決定します:
 
-| プロバイダー | 説明 | API キー |
-|-------------|------|---------|
-| `claudecode` | Claude Code 内蔵モデル（デフォルト） | 不要 |
-| `anthropic` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 |
+| プレフィックス | 説明 | API キー | 例 |
+|--------------|------|---------|-----|
+| `claudecode:` | Claude Code 内蔵モデル（デフォルト） | 不要 | `claudecode:claude-sonnet-4-5` |
+| `anthropic:` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 | `anthropic:claude-sonnet-4-5` |
 
 ```bash
 # Anthropic API を使用する場合
 export ANTHROPIC_API_KEY="your-api-key"
-8moku --provider anthropic
+8moku --model "anthropic:claude-sonnet-4-5"
 ```
 
 ## 設定

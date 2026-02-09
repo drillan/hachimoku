@@ -1,8 +1,8 @@
-"""モデルリゾルバー — プロバイダーに応じたモデルオブジェクト生成。
+"""モデルリゾルバー — プレフィックスベースのプロバイダー解決。
 
-provider 設定に基づき、pydantic-ai Agent に渡す model 引数を解決する。
-- anthropic: モデル文字列をそのまま返す（pydantic-ai が解決）
+モデル文字列のプレフィックスに基づき、pydantic-ai Agent に渡す model 引数を解決する。
 - claudecode: ClaudeCodeModel インスタンスを生成して返す
+- anthropic: モデル文字列をそのまま返す（pydantic-ai が解決）
 """
 
 from __future__ import annotations
@@ -12,37 +12,39 @@ import os
 from claudecode_model import ClaudeCodeModel
 from pydantic_ai.models import Model
 
-from hachimoku.models.config import Provider
-
 _ANTHROPIC_PREFIX: str = "anthropic:"
+_CLAUDECODE_PREFIX: str = "claudecode:"
 
 
-def resolve_model(model: str, provider: Provider) -> str | Model:
-    """プロバイダーに応じてモデル文字列を解決する。
+def resolve_model(model: str) -> str | Model:
+    """モデル文字列のプレフィックスに基づきプロバイダーを解決する。
 
     Args:
-        model: モデル名文字列（例: "anthropic:claude-sonnet-4-5"）。
-        provider: 使用するプロバイダー。
+        model: プレフィックス付きモデル名文字列
+            （例: ``"claudecode:claude-sonnet-4-5"``, ``"anthropic:claude-sonnet-4-5"``）。
 
     Returns:
-        anthropic の場合: モデル文字列をそのまま返す。
-        claudecode の場合: ``anthropic:`` プレフィックスを除去し
+        claudecode の場合: ``claudecode:`` プレフィックスを除去し
             ClaudeCodeModel インスタンスを返す。
+        anthropic の場合: モデル文字列をそのまま返す。
 
     Raises:
-        ValueError: anthropic プロバイダーで ANTHROPIC_API_KEY が未設定の場合。
-        ValueError: 未知のプロバイダーが指定された場合。
+        ValueError: anthropic プレフィックスで ANTHROPIC_API_KEY が未設定の場合。
+        ValueError: 未知のプレフィックスが指定された場合。
     """
-    if provider == Provider.ANTHROPIC:
+    if model.startswith(_CLAUDECODE_PREFIX):
+        bare_name = model.removeprefix(_CLAUDECODE_PREFIX)
+        return ClaudeCodeModel(model_name=bare_name)
+
+    if model.startswith(_ANTHROPIC_PREFIX):
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise ValueError(
                 "ANTHROPIC_API_KEY environment variable is required when using "
-                "provider='anthropic'. Set it with: export ANTHROPIC_API_KEY='your-key'"
+                "model prefix 'anthropic:'. Set it with: export ANTHROPIC_API_KEY='your-key'"
             )
         return model
 
-    if provider == Provider.CLAUDECODE:
-        bare_name = model.removeprefix(_ANTHROPIC_PREFIX)
-        return ClaudeCodeModel(model_name=bare_name)
-
-    raise ValueError(f"Unsupported provider: {provider!r}")
+    raise ValueError(
+        f"Unknown model prefix in '{model}'. "
+        "Use 'claudecode:model-name' or 'anthropic:model-name'."
+    )

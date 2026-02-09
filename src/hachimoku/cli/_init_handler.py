@@ -39,8 +39,8 @@ _CONFIG_TEMPLATE: str = """\
 
 # --- Execution Settings ---
 
-# LLM model name
-# model = "anthropic:claude-sonnet-4-5"
+# LLM model name (prefix: "claudecode:" or "anthropic:")
+# model = "claudecode:claude-sonnet-4-5"
 
 # Timeout in seconds
 # timeout = 600
@@ -50,9 +50,6 @@ _CONFIG_TEMPLATE: str = """\
 
 # Enable parallel execution
 # parallel = true
-
-# LLM provider: "claudecode" or "anthropic"
-# provider = "claudecode"
 
 # Base branch for diff mode
 # base_branch = "main"
@@ -76,10 +73,9 @@ _CONFIG_TEMPLATE: str = """\
 # --- Selector Agent Settings ---
 
 # [selector]
-# model = "anthropic:claude-sonnet-4-5"
+# model = "claudecode:claude-sonnet-4-5"
 # timeout = 600
 # max_turns = 20
-# provider = "claudecode"
 # allowed_tools = ["git_read", "gh_read", "file_read"]
 
 # --- Agent-Specific Settings ---
@@ -88,10 +84,9 @@ _CONFIG_TEMPLATE: str = """\
 #
 # [agents.code-reviewer]
 # enabled = true
-# model = "anthropic:claude-sonnet-4-5"
+# model = "claudecode:claude-sonnet-4-5"
 # timeout = 600
 # max_turns = 20
-# provider = "claudecode"
 """
 
 

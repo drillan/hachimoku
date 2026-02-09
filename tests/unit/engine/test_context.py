@@ -11,7 +11,7 @@ from pydantic_ai import Tool
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
 from hachimoku.engine._context import AgentExecutionContext, build_execution_context
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.config import AgentConfig, HachimokuConfig, Provider
+from hachimoku.models.config import AgentConfig, HachimokuConfig
 from hachimoku.models.schemas._base import BaseAgentOutput
 
 
@@ -55,7 +55,6 @@ class TestAgentExecutionContextValid:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="You are a test agent.",
             user_message="Review this code.",
             output_schema=agent.resolved_schema,
@@ -78,7 +77,6 @@ class TestAgentExecutionContextValid:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="prompt",
             user_message="message",
             output_schema=agent.resolved_schema,
@@ -95,7 +93,6 @@ class TestAgentExecutionContextValid:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="prompt",
             user_message="message",
             output_schema=agent.resolved_schema,
@@ -113,7 +110,6 @@ class TestAgentExecutionContextValid:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="prompt",
             user_message="message",
             output_schema=agent.resolved_schema,
@@ -130,7 +126,6 @@ class TestAgentExecutionContextValid:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="prompt",
             user_message="message",
             output_schema=agent.resolved_schema,
@@ -157,7 +152,6 @@ class TestAgentExecutionContextConstraints:
             AgentExecutionContext(
                 agent_name="test-agent",
                 model="sonnet",
-                provider=Provider.CLAUDECODE,
                 system_prompt="prompt",
                 user_message="message",
                 output_schema=agent.resolved_schema,
@@ -175,7 +169,6 @@ class TestAgentExecutionContextConstraints:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="prompt",
             user_message="message",
             output_schema=agent.resolved_schema,
@@ -193,7 +186,6 @@ class TestAgentExecutionContextConstraints:
             AgentExecutionContext(
                 agent_name="test-agent",
                 model="sonnet",
-                provider=Provider.CLAUDECODE,
                 system_prompt="prompt",
                 user_message="message",
                 output_schema=agent.resolved_schema,
@@ -210,7 +202,6 @@ class TestAgentExecutionContextConstraints:
             AgentExecutionContext(
                 agent_name="test-agent",
                 model="sonnet",
-                provider=Provider.CLAUDECODE,
                 system_prompt="prompt",
                 user_message="message",
                 output_schema=agent.resolved_schema,
@@ -227,7 +218,6 @@ class TestAgentExecutionContextConstraints:
             AgentExecutionContext(
                 agent_name="test-agent",
                 model="sonnet",
-                provider=Provider.CLAUDECODE,
                 system_prompt="prompt",
                 user_message="message",
                 output_schema=agent.resolved_schema,
@@ -244,7 +234,6 @@ class TestAgentExecutionContextConstraints:
             AgentExecutionContext(
                 agent_name="test-agent",
                 model="sonnet",
-                provider=Provider.CLAUDECODE,
                 system_prompt="prompt",
                 user_message="message",
                 output_schema=agent.resolved_schema,
@@ -262,7 +251,6 @@ class TestAgentExecutionContextConstraints:
         ctx = AgentExecutionContext(
             agent_name="test-agent",
             model="sonnet",
-            provider=Provider.CLAUDECODE,
             system_prompt="prompt",
             user_message="message",
             output_schema=agent.resolved_schema,
@@ -648,7 +636,7 @@ class TestBuildExecutionContextPhaseVariants:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.model == "anthropic:claude-sonnet-4-5"
+        assert ctx.model == "claudecode:claude-sonnet-4-5"
         assert ctx.timeout_seconds == 600
         assert ctx.max_turns == 20
 
@@ -675,53 +663,3 @@ class TestBuildExecutionContextPhaseVariants:
             resolved_tools=(),
         )
         assert ctx.phase == Phase.FINAL
-
-
-# =============================================================================
-# build_execution_context — provider 優先順解決
-# =============================================================================
-
-
-class TestBuildExecutionContextProviderResolution:
-    """provider フィールドの優先順解決を検証。"""
-
-    def test_provider_from_global_config_when_no_agent_config(self) -> None:
-        """agent_config=None の場合、global_config.provider が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(provider="claudecode")  # type: ignore[arg-type]
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=None,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.provider == Provider.CLAUDECODE
-
-    def test_provider_from_global_config_when_agent_provider_is_none(self) -> None:
-        """agent_config.provider=None の場合、global_config.provider が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(provider="anthropic")  # type: ignore[arg-type]
-        agent_cfg = AgentConfig(provider=None)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.provider == Provider.ANTHROPIC
-
-    def test_provider_from_agent_config_overrides_global(self) -> None:
-        """agent_config.provider が global_config.provider を上書きする。"""
-        agent = _make_agent()
-        config = HachimokuConfig(provider="claudecode")  # type: ignore[arg-type]
-        agent_cfg = AgentConfig(provider="anthropic")  # type: ignore[arg-type]
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.provider == Provider.ANTHROPIC

@@ -57,7 +57,7 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
     start_time = time.monotonic()
 
     try:
-        resolved = resolve_model(context.model, context.provider)
+        resolved = resolve_model(context.model)
         agent = Agent(
             model=resolved,
             output_type=context.output_schema,

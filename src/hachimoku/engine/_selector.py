@@ -21,7 +21,7 @@ from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.config import Provider, SelectorConfig
+from hachimoku.models.config import SelectorConfig
 
 SELECTOR_SYSTEM_PROMPT: Final[str] = (
     "You are an agent selector for code review. "
@@ -61,16 +61,15 @@ async def run_selector(
     global_model: str,
     global_timeout: int,
     global_max_turns: int,
-    global_provider: Provider,
     resolved_content: str,
 ) -> SelectorOutput:
     """セレクターエージェントを実行し、実行すべきエージェントを選択する。
 
     実行フロー:
-        1. SelectorConfig からモデル・プロバイダー・タイムアウト・ターン数を解決
+        1. SelectorConfig からモデル・タイムアウト・ターン数を解決
         2. ToolCatalog から SelectorConfig.allowed_tools のツールを解決
         3. build_selector_instruction() でユーザーメッセージを構築（事前解決済みコンテンツ埋め込み）
-        4. resolve_model() でプロバイダーに応じたモデルオブジェクトを生成
+        4. resolve_model() でプレフィックスに応じたモデルオブジェクトを生成
         5. pydantic-ai Agent(output_type=SelectorOutput) を構築
         6. asyncio.timeout() + UsageLimits でエージェントを実行
         7. SelectorOutput を返す
@@ -82,7 +81,6 @@ async def run_selector(
         global_model: グローバルモデル名。
         global_timeout: グローバルタイムアウト秒数。
         global_max_turns: グローバル最大ターン数。
-        global_provider: グローバル LLM プロバイダー。
         resolved_content: 事前解決されたコンテンツ（diff テキスト、ファイル内容等）。
 
     Returns:
@@ -102,11 +100,6 @@ async def run_selector(
         if selector_config.max_turns is not None
         else global_max_turns
     )
-    provider = (
-        selector_config.provider
-        if selector_config.provider is not None
-        else global_provider
-    )
 
     try:
         tool_categories = tuple(str(t) for t in selector_config.allowed_tools)
@@ -115,7 +108,7 @@ async def run_selector(
             target, available_agents, resolved_content
         )
 
-        resolved = resolve_model(model, provider)
+        resolved = resolve_model(model)
         agent = Agent(
             model=resolved,
             output_type=SelectorOutput,

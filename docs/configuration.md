@@ -32,11 +32,10 @@ hachimoku は TOML ベースの階層的な設定システムを提供します�
 
 ```{code-block} toml
 # 実行設定
-model = "anthropic:claude-sonnet-4-5"
-timeout = 300
-max_turns = 10
+model = "claudecode:claude-sonnet-4-5"  # プレフィックスでプロバイダーを指定
+timeout = 600
+max_turns = 20
 parallel = true
-provider = "claudecode"
 base_branch = "main"
 
 # 出力設定
@@ -49,18 +48,16 @@ max_files_per_review = 100
 
 # セレクターエージェント設定
 [selector]
-model = "anthropic:claude-haiku-4-5"
-timeout = 300
-max_turns = 10
-provider = "claudecode"
+model = "claudecode:claude-haiku-4-5"
+timeout = 600
+max_turns = 20
 
 # エージェント個別設定
 [agents.code-reviewer]
 enabled = true
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-sonnet-4-5"  # anthropic: プレフィックスで API 直接呼び出し
 timeout = 600
 max_turns = 15
-provider = "anthropic"
 
 [agents.comment-analyzer]
 enabled = false
@@ -83,11 +80,10 @@ parallel = false
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
-| `model` | `str` | `"anthropic:claude-sonnet-4-5"` | 空文字不可 | 使用する LLM モデル名 |
-| `timeout` | `int` | `300` | 正の値 | エージェントのタイムアウト（秒） |
-| `max_turns` | `int` | `10` | 正の値 | エージェントの最大ターン数 |
+| `model` | `str` | `"claudecode:claude-sonnet-4-5"` | 空文字不可、プレフィックス必須 | 使用する LLM モデル名（`claudecode:` or `anthropic:` プレフィックスでプロバイダーを指定） |
+| `timeout` | `int` | `600` | 正の値 | エージェントのタイムアウト（秒） |
+| `max_turns` | `int` | `20` | 正の値 | エージェントの最大ターン数 |
 | `parallel` | `bool` | `true` | - | 並列実行の有効化 |
-| `provider` | `str` | `"claudecode"` | `"claudecode"` or `"anthropic"` | LLM プロバイダー |
 | `base_branch` | `str` | `"main"` | 空文字不可 | diff モードの基準ブランチ |
 | `output_format` | `str` | `"markdown"` | `"markdown"` or `"json"` | 出力形式 |
 | `save_reviews` | `bool` | `true` | - | レビュー履歴の JSONL 保存（後述） |
@@ -99,27 +95,25 @@ parallel = false
 ### SelectorConfig
 
 セレクターエージェントの設定上書きです。
-`model`、`provider`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
-| `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き |
+| `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き（プレフィックスでプロバイダー指定） |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
-| `provider` | `str \| None` | `None` | `"claudecode"` or `"anthropic"` | プロバイダーの上書き |
 
 ### AgentConfig
 
 エージェントごとの個別設定です。
-`model`、`provider`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
 | `enabled` | `bool` | `true` | - | エージェントの有効/無効 |
-| `model` | `str \| None` | `None` | 空文字不可 | モデル名 |
+| `model` | `str \| None` | `None` | 空文字不可 | モデル名（プレフィックスでプロバイダー指定） |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
-| `provider` | `str \| None` | `None` | `"claudecode"` or `"anthropic"` | プロバイダーの上書き |
 
 エージェント名は `[agents.<name>]` 形式で指定し、`^[a-z0-9-]+$` パターンに一致する必要があります。
 
@@ -183,7 +177,7 @@ config = resolve_config(
     cli_overrides={"timeout": 600, "parallel": False},
 )
 
-print(config.model)      # "anthropic:claude-sonnet-4-5"
+print(config.model)      # "claudecode:claude-sonnet-4-5"
 print(config.timeout)    # 600（CLI オーバーライドが適用）
 print(config.parallel)   # False（CLI オーバーライドが適用）
 ```
