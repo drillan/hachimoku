@@ -18,6 +18,7 @@ from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.engine._context import AgentExecutionContext
+from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.models.agent_result import (
     AgentError,
     AgentResult,
@@ -55,8 +56,9 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
     start_time = time.monotonic()
 
     try:
+        resolved = resolve_model(context.model, context.provider)
         agent = Agent(
-            model=context.model,
+            model=resolved,
             output_type=context.output_schema,
             tools=list(context.tools),
             system_prompt=context.system_prompt,

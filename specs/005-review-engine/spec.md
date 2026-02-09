@@ -202,6 +202,7 @@
 
 - **FR-RE-007**: システムは各エージェントの実行コンテキストを以下の情報から構築しなければならない:
   - **モデル**: エージェント個別設定 > グローバル設定 > デフォルト値の優先順で解決
+  - **プロバイダー**: エージェント個別設定 > グローバル設定 > デフォルト値（`"claudecode"`）の優先順で解決。Agent 構築直前に `resolve_model()` で pydantic-ai の `Model` オブジェクトに変換する。`claudecode` の場合は `ClaudeCodeModel`、`anthropic` の場合はモデル名文字列をそのまま使用する（Issue #123）
   - **ツール**: エージェント定義の `allowed_tools` のカテゴリ名を ToolCatalog 経由で pydantic-ai ツールに解決（FR-RE-016）
   - **出力スキーマ**: エージェント定義の `output_schema` から SCHEMA_REGISTRY 経由で解決（002-domain-models）。pydantic-ai の `output_type` に設定する
   - **システムプロンプト**: エージェント定義の `system_prompt`

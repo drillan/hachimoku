@@ -17,9 +17,10 @@ from pydantic_ai.usage import UsageLimits
 from hachimoku.agents.models import AgentDefinition
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._instruction import build_selector_instruction
+from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.config import SelectorConfig
+from hachimoku.models.config import Provider, SelectorConfig
 
 SELECTOR_SYSTEM_PROMPT: Final[str] = (
     "You are an agent selector for code review. "
@@ -59,16 +60,18 @@ async def run_selector(
     global_model: str,
     global_timeout: int,
     global_max_turns: int,
+    global_provider: Provider,
 ) -> SelectorOutput:
     """セレクターエージェントを実行し、実行すべきエージェントを選択する。
 
     実行フロー:
-        1. SelectorConfig からモデル・タイムアウト・ターン数を解決
+        1. SelectorConfig からモデル・プロバイダー・タイムアウト・ターン数を解決
         2. ToolCatalog から SelectorConfig.allowed_tools のツールを解決
         3. build_selector_instruction() でユーザーメッセージを構築
-        4. pydantic-ai Agent(output_type=SelectorOutput) を構築
-        5. asyncio.timeout() + UsageLimits でエージェントを実行
-        6. SelectorOutput を返す
+        4. resolve_model() でプロバイダーに応じたモデルオブジェクトを生成
+        5. pydantic-ai Agent(output_type=SelectorOutput) を構築
+        6. asyncio.timeout() + UsageLimits でエージェントを実行
+        7. SelectorOutput を返す
 
     Args:
         target: レビュー対象。
@@ -77,6 +80,7 @@ async def run_selector(
         global_model: グローバルモデル名。
         global_timeout: グローバルタイムアウト秒数。
         global_max_turns: グローバル最大ターン数。
+        global_provider: グローバル LLM プロバイダー。
 
     Returns:
         SelectorOutput: 選択されたエージェント名リストと選択理由。
@@ -95,14 +99,20 @@ async def run_selector(
         if selector_config.max_turns is not None
         else global_max_turns
     )
+    provider = (
+        selector_config.provider
+        if selector_config.provider is not None
+        else global_provider
+    )
 
     try:
         tool_categories = tuple(str(t) for t in selector_config.allowed_tools)
         tools = resolve_tools(tool_categories)
         user_message = build_selector_instruction(target, available_agents)
 
+        resolved = resolve_model(model, provider)
         agent = Agent(
-            model=model,
+            model=resolved,
             output_type=SelectorOutput,
             tools=list(tools),
             system_prompt=SELECTOR_SYSTEM_PROMPT,

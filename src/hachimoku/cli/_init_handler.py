@@ -51,6 +51,9 @@ _CONFIG_TEMPLATE: str = """\
 # Enable parallel execution
 # parallel = true
 
+# LLM provider: "claudecode" or "anthropic"
+# provider = "claudecode"
+
 # Base branch for diff mode
 # base_branch = "main"
 
@@ -76,6 +79,7 @@ _CONFIG_TEMPLATE: str = """\
 # model = "anthropic:claude-sonnet-4-5"
 # timeout = 300
 # max_turns = 10
+# provider = "claudecode"
 # allowed_tools = ["git_read", "gh_read", "file_read"]
 
 # --- Agent-Specific Settings ---
@@ -87,6 +91,7 @@ _CONFIG_TEMPLATE: str = """\
 # model = "anthropic:claude-sonnet-4-5"
 # timeout = 300
 # max_turns = 10
+# provider = "claudecode"
 """
 
 

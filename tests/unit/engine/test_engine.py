@@ -44,7 +44,7 @@ from hachimoku.models.agent_result import (
     AgentTimeout,
     AgentTruncated,
 )
-from hachimoku.models.config import HachimokuConfig
+from hachimoku.models.config import HachimokuConfig, Provider
 from hachimoku.models.report import ReviewReport
 from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity
@@ -529,6 +529,32 @@ class TestRunReviewPipeline:
         assert result.exit_code != 3
         # truncated の issues が空 → max_severity=None → exit_code=0
         assert result.exit_code == 0
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_provider_passed_to_selector(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """config.provider が run_selector に global_provider として渡される。"""
+        config = HachimokuConfig(provider=Provider.ANTHROPIC)
+        mock_config.return_value = config
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        call_kwargs = mock_selector.call_args.kwargs
+        assert call_kwargs["global_provider"] == Provider.ANTHROPIC
 
 
 # =============================================================================

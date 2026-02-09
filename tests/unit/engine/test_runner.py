@@ -14,6 +14,7 @@ from pydantic_ai import Tool
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
+from hachimoku.models.config import Provider
 from hachimoku.engine._runner import run_agent
 from hachimoku.models.agent_result import (
     AgentError,
@@ -37,6 +38,7 @@ def _make_context(
     return AgentExecutionContext(
         agent_name=agent_name,
         model="test",
+        provider=Provider.CLAUDECODE,
         system_prompt="You are a test review agent.",
         user_message="Review this code.",
         output_schema=schema_cls,
@@ -65,27 +67,31 @@ def _make_dummy_tool() -> Tool[None]:
 class TestRunAgentSuccess:
     """run_agent が AgentSuccess を返すケースのテスト。"""
 
-    async def test_success_returns_agent_success(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_success_returns_agent_success(self, _: MagicMock) -> None:
         """正常完了時に AgentSuccess が返される。"""
         ctx = _make_context()
         result = await run_agent(ctx)
         assert isinstance(result, AgentSuccess)
 
-    async def test_agent_name_propagated(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_agent_name_propagated(self, _: MagicMock) -> None:
         """context.agent_name が結果に反映される。"""
         ctx = _make_context(agent_name="my-reviewer")
         result = await run_agent(ctx)
         assert isinstance(result, AgentSuccess)
         assert result.agent_name == "my-reviewer"
 
-    async def test_elapsed_time_positive(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_elapsed_time_positive(self, _: MagicMock) -> None:
         """elapsed_time が正の値である。"""
         ctx = _make_context()
         result = await run_agent(ctx)
         assert isinstance(result, AgentSuccess)
         assert result.elapsed_time > 0
 
-    async def test_cost_info_present(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_cost_info_present(self, _: MagicMock) -> None:
         """CostInfo がトークン数を含む。"""
         ctx = _make_context()
         result = await run_agent(ctx)
@@ -94,7 +100,8 @@ class TestRunAgentSuccess:
         assert result.cost.input_tokens >= 0
         assert result.cost.output_tokens >= 0
 
-    async def test_issues_list_returned(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_issues_list_returned(self, _: MagicMock) -> None:
         """出力の issues リストが結果に含まれる。"""
         ctx = _make_context()
         result = await run_agent(ctx)
@@ -143,14 +150,16 @@ class TestRunAgentTimeout:
 class TestRunAgentTruncated:
     """run_agent がターン数制限到達時に AgentTruncated を返すケースのテスト。"""
 
-    async def test_usage_limit_returns_truncated(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_usage_limit_returns_truncated(self, _: MagicMock) -> None:
         """request_limit=1 + ツール呼び出し強制で AgentTruncated が返される。"""
         tool = _make_dummy_tool()
         ctx = _make_context(max_turns=1, tools=(tool,))
         result = await run_agent(ctx)
         assert isinstance(result, AgentTruncated)
 
-    async def test_truncated_has_empty_issues(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_truncated_has_empty_issues(self, _: MagicMock) -> None:
         """AgentTruncated の issues リストは空（R-003）。"""
         tool = _make_dummy_tool()
         ctx = _make_context(max_turns=1, tools=(tool,))
@@ -158,7 +167,8 @@ class TestRunAgentTruncated:
         assert isinstance(result, AgentTruncated)
         assert result.issues == []
 
-    async def test_truncated_turns_consumed(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_truncated_turns_consumed(self, _: MagicMock) -> None:
         """AgentTruncated の turns_consumed が max_turns と一致する。"""
         tool = _make_dummy_tool()
         ctx = _make_context(max_turns=1, tools=(tool,))
@@ -166,7 +176,8 @@ class TestRunAgentTruncated:
         assert isinstance(result, AgentTruncated)
         assert result.turns_consumed == 1
 
-    async def test_truncated_agent_name(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_truncated_agent_name(self, _: MagicMock) -> None:
         """AgentTruncated の agent_name が context と一致する。"""
         tool = _make_dummy_tool()
         ctx = _make_context(agent_name="truncated-agent", max_turns=1, tools=(tool,))
@@ -183,13 +194,15 @@ class TestRunAgentTruncated:
 class TestRunAgentError:
     """run_agent が例外時に AgentError を返すケースのテスト。"""
 
-    async def test_exception_returns_agent_error(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_exception_returns_agent_error(self, _: MagicMock) -> None:
         """不正なモデル名で AgentError が返される。"""
         ctx = _make_context()
         # model フィールドを不正な値に差し替え（frozen なので新しいオブジェクトを作る）
         bad_ctx = AgentExecutionContext(
             agent_name=ctx.agent_name,
             model="nonexistent-model-that-will-fail",
+            provider=Provider.CLAUDECODE,
             system_prompt=ctx.system_prompt,
             user_message=ctx.user_message,
             output_schema=ctx.output_schema,
@@ -201,11 +214,13 @@ class TestRunAgentError:
         result = await run_agent(bad_ctx)
         assert isinstance(result, AgentError)
 
-    async def test_error_has_agent_name(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_error_has_agent_name(self, _: MagicMock) -> None:
         """AgentError の agent_name が context と一致する。"""
         bad_ctx = AgentExecutionContext(
             agent_name="error-agent",
             model="nonexistent-model-that-will-fail",
+            provider=Provider.CLAUDECODE,
             system_prompt="test",
             user_message="test",
             output_schema=get_schema("scored_issues"),
@@ -218,11 +233,13 @@ class TestRunAgentError:
         assert isinstance(result, AgentError)
         assert result.agent_name == "error-agent"
 
-    async def test_error_message_not_empty(self) -> None:
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    async def test_error_message_not_empty(self, _: MagicMock) -> None:
         """AgentError の error_message が空でない。"""
         bad_ctx = AgentExecutionContext(
             agent_name="error-agent",
             model="nonexistent-model-that-will-fail",
+            provider=Provider.CLAUDECODE,
             system_prompt="test",
             user_message="test",
             output_schema=get_schema("scored_issues"),
@@ -264,3 +281,47 @@ class TestRunAgentSchemaViolation:
         assert isinstance(result, AgentError)
         assert result.agent_name == "schema-fail-agent"
         assert len(result.error_message) > 0
+
+
+# =============================================================================
+# run_agent — resolve_model 統合
+# =============================================================================
+
+
+class TestRunAgentResolveModel:
+    """run_agent が resolve_model を呼び出して Agent を構築するテスト。"""
+
+    @patch("hachimoku.engine._runner.resolve_model")
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_resolve_model_called_with_context_values(
+        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+    ) -> None:
+        """resolve_model が context.model と context.provider で呼ばれる。"""
+        mock_resolve.return_value = "resolved-model"
+        mock_result = MagicMock()
+        mock_result.output.issues = []
+        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+
+        ctx = _make_context()
+        await run_agent(ctx)
+
+        mock_resolve.assert_called_once_with("test", Provider.CLAUDECODE)
+
+    @patch("hachimoku.engine._runner.resolve_model")
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_resolved_model_passed_to_agent(
+        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+    ) -> None:
+        """resolve_model の戻り値が Agent(model=...) に渡される。"""
+        mock_resolve.return_value = "resolved-model"
+        mock_result = MagicMock()
+        mock_result.output.issues = []
+        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+
+        ctx = _make_context()
+        await run_agent(ctx)
+
+        mock_agent_cls.assert_called_once()
+        assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"

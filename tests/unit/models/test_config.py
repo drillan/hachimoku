@@ -13,6 +13,7 @@ from hachimoku.models.config import (
     AgentConfig,
     HachimokuConfig,
     OutputFormat,
+    Provider,
     SelectorConfig,
 )
 from hachimoku.models.tool_category import ToolCategory
@@ -55,6 +56,42 @@ class TestOutputFormat:
 
 
 # =============================================================================
+# T003b: Provider
+# =============================================================================
+
+
+class TestProvider:
+    """Provider StrEnum のテスト。"""
+
+    def test_claudecode_value(self) -> None:
+        """CLAUDECODE メンバーの値が "claudecode" であること。"""
+        assert Provider.CLAUDECODE == "claudecode"
+        assert Provider.CLAUDECODE.value == "claudecode"
+
+    def test_anthropic_value(self) -> None:
+        """ANTHROPIC メンバーの値が "anthropic" であること。"""
+        assert Provider.ANTHROPIC == "anthropic"
+        assert Provider.ANTHROPIC.value == "anthropic"
+
+    def test_from_string_claudecode(self) -> None:
+        """文字列 "claudecode" から Provider を構築できること。"""
+        assert Provider("claudecode") is Provider.CLAUDECODE
+
+    def test_from_string_anthropic(self) -> None:
+        """文字列 "anthropic" から Provider を構築できること。"""
+        assert Provider("anthropic") is Provider.ANTHROPIC
+
+    def test_invalid_value_raises(self) -> None:
+        """無効な値で ValueError が発生すること。"""
+        with pytest.raises(ValueError, match="is not a valid"):
+            Provider("openai")
+
+    def test_member_count(self) -> None:
+        """メンバーが 2 つであること。"""
+        assert len(Provider) == 2
+
+
+# =============================================================================
 # T004: AgentConfig
 # =============================================================================
 
@@ -81,6 +118,10 @@ class TestAgentConfigDefaults:
         """max_turns のデフォルトが None であること。"""
         config = AgentConfig()
         assert config.max_turns is None
+
+    def test_default_provider(self) -> None:
+        """provider のデフォルトが None であること。"""
+        assert AgentConfig().provider is None
 
 
 class TestAgentConfigValidation:
@@ -141,6 +182,16 @@ class TestAgentConfigValidation:
         with pytest.raises(ValidationError, match="enabled"):
             AgentConfig(enabled=1)  # type: ignore[arg-type]
 
+    def test_provider_valid_accepted(self) -> None:
+        """provider に有効な値を渡すと設定されること。"""
+        config = AgentConfig(provider="anthropic")  # type: ignore[arg-type]
+        assert config.provider == Provider.ANTHROPIC
+
+    def test_provider_invalid_rejected(self) -> None:
+        """provider に無効な値を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="provider"):
+            AgentConfig(provider="openai")  # type: ignore[arg-type]
+
 
 class TestAgentConfigFrozen:
     """AgentConfig の frozen=True テスト。"""
@@ -195,6 +246,10 @@ class TestHachimokuConfigDefaults:
 
     def test_default_agents(self) -> None:
         assert HachimokuConfig().agents == {}
+
+    def test_default_provider(self) -> None:
+        """provider のデフォルトが CLAUDECODE であること。"""
+        assert HachimokuConfig().provider == Provider.CLAUDECODE
 
 
 class TestHachimokuConfigValidation:
@@ -261,6 +316,21 @@ class TestHachimokuConfigValidation:
         """show_cost に整数を渡すと ValidationError が発生すること。"""
         with pytest.raises(ValidationError, match="show_cost"):
             HachimokuConfig(show_cost=0)  # type: ignore[arg-type]
+
+    def test_provider_anthropic_accepted(self) -> None:
+        """provider に "anthropic" を渡すと設定されること。"""
+        config = HachimokuConfig(provider="anthropic")  # type: ignore[arg-type]
+        assert config.provider == Provider.ANTHROPIC
+
+    def test_provider_claudecode_accepted(self) -> None:
+        """provider に "claudecode" を渡すと設定されること。"""
+        config = HachimokuConfig(provider="claudecode")  # type: ignore[arg-type]
+        assert config.provider == Provider.CLAUDECODE
+
+    def test_provider_invalid_rejected(self) -> None:
+        """provider に無効な値を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="provider"):
+            HachimokuConfig(provider="openai")  # type: ignore[arg-type]
 
 
 class TestHachimokuConfigAgents:
@@ -341,6 +411,10 @@ class TestSelectorConfigDefaults:
         """allowed_tools のデフォルトが [git_read, gh_read, file_read] であること。"""
         assert SelectorConfig().allowed_tools == _DEFAULT_ALLOWED_TOOLS
 
+    def test_default_provider(self) -> None:
+        """provider のデフォルトが None であること。"""
+        assert SelectorConfig().provider is None
+
 
 class TestSelectorConfigValidation:
     """SelectorConfig のバリデーションテスト (FR-CF-004)。"""
@@ -396,6 +470,16 @@ class TestSelectorConfigValidation:
         """allowed_tools にカスタムサブセットを渡すと設定されること。"""
         config = SelectorConfig(allowed_tools=["git_read", "file_read"])  # type: ignore[list-item]
         assert config.allowed_tools == [ToolCategory.GIT_READ, ToolCategory.FILE_READ]
+
+    def test_provider_valid_accepted(self) -> None:
+        """provider に有効な値を渡すと設定されること。"""
+        config = SelectorConfig(provider="anthropic")  # type: ignore[arg-type]
+        assert config.provider == Provider.ANTHROPIC
+
+    def test_provider_invalid_rejected(self) -> None:
+        """provider に無効な値を渡すと ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="provider"):
+            SelectorConfig(provider="openai")  # type: ignore[arg-type]
 
     def test_extra_field_rejected(self) -> None:
         """未知のキーを渡すと ValidationError が発生すること。"""

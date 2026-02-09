@@ -11,7 +11,7 @@ from pydantic_ai import Tool
 
 from hachimoku.agents.models import AgentDefinition, Phase
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.config import AgentConfig, HachimokuConfig
+from hachimoku.models.config import AgentConfig, HachimokuConfig, Provider
 from hachimoku.models.schemas._base import BaseAgentOutput
 
 # pydantic-ai の Tool[None] は内部ジェネリック型 (ToolFuncEither[ToolAgentDepsT]) が
@@ -30,6 +30,7 @@ class AgentExecutionContext(HachimokuBaseModel):
     Attributes:
         agent_name: エージェント名。
         model: 解決済みモデル名（個別設定 > グローバル > デフォルト）。
+        provider: 解決済み LLM プロバイダー（個別設定 > グローバル > デフォルト）。
         system_prompt: エージェント定義のシステムプロンプト。
         user_message: レビュー指示情報 + オプションコンテキスト。
         output_schema: 解決済み出力スキーマクラス。
@@ -43,6 +44,7 @@ class AgentExecutionContext(HachimokuBaseModel):
 
     agent_name: str
     model: str
+    provider: Provider
     system_prompt: str
     user_message: str
     output_schema: type[BaseAgentOutput]
@@ -72,8 +74,8 @@ def build_execution_context(
     """AgentDefinition と設定からエージェント実行コンテキストを構築する。
 
     設定値の解決優先順（FR-RE-004）:
-        1. エージェント個別設定（agents.<name>.model / timeout / max_turns）
-        2. グローバル設定（HachimokuConfig.model / timeout / max_turns）
+        1. エージェント個別設定（agents.<name>.model / provider / timeout / max_turns）
+        2. グローバル設定（HachimokuConfig.model / provider / timeout / max_turns）
         3. デフォルト値（HachimokuConfig のフィールドデフォルト）
 
     Args:
@@ -92,6 +94,11 @@ def build_execution_context(
             agent_config.model
             if agent_config is not None and agent_config.model is not None
             else global_config.model
+        ),
+        provider=(
+            agent_config.provider
+            if agent_config is not None and agent_config.provider is not None
+            else global_config.provider
         ),
         system_prompt=agent_def.system_prompt,
         user_message=user_message,
