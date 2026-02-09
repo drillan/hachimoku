@@ -18,6 +18,8 @@ from hachimoku.models.schemas._base import BaseAgentOutput
 def _make_agent(
     name: str = "test-agent",
     phase: Phase = Phase.MAIN,
+    max_turns: int | None = None,
+    timeout: int | None = None,
 ) -> AgentDefinition:
     """テスト用 AgentDefinition を生成するヘルパー。"""
     return AgentDefinition(  # type: ignore[call-arg]
@@ -28,6 +30,8 @@ def _make_agent(
         system_prompt="You are a test agent.",
         applicability=ApplicabilityRule(always=True),
         phase=phase,
+        max_turns=max_turns,
+        timeout=timeout,
     )
 
 
@@ -452,6 +456,47 @@ class TestBuildExecutionContextTimeoutResolution:
         )
         assert ctx.timeout_seconds == 60
 
+    def test_timeout_from_agent_def_when_no_agent_config(self) -> None:
+        """agent_def.timeout が agent_config=None 時に使用される。"""
+        agent = _make_agent(timeout=900)
+        config = HachimokuConfig(timeout=600)
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.timeout_seconds == 900
+
+    def test_timeout_from_agent_def_when_agent_timeout_is_none(self) -> None:
+        """agent_def.timeout が agent_config.timeout=None 時に使用される。"""
+        agent = _make_agent(timeout=900)
+        config = HachimokuConfig(timeout=600)
+        agent_cfg = AgentConfig(timeout=None)
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=agent_cfg,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.timeout_seconds == 900
+
+    def test_timeout_agent_config_overrides_agent_def(self) -> None:
+        """agent_config.timeout が agent_def.timeout より優先される。"""
+        agent = _make_agent(timeout=900)
+        config = HachimokuConfig(timeout=600)
+        agent_cfg = AgentConfig(timeout=120)
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=agent_cfg,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.timeout_seconds == 120
+
 
 # =============================================================================
 # build_execution_context — max_turns 優先順解決
@@ -462,7 +507,7 @@ class TestBuildExecutionContextMaxTurnsResolution:
     """max_turns フィールドの優先順解決を検証（FR-RE-004）。"""
 
     def test_max_turns_from_global_config_when_no_agent_config(self) -> None:
-        """agent_config=None の場合、global_config.max_turns が使用される。"""
+        """agent_config=None かつ agent_def.max_turns=None の場合、global が使用される。"""
         agent = _make_agent()
         config = HachimokuConfig(max_turns=20)
         ctx = build_execution_context(
@@ -475,7 +520,7 @@ class TestBuildExecutionContextMaxTurnsResolution:
         assert ctx.max_turns == 20
 
     def test_max_turns_from_global_config_when_agent_max_turns_is_none(self) -> None:
-        """agent_config.max_turns=None の場合、global_config.max_turns が使用される。"""
+        """agent_config.max_turns=None かつ agent_def.max_turns=None の場合、global が使用される。"""
         agent = _make_agent()
         config = HachimokuConfig(max_turns=20)
         agent_cfg = AgentConfig(max_turns=None)
@@ -502,6 +547,47 @@ class TestBuildExecutionContextMaxTurnsResolution:
         )
         assert ctx.max_turns == 5
 
+    def test_max_turns_from_agent_def_when_no_agent_config(self) -> None:
+        """agent_def.max_turns が agent_config=None 時に使用される。"""
+        agent = _make_agent(max_turns=25)
+        config = HachimokuConfig(max_turns=20)
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.max_turns == 25
+
+    def test_max_turns_from_agent_def_when_agent_max_turns_is_none(self) -> None:
+        """agent_def.max_turns が agent_config.max_turns=None 時に使用される。"""
+        agent = _make_agent(max_turns=25)
+        config = HachimokuConfig(max_turns=20)
+        agent_cfg = AgentConfig(max_turns=None)
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=agent_cfg,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.max_turns == 25
+
+    def test_max_turns_agent_config_overrides_agent_def(self) -> None:
+        """agent_config.max_turns が agent_def.max_turns より優先される。"""
+        agent = _make_agent(max_turns=25)
+        config = HachimokuConfig(max_turns=20)
+        agent_cfg = AgentConfig(max_turns=5)
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=agent_cfg,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.max_turns == 5
+
 
 # =============================================================================
 # build_execution_context — 部分オーバーライド
@@ -514,7 +600,7 @@ class TestBuildExecutionContextPartialOverride:
     def test_partial_agent_config_model_only(self) -> None:
         """model のみ設定し、timeout/max_turns はグローバル値が使用される。"""
         agent = _make_agent()
-        config = HachimokuConfig(model="global-model", timeout=300, max_turns=10)
+        config = HachimokuConfig(model="global-model", timeout=600, max_turns=20)
         agent_cfg = AgentConfig(model="agent-model")
         ctx = build_execution_context(
             agent_def=agent,
@@ -524,13 +610,13 @@ class TestBuildExecutionContextPartialOverride:
             resolved_tools=(),
         )
         assert ctx.model == "agent-model"
-        assert ctx.timeout_seconds == 300
-        assert ctx.max_turns == 10
+        assert ctx.timeout_seconds == 600
+        assert ctx.max_turns == 20
 
     def test_partial_agent_config_timeout_and_max_turns_only(self) -> None:
         """timeout と max_turns のみ設定し、model はグローバル値が使用される。"""
         agent = _make_agent()
-        config = HachimokuConfig(model="global-model", timeout=300, max_turns=10)
+        config = HachimokuConfig(model="global-model", timeout=600, max_turns=20)
         agent_cfg = AgentConfig(timeout=60, max_turns=5)
         ctx = build_execution_context(
             agent_def=agent,
@@ -563,8 +649,8 @@ class TestBuildExecutionContextPhaseVariants:
             resolved_tools=(),
         )
         assert ctx.model == "anthropic:claude-sonnet-4-5"
-        assert ctx.timeout_seconds == 300
-        assert ctx.max_turns == 10
+        assert ctx.timeout_seconds == 600
+        assert ctx.max_turns == 20
 
     def test_early_phase_propagated(self) -> None:
         """Phase.EARLY が正しく設定される。"""

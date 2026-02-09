@@ -64,6 +64,22 @@ class AgentExecutionContext(HachimokuBaseModel):
         return self
 
 
+def _resolve_with_agent_def(
+    agent_config_value: int | None,
+    agent_def_value: int | None,
+    global_value: int,
+) -> int:
+    """3 段階優先順で設定値を解決する。
+
+    優先順: agent_config > agent_def > global_config。
+    """
+    if agent_config_value is not None:
+        return agent_config_value
+    if agent_def_value is not None:
+        return agent_def_value
+    return global_value
+
+
 def build_execution_context(
     agent_def: AgentDefinition,
     agent_config: AgentConfig | None,
@@ -74,9 +90,11 @@ def build_execution_context(
     """AgentDefinition と設定からエージェント実行コンテキストを構築する。
 
     設定値の解決優先順（FR-RE-004）:
-        1. エージェント個別設定（agents.<name>.model / provider / timeout / max_turns）
-        2. グローバル設定（HachimokuConfig.model / provider / timeout / max_turns）
-        3. デフォルト値（HachimokuConfig のフィールドデフォルト）
+        1. エージェント個別設定（agents.<name>.timeout / max_turns）
+        2. エージェント定義（agent_def.timeout / max_turns）
+        3. グローバル設定（HachimokuConfig.timeout / max_turns）
+
+    model / provider は従来通り 2 段階（エージェント個別設定 > グローバル設定）。
 
     Args:
         agent_def: エージェント定義。
@@ -88,6 +106,9 @@ def build_execution_context(
     Returns:
         構築された実行コンテキスト。
     """
+    agent_timeout = agent_config.timeout if agent_config is not None else None
+    agent_max_turns = agent_config.max_turns if agent_config is not None else None
+
     return AgentExecutionContext(
         agent_name=agent_def.name,
         model=(
@@ -104,15 +125,11 @@ def build_execution_context(
         user_message=user_message,
         output_schema=agent_def.resolved_schema,
         tools=resolved_tools,
-        timeout_seconds=(
-            agent_config.timeout
-            if agent_config is not None and agent_config.timeout is not None
-            else global_config.timeout
+        timeout_seconds=_resolve_with_agent_def(
+            agent_timeout, agent_def.timeout, global_config.timeout
         ),
-        max_turns=(
-            agent_config.max_turns
-            if agent_config is not None and agent_config.max_turns is not None
-            else global_config.max_turns
+        max_turns=_resolve_with_agent_def(
+            agent_max_turns, agent_def.max_turns, global_config.max_turns
         ),
         phase=agent_def.phase,
     )

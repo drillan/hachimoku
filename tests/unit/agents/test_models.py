@@ -278,6 +278,26 @@ class TestAgentDefinitionValid:
         agent = AgentDefinition.model_validate(_valid_agent_data())
         assert agent.phase == Phase.MAIN
 
+    def test_default_max_turns(self) -> None:
+        """max_turns のデフォルト値は None。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.max_turns is None
+
+    def test_explicit_max_turns(self) -> None:
+        """max_turns を明示指定できる。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(max_turns=20))
+        assert agent.max_turns == 20
+
+    def test_default_timeout(self) -> None:
+        """timeout のデフォルト値は None。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data())
+        assert agent.timeout is None
+
+    def test_explicit_timeout(self) -> None:
+        """timeout を明示指定できる。"""
+        agent = AgentDefinition.model_validate(_valid_agent_data(timeout=600))
+        assert agent.timeout == 600
+
     def test_explicit_phase(self) -> None:
         """phase を明示指定できる。"""
         agent = AgentDefinition.model_validate(_valid_agent_data(phase="early"))
@@ -404,6 +424,26 @@ class TestAgentDefinitionConstraints:
         """1文字の name が許可される。"""
         agent = AgentDefinition.model_validate(_valid_agent_data(name="a"))
         assert agent.name == "a"
+
+    def test_max_turns_zero_rejected(self) -> None:
+        """max_turns に 0 を渡すと ValidationError が発生する。"""
+        with pytest.raises(ValidationError, match="max_turns"):
+            AgentDefinition.model_validate(_valid_agent_data(max_turns=0))
+
+    def test_max_turns_negative_rejected(self) -> None:
+        """max_turns に負の値を渡すと ValidationError が発生する。"""
+        with pytest.raises(ValidationError, match="max_turns"):
+            AgentDefinition.model_validate(_valid_agent_data(max_turns=-1))
+
+    def test_timeout_zero_rejected(self) -> None:
+        """timeout に 0 を渡すと ValidationError が発生する。"""
+        with pytest.raises(ValidationError, match="timeout"):
+            AgentDefinition.model_validate(_valid_agent_data(timeout=0))
+
+    def test_timeout_negative_rejected(self) -> None:
+        """timeout に負の値を渡すと ValidationError が発生する。"""
+        with pytest.raises(ValidationError, match="timeout"):
+            AgentDefinition.model_validate(_valid_agent_data(timeout=-1))
 
     def test_frozen_assignment_rejected(self) -> None:
         """frozen=True によりフィールド変更が拒否される。"""

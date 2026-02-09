@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from typing import Final
 
 from pydantic import Field, StrictBool, field_validator
 
@@ -19,6 +20,10 @@ from hachimoku.models.tool_category import ToolCategory
 
 # 既存の AGENT_NAME_PATTERN (str) をコンパイル済み正規表現として使用
 _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
+
+# グローバルデフォルト値（Issue #130: 複雑なレビューに対応するため引き上げ）
+DEFAULT_TIMEOUT_SECONDS: Final[int] = 600
+DEFAULT_MAX_TURNS: Final[int] = 20
 
 
 class Provider(StrEnum):
@@ -81,8 +86,8 @@ class HachimokuConfig(HachimokuBaseModel):
     # 実行設定
     provider: Provider = Provider.CLAUDECODE
     model: str = Field(default="anthropic:claude-sonnet-4-5", min_length=1)
-    timeout: int = Field(default=300, gt=0)
-    max_turns: int = Field(default=10, gt=0)
+    timeout: int = Field(default=DEFAULT_TIMEOUT_SECONDS, gt=0)
+    max_turns: int = Field(default=DEFAULT_MAX_TURNS, gt=0)
     parallel: StrictBool = True
     base_branch: str = Field(default="main", min_length=1)
 
