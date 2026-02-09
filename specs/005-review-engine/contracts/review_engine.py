@@ -1,7 +1,7 @@
 """Contract: ReviewEngine — レビュー実行パイプライン.
 
 FR-RE-002: エージェント実行パイプライン全体を統括する。
-設定解決 → エージェント読み込み → 選択 → 実行 → 結果集約。
+設定解決 → エージェント読み込み → コンテンツ事前解決 → 選択 → 実行 → 結果集約。
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ async def run_review(
         1. 設定解決（resolve_config）
         2. エージェント読み込み（load_agents）
         3. 無効エージェント除外（enabled=false）
+        3.5. コンテンツ事前解決（resolve_content）
         4. レビュー指示構築（ReviewInstructionBuilder）
         5. セレクターエージェント実行（SelectorAgent）
         6. 実行コンテキスト構築（AgentExecutionContext）

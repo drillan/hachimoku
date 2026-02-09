@@ -35,6 +35,7 @@ from hachimoku.engine._engine import (
     _filter_disabled_agents,
     run_review,
 )
+from hachimoku.engine._resolver import ContentResolveError
 from hachimoku.engine._selector import SelectorError, SelectorOutput
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
@@ -273,18 +274,21 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_full_pipeline_success(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
         """全ステップが正常に完了し、EngineResult が返される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Applicable",
@@ -298,17 +302,20 @@ class TestRunReviewPipeline:
         assert len(result.report.results) == 1
 
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_selector_failure_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
     ) -> None:
         """セレクター失敗時に exit_code=3 が返される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.side_effect = SelectorError("Selector timeout")
 
         result = await run_review(target=_make_target())
@@ -317,17 +324,20 @@ class TestRunReviewPipeline:
         assert len(result.report.results) == 0
 
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_empty_selection_exit_code_0(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
     ) -> None:
         """空選択で exit_code=0 が返される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=[],
             reasoning="No applicable agents",
@@ -339,16 +349,19 @@ class TestRunReviewPipeline:
         assert len(result.report.results) == 0
 
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_load_errors_in_report(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
     ) -> None:
         """読み込みエラーがレポートに記録される。"""
         mock_config.return_value = HachimokuConfig()
+        mock_resolve_content.return_value = "test diff"
         errors = (LoadError(source="broken.toml", message="parse error"),)
         mock_load.return_value = LoadResult(
             agents=(_make_agent("agent-a"),),
@@ -366,18 +379,21 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_all_agents_failed_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
         """全エージェント失敗で exit_code=3 が返される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -390,18 +406,21 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_severity_determines_exit_code(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
         """Critical issue があると exit_code=1 が返される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -417,12 +436,14 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_disabled_agents_excluded(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
@@ -433,6 +454,7 @@ class TestRunReviewPipeline:
             agents={"agent-b": AgentConfig(enabled=False)},
         )
         mock_config.return_value = config
+        mock_resolve_content.return_value = "test diff"
         mock_load.return_value = LoadResult(
             agents=(_make_agent("agent-a"), _make_agent("agent-b")),
         )
@@ -454,17 +476,20 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_multiple_agents_all_fail_mixed_errors_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
         """複数エージェントが全て失敗（AgentError + AgentTimeout 混在）で exit_code=3。"""
         mock_config.return_value = HachimokuConfig()
+        mock_resolve_content.return_value = "test diff"
         mock_load.return_value = LoadResult(
             agents=(
                 _make_agent("agent-a"),
@@ -492,12 +517,14 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_partial_failure_with_truncated_not_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
@@ -507,6 +534,7 @@ class TestRunReviewPipeline:
         AgentError や AgentTimeout と混在しても exit_code=3 にはならない。
         """
         mock_config.return_value = HachimokuConfig()
+        mock_resolve_content.return_value = "test diff"
         mock_load.return_value = LoadResult(
             agents=(
                 _make_agent("agent-a"),
@@ -532,18 +560,21 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_provider_passed_to_selector(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
     ) -> None:
         """config.provider が run_selector に global_provider として渡される。"""
         config = HachimokuConfig(provider=Provider.ANTHROPIC)
         mock_config.return_value = config
+        mock_resolve_content.return_value = "test diff"
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
@@ -555,6 +586,25 @@ class TestRunReviewPipeline:
 
         call_kwargs = mock_selector.call_args.kwargs
         assert call_kwargs["global_provider"] == Provider.ANTHROPIC
+
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_content_resolve_error_exit_code_3(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
+    ) -> None:
+        """ContentResolveError 発生時に exit_code=3 が返される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.side_effect = ContentResolveError("git merge-base failed")
+
+        result = await run_review(target=_make_target())
+
+        assert result.exit_code == 3
+        assert len(result.report.results) == 0
 
 
 # =============================================================================
@@ -571,12 +621,14 @@ class TestRunReviewParallelSwitch:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.execute_sequential")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_parallel_true_calls_execute_parallel(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_seq: AsyncMock,
         mock_par: AsyncMock,
@@ -584,6 +636,7 @@ class TestRunReviewParallelSwitch:
         """parallel=true で execute_parallel が呼ばれる。"""
         mock_config.return_value = HachimokuConfig(parallel=True)
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -599,12 +652,14 @@ class TestRunReviewParallelSwitch:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.execute_sequential")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_parallel_false_calls_execute_sequential(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_seq: AsyncMock,
         mock_par: AsyncMock,
@@ -612,6 +667,7 @@ class TestRunReviewParallelSwitch:
         """parallel=false で execute_sequential が呼ばれる。"""
         mock_config.return_value = HachimokuConfig(parallel=False)
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -646,12 +702,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.install_signal_handlers")
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_signal_handlers_installed_and_uninstalled(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
         mock_install: MagicMock,
@@ -660,6 +718,7 @@ class TestRunReviewSignalIntegration:
         """シグナルハンドラが executor 前後で install/uninstall される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -688,12 +747,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.install_signal_handlers")
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_same_shutdown_event_passed_to_install_and_executor(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
         mock_install: MagicMock,
@@ -702,6 +763,7 @@ class TestRunReviewSignalIntegration:
         """install と executor に同一の shutdown_event が渡される。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -725,12 +787,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.install_signal_handlers")
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_signal_handlers_uninstalled_on_executor_error(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
         mock_install: MagicMock,
@@ -739,6 +803,7 @@ class TestRunReviewSignalIntegration:
         """executor がエラーでも finally で uninstall が呼ばれる。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=["agent-a"],
             reasoning="Selected",
@@ -754,12 +819,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.uninstall_signal_handlers")
     @patch("hachimoku.engine._engine.install_signal_handlers")
     @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_signal_handlers_not_installed_when_no_agents_selected(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_install: MagicMock,
         mock_uninstall: MagicMock,
@@ -767,6 +834,7 @@ class TestRunReviewSignalIntegration:
         """空選択時はシグナルハンドラが install されない。"""
         mock_config.return_value = HachimokuConfig()
         mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
             selected_agents=[],
             reasoning="No applicable agents",
