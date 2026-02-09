@@ -35,6 +35,20 @@
 
 ---
 
+### SelectorConfig（セレクターエージェント設定モデル）
+
+| Field | Type | Default | Constraints | Description |
+|-------|------|---------|-------------|-------------|
+| `model` | `str \| None` | `None` | `min_length=1` | セレクターモデル上書き。`None` で SelectorDefinition.model → グローバル値を使用 |
+| `timeout` | `int \| None` | `None` | `> 0` | セレクタータイムアウト上書き。`None` でグローバル値を使用 |
+| `max_turns` | `int \| None` | `None` | `> 0` | セレクター最大ターン数上書き。`None` でグローバル値を使用 |
+
+- `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
+- 全フィールドはオプショナル（`None` 可）で、`None` の場合は SelectorDefinition の値またはグローバル設定値が適用される
+- Issue #64 で導入。Issue #118 で `allowed_tools` を SelectorDefinition に移管
+
+---
+
 ### HachimokuConfig（メイン設定モデル）
 
 | Field | Type | Default | Constraints | CLI Option | Description |
@@ -48,6 +62,7 @@
 | `save_reviews` | `bool` | `True` | - | `--save-reviews` | レビュー結果蓄積の有効/無効 |
 | `show_cost` | `bool` | `False` | - | `--show-cost` | コスト表示の有効/無効 |
 | `max_files_per_review` | `int` | `100` | `> 0` | `--max-files` | file モードの最大ファイル数 |
+| `selector` | `SelectorConfig` | `SelectorConfig()` | - | - | セレクターエージェント設定 |
 | `agents` | `dict[str, AgentConfig]` | `{}` | key: `^[a-z0-9-]+$` | - | エージェント個別設定マップ |
 
 - `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
@@ -68,12 +83,15 @@
 ```text
 HachimokuConfig
 ├── output_format: OutputFormat (enum)
+├── selector: SelectorConfig (selector overrides)
+│       └── model, timeout, max_turns
 └── agents: dict[str, AgentConfig] (0..N)
         └── AgentConfig (per-agent overrides)
 ```
 
-- `HachimokuConfig` は 0 個以上の `AgentConfig` をエージェント名キーで保持
+- `HachimokuConfig` は `SelectorConfig` をセレクター設定として保持し、0 個以上の `AgentConfig` をエージェント名キーで保持
 - `OutputFormat` は `HachimokuConfig.output_format` の型制約として使用
+- `SelectorConfig` のオプショナルフィールドが `None` の場合、SelectorDefinition の値またはグローバル値が適用される。この解決は設定消費側（005-review-engine）の責務
 - `AgentConfig` のオプショナルフィールドが `None` の場合、`HachimokuConfig` のグローバル値が適用される（FR-CF-008）。この解決は設定消費側（005-review-engine）の責務
 
 ---
