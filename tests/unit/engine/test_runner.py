@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from claudecode_model import ClaudeCodeModel
 from pydantic import ValidationError
 from pydantic_ai import Tool
+from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
@@ -390,3 +391,4 @@ class TestRunAgentModelSettings:
 
         call_kwargs = mock_instance.run.call_args.kwargs
         assert call_kwargs["model_settings"] == {"max_turns": 10}
+        assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)

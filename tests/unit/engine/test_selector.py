@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from claudecode_model import ClaudeCodeModel
+from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
 from hachimoku.engine._selector import SelectorError, SelectorOutput, run_selector
@@ -503,6 +504,7 @@ class TestRunSelectorModelSettings:
 
         call_kwargs = mock_instance.run.call_args.kwargs
         assert call_kwargs["model_settings"] == {"max_turns": 10}
+        assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
     @patch("hachimoku.engine._selector.Agent")
