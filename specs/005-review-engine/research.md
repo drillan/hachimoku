@@ -70,7 +70,7 @@
 
 **ToolCategory enum との関係（二重バリデーションの明確化）**:
 - 003-agent-definition の `AgentDefinition.allowed_tools` は `tuple[str, ...]`（文字列タプル）であり、`ToolCategory` enum で型バリデーションされていない
-- 004-configuration の `SelectorConfig.allowed_tools` は `list[ToolCategory]` で ToolCategory enum バリデーション済み
+- 004-configuration の `SelectorConfig.allowed_tools` は `list[ToolCategory]` で ToolCategory enum バリデーション済み（※ Issue #118 で SelectorDefinition に移管。SelectorConfig からは削除）
 - ToolCatalog のバリデーションは **AgentDefinition（003）側の文字列ツール名** を検証する役割。003 は汎用的な文字列を受け入れ、005 のエンジンがカタログに照合して不正なカテゴリを検出する。これは二重チェックではなく、**レイヤー間の責務分離**（003=構文検証、005=意味検証）
 
 **Alternatives considered**:

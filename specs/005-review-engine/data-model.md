@@ -72,6 +72,24 @@ ReviewTarget = Annotated[
 | max_turns | `int` | 最大ターン数（UsageLimits.request_limit に変換） |
 | phase | `Phase` | 実行フェーズ |
 
+### SelectorDefinition（セレクター定義）
+
+**ファイル**: `src/hachimoku/agents/models.py`
+
+セレクターエージェントの TOML 定義。レビューエージェントの `AgentDefinition` と同様に
+TOML ファイルから構築される。ビルトインの `selector.toml` から読み込まれる。
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | `str` | セレクター名（`"selector"` 固定） |
+| description | `str` | セレクターの説明 |
+| model | `str` | 使用する LLM モデル名 |
+| system_prompt | `str` | セレクターのシステムプロンプト |
+| allowed_tools | `tuple[str, ...]` | 許可するツールカテゴリ（デフォルト: 全3カテゴリ） |
+
+- `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
+- `AgentDefinition` とは異なり、`output_schema`・`phase`・`applicability` を持たない。セレクターの出力は `SelectorOutput` に固定され、フェーズ・適用条件の概念はない
+
 ### SelectorOutput（セレクター出力）
 
 **ファイル**: `src/hachimoku/engine/_selector.py`
@@ -119,8 +137,11 @@ ReviewEngine
   ├── ReviewInstructionBuilder
   │     └── build(target) → str (ユーザーメッセージ)
   │
+  ├── SelectorDefinition ──── (TOML 定義から読み込み)
+  │     └── name, description, model, system_prompt, allowed_tools
+  │
   ├── SelectorAgent ─────────── (エージェント選択)
-  │     ├── input: instructions + agent_definitions
+  │     ├── input: instructions + agent_definitions + SelectorDefinition
   │     └── output: SelectorOutput(selected_agents, reasoning)
   │
   ├── AgentExecutionContext ──── (per agent)
@@ -151,6 +172,15 @@ HachimokuConfig.model ──┤  ← グローバル設定
 
 同様に timeout, max_turns も解決:
   AgentConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
+
+セレクターのモデル解決:
+  SelectorConfig.model > SelectorDefinition.model > HachimokuConfig.model > default("sonnet")
+
+セレクターの allowed_tools:
+  SelectorDefinition.allowed_tools のみ（SelectorConfig からは削除済み）
+
+セレクターの timeout, max_turns:
+  SelectorConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
 ```
 
 ## 状態遷移

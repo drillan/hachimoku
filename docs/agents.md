@@ -24,6 +24,92 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 
 出力スキーマの詳細は [出力スキーマ](output-schemas) を参照してください。
 
+(selector-definition)=
+## セレクターエージェント
+
+セレクターエージェントは、レビュー対象を分析して実行すべきレビューエージェントを選択する専用エージェントです。
+レビューエージェントと同様に TOML 定義ファイルで構成情報を管理します。
+
+### SelectorDefinition
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|---|------|------|
+| `name` | `str` | Yes | セレクター名（`"selector"` 固定） |
+| `description` | `str` | Yes | セレクターの説明 |
+| `model` | `str` | Yes | 使用する LLM モデル名 |
+| `system_prompt` | `str` | Yes | セレクターのシステムプロンプト |
+| `allowed_tools` | `list[str]` | No | 許可するツールカテゴリ。デフォルト: 全3カテゴリ |
+
+レビューエージェントの `AgentDefinition` とは異なり、`output_schema`・`phase`・`applicability` フィールドはありません。
+セレクターの出力は常に `SelectorOutput`（選択されたエージェント名リストと理由）に固定されます。
+
+### モデル解決の優先順位
+
+セレクターエージェントのモデルは以下の優先順位で解決されます:
+
+1. `[selector]` 設定の `model`（[設定](configuration.md) 参照）
+2. セレクター定義の `model`
+3. グローバル設定の `model`（デフォルト: `"sonnet"`）
+
+### ビルトインセレクター定義
+
+パッケージにはビルトインの `selector.toml` が同梱されています。
+カスタムの `selector.toml` を `.hachimoku/agents/selector.toml` に配置すると、ビルトインを上書きできます。
+
+```{code-block} toml
+:caption: selector.toml（ビルトイン）
+
+name = "selector"
+description = "レビュー対象を分析し、実行すべきレビューエージェントを選択する"
+model = "claude-haiku-4-5-20251001"
+allowed_tools = ["git_read", "gh_read", "file_read"]
+system_prompt = """
+You are an agent selector for code review.
+Your task is to analyze the review target and select the most applicable
+review agents from the available list.
+
+## Workflow
+
+1. Identify changed files and their types using the provided tools:
+   - For diff mode: run git commands to list changed files
+   - For PR mode: use gh commands to get PR metadata and changed files
+   - For file mode: read the specified file paths
+
+2. Analyze the changes:
+   - Determine file types and languages involved
+   - Check for patterns in the diff (error handling, type definitions, tests, etc.)
+   - Consider the scope and nature of the changes
+
+3. Select agents based on applicability:
+   - Always include agents with `always=true` applicability
+   - Include agents whose `file_patterns` match any changed file (basename match)
+   - Include agents whose `content_patterns` match any content in the diff
+   - Consider the agent's `phase` for execution ordering
+
+4. Return selected agent names ordered by phase (early → main → final),
+   and provide reasoning for your selection.
+
+## Selection Guidelines
+
+- Prefer including an agent over excluding it when uncertain
+- An empty selection is valid when no agents are applicable
+  (e.g., no meaningful changes to review)
+- Use file_patterns and content_patterns as guidance, not strict rules;
+  the LLM's judgment can override mechanical pattern matching
+"""
+```
+
+### load_selector()
+
+ビルトインのセレクター定義を読み込みます。カスタム定義が存在する場合はそちらを使用します。
+
+```{code-block} python
+from hachimoku.agents import load_selector
+
+definition = load_selector()
+print(definition.name)  # "selector"
+```
+
 ## TOML 定義ファイル形式
 
 エージェント定義は以下の形式の TOML ファイルで記述します。

@@ -51,7 +51,6 @@ max_files_per_review = 100
 model = "sonnet"
 timeout = 300
 max_turns = 10
-allowed_tools = ["git_read", "gh_read", "file_read"]
 
 # エージェント個別設定
 [agents.code-reviewer]
@@ -95,15 +94,14 @@ parallel = false
 
 ### SelectorConfig
 
-セレクターエージェントの設定です。
-`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+セレクターエージェントの設定上書きです。
+`model`、`timeout`、`max_turns` が `None` の場合は [セレクター定義](selector-definition) の値またはグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
-| `model` | `str \| None` | `None` | 空文字不可 | モデル名 |
+| `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
-| `allowed_tools` | `list[`[ToolCategory](tool-category)`]` | 全3カテゴリ | 1要素以上 | 許可ツールカテゴリ |
 
 ### AgentConfig
 

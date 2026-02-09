@@ -14,8 +14,8 @@ class ToolCategory(StrEnum):
     """エージェントに許可されるツールのカテゴリ。
 
     読み取り専用の3カテゴリを定義する。
-    セレクターエージェント設定の allowed_tools バリデーション（FR-CF-004）と
-    ToolCatalog のカテゴリ名解決（FR-RE-016）での使用を想定。
+    SelectorDefinition・AgentDefinition の allowed_tools バリデーション（FR-RE-016）と
+    ToolCatalog のカテゴリ名解決での使用を想定。
     """
 
     GIT_READ = "git_read"
