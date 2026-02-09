@@ -705,6 +705,33 @@ check_constitution_compliance() {
     fi
 }
 
+# Check documentation impact section in plan.md (Constitution Art.2)
+check_documentation_impact() {
+    if [[ ! -f "$PLAN_FILE" ]]; then
+        # plan.md missing is already reported by check_plan_executability
+        return
+    fi
+
+    local content
+    content=$(cat "$PLAN_FILE")
+
+    if ! echo "$content" | grep -qiE '^##?\s*Documentation Impact'; then
+        add_finding "warning" "plan.md" "Missing Documentation Impact section"
+        add_recommendation "Add Documentation Impact section listing specs/, docs/, README.md update needs"
+    else
+        add_finding "info" "plan.md" "Documentation Impact section present"
+
+        # Check that the section has a table (not just an empty section)
+        local table_rows
+        table_rows=$(echo "$content" | sed -n '/Documentation Impact/,/^##/p' | grep -cE '^\|' || echo "0")
+        # Subtract header rows (header + separator = 2)
+        if [[ "$table_rows" -le 2 ]]; then
+            add_finding "warning" "plan.md" "Documentation Impact section has no entries"
+            add_recommendation "Fill in Documentation Impact table with specs/, docs/, README.md status"
+        fi
+    fi
+}
+
 # Output results
 output_results() {
     local status
@@ -767,6 +794,7 @@ main() {
     check_data_model_consistency
     check_contract_coverage
     check_constitution_compliance
+    check_documentation_impact
 
     # Output results
     output_results

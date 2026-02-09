@@ -87,6 +87,11 @@ npx skills run planning-validate
 1. Plan.md references constitution principles
 2. No constitution violations in Gate Result
 
+### Documentation Impact Checks (Constitution Art.2)
+
+1. plan.md contains Documentation Impact section
+2. Documentation Impact section has a populated table with specs/, docs/, README.md entries
+
 ## Blocker Examples
 
 - "spec.md: Missing User Stories section"

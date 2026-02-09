@@ -64,6 +64,29 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - ビルド: `make -C docs html`
 - ルール: `.claude/docs.md`
 
+### プランモード必須チェック（憲法 Art.2 準拠）
+
+Plan モード（EnterPlanMode / `/speckit.plan` / `/start-issue`）で計画を作成する際、
+ExitPlanMode の前に以下のドキュメント影響確認を必ず実施すること:
+
+1. **specs/**: 変更対象機能の spec.md / data-model.md に更新が必要か確認
+2. **docs/**: Sphinx ドキュメント（docs/ 配下）に反映すべき内容があるか確認
+3. **README.md**: ユーザー向け情報（使い方、設定例、コマンド等）に変更が必要か確認
+
+確認結果はプランに **Documentation Impact** セクションとして含めること:
+
+```markdown
+## Documentation Impact
+
+| 対象 | 更新要否 | 内容 |
+|------|---------|------|
+| specs/NNN-xxx/spec.md | 要/否 | （要の場合: 概要） |
+| docs/*.md | 要/否 | （要の場合: 概要） |
+| README.md | 要/否 | （要の場合: 概要） |
+```
+
+影響がない場合も「影響なし」と明記すること。
+
 <!-- MANUAL ADDITIONS END -->
 
 ## Active Technologies
