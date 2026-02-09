@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from claudecode_model import ClaudeCodeModel
+from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
 from hachimoku.engine._selector import SelectorError, SelectorOutput, run_selector
@@ -467,3 +468,67 @@ class TestRunSelectorResolveModel:
             global_provider=Provider.CLAUDECODE,
         )
         assert isinstance(result, SelectorOutput)
+
+
+# =============================================================================
+# run_selector — model_settings 統合
+# =============================================================================
+
+
+class TestRunSelectorModelSettings:
+    """run_selector が agent.run() に model_settings を渡すテスト。"""
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_model_settings_max_turns_passed(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """agent.run() に model_settings={"max_turns": N} が渡される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_config=config,
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            global_provider=Provider.CLAUDECODE,
+        )
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        assert call_kwargs["model_settings"] == {"max_turns": 10}
+        assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_selector_config_max_turns_override(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """SelectorConfig.max_turns が model_settings に反映される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config(max_turns=5)
+
+        await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_config=config,
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            global_provider=Provider.CLAUDECODE,
+        )
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        assert call_kwargs["model_settings"] == {"max_turns": 5}

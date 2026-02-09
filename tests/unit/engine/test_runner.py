@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from claudecode_model import ClaudeCodeModel
 from pydantic import ValidationError
 from pydantic_ai import Tool
+from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
@@ -363,3 +364,31 @@ class TestRunAgentResolveModel:
         result = await run_agent(ctx)
 
         assert isinstance(result, AgentSuccess)
+
+
+# =============================================================================
+# run_agent — model_settings 統合
+# =============================================================================
+
+
+class TestRunAgentModelSettings:
+    """run_agent が agent.run() に model_settings を渡すテスト。"""
+
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_model_settings_max_turns_passed(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """agent.run() に model_settings={"max_turns": N} が渡される。"""
+        mock_result = MagicMock()
+        mock_result.output.issues = []
+        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_instance = mock_agent_cls.return_value
+        mock_instance.run = AsyncMock(return_value=mock_result)
+
+        ctx = _make_context(max_turns=10)
+        await run_agent(ctx)
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        assert call_kwargs["model_settings"] == {"max_turns": 10}
+        assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)

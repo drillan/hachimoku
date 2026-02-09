@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import time
 
-from claudecode_model import ClaudeCodeModel
+from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
@@ -74,6 +74,7 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             result = await agent.run(
                 context.user_message,
                 usage_limits=UsageLimits(request_limit=context.max_turns),
+                model_settings=ClaudeCodeModelSettings(max_turns=context.max_turns),
             )
 
         elapsed = time.monotonic() - start_time

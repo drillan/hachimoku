@@ -11,7 +11,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import Final
 
-from claudecode_model import ClaudeCodeModel
+from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
@@ -128,6 +128,7 @@ async def run_selector(
             result = await agent.run(
                 user_message,
                 usage_limits=UsageLimits(request_limit=max_turns),
+                model_settings=ClaudeCodeModelSettings(max_turns=max_turns),
             )
 
         return result.output
