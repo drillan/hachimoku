@@ -311,6 +311,10 @@ def review_callback(
     report_text = _format_report(result.report, effective_format)
     print(report_text)
 
+    # 6.5. JSONL 蓄積 (FR-025)
+    if config.save_reviews:
+        _save_review_result(target, result.report)
+
     # 7. 終了コード
     raise typer.Exit(code=result.exit_code)
 
@@ -506,6 +510,42 @@ def _build_target(
         return PRTarget(pr_number=resolved.pr_number, issue_number=issue)
     # FileInput
     return FileTarget(paths=resolved.paths, issue_number=issue)
+
+
+def _save_review_result(
+    target: DiffTarget | PRTarget | FileTarget,
+    report: ReviewReport,
+) -> None:
+    """レビュー結果を JSONL に保存する。
+
+    FR-025: save_reviews=true のとき、レビュー完了後に呼び出される。
+    保存処理のエラーはレビュー結果の終了コードに影響しない。
+    """
+    from hachimoku.cli._history_writer import (
+        GitInfoError,
+        HistoryWriteError,
+        save_review_history,
+    )
+
+    try:
+        project_root = find_project_root(Path.cwd())
+        if project_root is None:
+            print(
+                "Warning: Cannot save review history: .hachimoku/ directory not found.",
+                file=sys.stderr,
+            )
+            return
+
+        reviews_dir = project_root / ".hachimoku" / "reviews"
+        saved_path = save_review_history(reviews_dir, target, report)
+        print(f"Review saved to {saved_path}", file=sys.stderr)
+    except (HistoryWriteError, GitInfoError) as e:
+        print(f"Warning: Failed to save review history: {e}", file=sys.stderr)
+    except Exception as e:
+        print(
+            f"Warning: Unexpected error saving review history: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
 
 
 def _format_report(report: ReviewReport, output_format: OutputFormat) -> str:
