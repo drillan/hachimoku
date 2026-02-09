@@ -10,13 +10,13 @@ SelectorConfig（設定）によるオーバーライドを適用して pydantic
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING, Literal
+
+from pydantic import Field
 
 from hachimoku.agents.models import AgentDefinition
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
-
-# 注: 実装時は engine._target から import
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
@@ -37,11 +37,11 @@ class SelectorDefinition(HachimokuBaseModel):
         allowed_tools: 許可するツールカテゴリのリスト。
     """
 
-    name: str
-    description: str
-    model: str
-    system_prompt: str
-    allowed_tools: tuple[str, ...]
+    name: Literal["selector"]
+    description: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    system_prompt: str = Field(min_length=1)
+    allowed_tools: tuple[str, ...] = ("git_read", "gh_read", "file_read")
 
 
 class SelectorOutput(HachimokuBaseModel):
