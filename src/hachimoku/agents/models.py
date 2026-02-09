@@ -172,9 +172,28 @@ class SelectorDefinition(HachimokuBaseModel):
 
     name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
     description: str = Field(min_length=1)
-    model: str = Field(min_length=1)
+    model: str | None = Field(default=None, min_length=1)
     system_prompt: str = Field(min_length=1)
     allowed_tools: tuple[str, ...] = ()
+
+    @field_validator("allowed_tools", mode="before")
+    @classmethod
+    def _validate_allowed_tools(
+        cls,
+        v: tuple[str, ...] | list[str],
+    ) -> tuple[str, ...] | list[str]:
+        """allowed_tools の各値が ToolCategory に存在することを検証する。"""
+        from hachimoku.models.tool_category import ToolCategory
+
+        valid_values = {tc.value for tc in ToolCategory}
+        for tool in v:
+            if tool not in valid_values:
+                msg = (
+                    f"Invalid tool category: '{tool}'. "
+                    f"Valid categories: {sorted(valid_values)}"
+                )
+                raise ValueError(msg)
+        return v
 
 
 # =============================================================================

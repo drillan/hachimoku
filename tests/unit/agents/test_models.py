@@ -620,12 +620,12 @@ class TestSelectorDefinitionConstraints:
         with pytest.raises(ValidationError, match="description"):
             SelectorDefinition.model_validate(data)
 
-    def test_missing_required_field_model(self) -> None:
-        """model 欠損で ValidationError。"""
+    def test_model_defaults_to_none(self) -> None:
+        """model 省略時は None になる。"""
         data = _valid_selector_data()
         del data["model"]
-        with pytest.raises(ValidationError, match="model"):
-            SelectorDefinition.model_validate(data)
+        selector = SelectorDefinition.model_validate(data)
+        assert selector.model is None
 
     def test_missing_required_field_system_prompt(self) -> None:
         """system_prompt 欠損で ValidationError。"""
@@ -663,3 +663,10 @@ class TestSelectorDefinitionConstraints:
         """AgentDefinition 固有の phase が extra=forbid で拒否される。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
             SelectorDefinition.model_validate(_valid_selector_data(phase="main"))
+
+    def test_invalid_allowed_tools_rejected(self) -> None:
+        """ToolCategory に存在しないツール名がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="allowed_tools"):
+            SelectorDefinition.model_validate(
+                _valid_selector_data(allowed_tools=["invalid_tool"])
+            )
