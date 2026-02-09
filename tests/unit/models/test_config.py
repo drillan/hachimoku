@@ -15,7 +15,6 @@ from hachimoku.models.config import (
     OutputFormat,
     SelectorConfig,
 )
-from hachimoku.models.tool_category import ToolCategory
 
 
 # =============================================================================
@@ -315,12 +314,6 @@ class TestHachimokuConfigFrozen:
 # T006: SelectorConfig (US5, FR-CF-010)
 # =============================================================================
 
-_DEFAULT_ALLOWED_TOOLS = [
-    ToolCategory.GIT_READ,
-    ToolCategory.GH_READ,
-    ToolCategory.FILE_READ,
-]
-
 
 class TestSelectorConfigDefaults:
     """SelectorConfig のデフォルト値テスト。"""
@@ -336,10 +329,6 @@ class TestSelectorConfigDefaults:
     def test_default_max_turns(self) -> None:
         """max_turns のデフォルトが None であること。"""
         assert SelectorConfig().max_turns is None
-
-    def test_default_allowed_tools(self) -> None:
-        """allowed_tools のデフォルトが [git_read, gh_read, file_read] であること。"""
-        assert SelectorConfig().allowed_tools == _DEFAULT_ALLOWED_TOOLS
 
 
 class TestSelectorConfigValidation:
@@ -382,21 +371,6 @@ class TestSelectorConfigValidation:
         """max_turns に正の値を渡すと設定されること。"""
         assert SelectorConfig(max_turns=5).max_turns == 5
 
-    def test_allowed_tools_empty_rejected(self) -> None:
-        """allowed_tools に空リストを渡すと ValidationError が発生すること。"""
-        with pytest.raises(ValidationError, match="allowed_tools"):
-            SelectorConfig(allowed_tools=[])
-
-    def test_allowed_tools_invalid_category_rejected(self) -> None:
-        """allowed_tools に無効なカテゴリを渡すと ValidationError が発生すること。"""
-        with pytest.raises(ValidationError, match="allowed_tools"):
-            SelectorConfig(allowed_tools=["file_write"])  # type: ignore[list-item]
-
-    def test_allowed_tools_custom_subset_accepted(self) -> None:
-        """allowed_tools にカスタムサブセットを渡すと設定されること。"""
-        config = SelectorConfig(allowed_tools=["git_read", "file_read"])  # type: ignore[list-item]
-        assert config.allowed_tools == [ToolCategory.GIT_READ, ToolCategory.FILE_READ]
-
     def test_extra_field_rejected(self) -> None:
         """未知のキーを渡すと ValidationError が発生すること。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
@@ -425,4 +399,3 @@ class TestHachimokuConfigSelector:
         """辞書から selector を構築できること。"""
         config = HachimokuConfig(selector={"model": "haiku"})  # type: ignore[arg-type]
         assert config.selector.model == "haiku"
-        assert config.selector.allowed_tools == _DEFAULT_ALLOWED_TOOLS

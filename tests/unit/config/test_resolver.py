@@ -27,7 +27,6 @@ from hachimoku.config._resolver import (
     resolve_config,
 )
 from hachimoku.models.config import HachimokuConfig, SelectorConfig
-from hachimoku.models.tool_category import ToolCategory
 
 
 # ---------------------------------------------------------------------------
@@ -886,52 +885,6 @@ class TestResolveConfigSelectorModelOverride:
         assert config.selector.model == "haiku"
         # 他はデフォルト
         assert config.selector.timeout is None
-        assert config.selector.allowed_tools == [
-            ToolCategory.GIT_READ,
-            ToolCategory.GH_READ,
-            ToolCategory.FILE_READ,
-        ]
-
-
-class TestResolveConfigSelectorAllowedToolsCustom:
-    """[selector] allowed_tools = ["git_read", "file_read"] → カスタムサブセット。"""
-
-    def test_selector_allowed_tools_custom(self, tmp_path: Path) -> None:
-        """[selector] セクションの allowed_tools がカスタムサブセットに上書きされる。"""
-        _create_config_toml(
-            tmp_path,
-            '[selector]\nallowed_tools = ["git_read", "file_read"]\n',
-        )
-        with _nonexistent_user_config(tmp_path):
-            config = resolve_config(start_dir=tmp_path)
-        assert config.selector.allowed_tools == [
-            ToolCategory.GIT_READ,
-            ToolCategory.FILE_READ,
-        ]
-
-
-class TestResolveConfigSelectorInvalidAllowedTools:
-    """[selector] allowed_tools の無効値 → ValidationError。"""
-
-    def test_invalid_tool_category_rejected(self, tmp_path: Path) -> None:
-        """allowed_tools に無効カテゴリ → ValidationError。"""
-        _create_config_toml(
-            tmp_path,
-            '[selector]\nallowed_tools = ["file_write"]\n',
-        )
-        with _nonexistent_user_config(tmp_path):
-            with pytest.raises(ValidationError, match="allowed_tools"):
-                resolve_config(start_dir=tmp_path)
-
-    def test_empty_allowed_tools_rejected(self, tmp_path: Path) -> None:
-        """allowed_tools に空リスト → ValidationError。"""
-        _create_config_toml(
-            tmp_path,
-            "[selector]\nallowed_tools = []\n",
-        )
-        with _nonexistent_user_config(tmp_path):
-            with pytest.raises(ValidationError, match="allowed_tools"):
-                resolve_config(start_dir=tmp_path)
 
 
 class TestResolveConfigSelectorViaPyproject:
@@ -946,16 +899,6 @@ class TestResolveConfigSelectorViaPyproject:
         with _nonexistent_user_config(tmp_path):
             config = resolve_config(start_dir=tmp_path)
         assert config.selector.model == "haiku"
-
-    def test_pyproject_selector_allowed_tools(self, tmp_path: Path) -> None:
-        """pyproject.toml でセレクターの allowed_tools を設定できる。"""
-        _create_pyproject_toml(
-            tmp_path,
-            '[tool.hachimoku.selector]\nallowed_tools = ["file_read"]\n',
-        )
-        with _nonexistent_user_config(tmp_path):
-            config = resolve_config(start_dir=tmp_path)
-        assert config.selector.allowed_tools == [ToolCategory.FILE_READ]
 
 
 class TestResolveConfigSelectorFieldLevelMergeMultiSource:
@@ -984,25 +927,6 @@ class TestResolveConfigSelectorFieldLevelMergeMultiSource:
             config = resolve_config(start_dir=tmp_path)
         assert config.selector.model == "haiku"
         assert config.selector.timeout == 60
-
-    def test_allowed_tools_replaced_not_merged(self, tmp_path: Path) -> None:
-        """allowed_tools は上位レイヤーのリストで完全に置換される（要素マージではない）。"""
-        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
-        _write_toml(
-            user_config_dir / "config.toml",
-            '[selector]\nallowed_tools = ["git_read", "gh_read", "file_read"]\n',
-        )
-        _create_config_toml(
-            tmp_path,
-            '[selector]\nallowed_tools = ["git_read"]\n',
-        )
-        with patch(
-            "hachimoku.config._resolver.get_user_config_path",
-            return_value=user_config_dir / "config.toml",
-        ):
-            config = resolve_config(start_dir=tmp_path)
-        # config.toml が優先 → git_read のみ（user global の3要素は破棄）
-        assert config.selector.allowed_tools == [ToolCategory.GIT_READ]
 
     def test_same_field_upper_wins(self, tmp_path: Path) -> None:
         """同一フィールドは上位ソース（config.toml）が優先される。"""

@@ -6,6 +6,8 @@ T014: load_builtin_agents — 6エージェント全件, 各名前存在, errors
 T015: builtin agent validation — output_schema, phase, applicability
 T030: load_custom_agents — カスタム定義読み込み, ディレクトリ不在, 部分失敗
 T031: load_agents — ビルトイン+カスタム統合, 同名上書き, エラー統合
+T-118-002: load_builtin_selector / load_selector — セレクター定義の読み込み
+T-118-003: load_builtin_agents / load_custom_agents — selector.toml 除外
 
 タスク参照: specs/003-agent-definition/tasks.md Phase 3, Phase 5
 """
@@ -23,9 +25,16 @@ from hachimoku.agents.loader import (
     _load_single_agent,
     load_agents,
     load_builtin_agents,
+    load_builtin_selector,
     load_custom_agents,
+    load_selector,
 )
-from hachimoku.agents.models import AgentDefinition, LoadResult, Phase
+from hachimoku.agents.models import (
+    AgentDefinition,
+    LoadResult,
+    Phase,
+    SelectorDefinition,
+)
 
 
 # =============================================================================
@@ -612,3 +621,131 @@ class TestBuiltinAgentSystemPromptStructure:
         assert "\\" not in agent.system_prompt, (
             f"{agent_name}: system_prompt contains backslash"
         )
+
+
+# =============================================================================
+# ヘルパー（セレクター用）
+# =============================================================================
+
+VALID_SELECTOR_TOML = """\
+name = "selector"
+description = "Agent selector for code review"
+model = "claudecode:claude-sonnet-4-5"
+allowed_tools = ["git_read", "gh_read", "file_read"]
+system_prompt = "You are an agent selector."
+"""
+
+
+# =============================================================================
+# T-118-002: load_builtin_selector
+# =============================================================================
+
+
+class TestLoadBuiltinSelector:
+    """load_builtin_selector のテストを検証。"""
+
+    def test_returns_selector_definition(self) -> None:
+        """戻り値が SelectorDefinition インスタンスである。"""
+        result = load_builtin_selector()
+        assert isinstance(result, SelectorDefinition)
+
+    def test_name_is_selector(self) -> None:
+        """ビルトインセレクターの name が "selector" である。"""
+        result = load_builtin_selector()
+        assert result.name == "selector"
+
+    def test_system_prompt_non_empty(self) -> None:
+        """ビルトインセレクターの system_prompt が空でない。"""
+        result = load_builtin_selector()
+        assert len(result.system_prompt.strip()) > 0
+
+    def test_allowed_tools_non_empty(self) -> None:
+        """ビルトインセレクターの allowed_tools が空でない。"""
+        result = load_builtin_selector()
+        assert len(result.allowed_tools) > 0
+
+    def test_model_non_empty(self) -> None:
+        """ビルトインセレクターの model が空でない。"""
+        result = load_builtin_selector()
+        assert len(result.model) > 0
+
+
+# =============================================================================
+# T-118-002: load_selector
+# =============================================================================
+
+
+class TestLoadSelector:
+    """load_selector のテストを検証。"""
+
+    def test_builtin_only_when_no_custom_dir(self) -> None:
+        """custom_dir=None でビルトインセレクターが返される。"""
+        result = load_selector(custom_dir=None)
+        assert isinstance(result, SelectorDefinition)
+        assert result.name == "selector"
+
+    def test_custom_override(self, tmp_path: Path) -> None:
+        """カスタム selector.toml がビルトインを上書きする。"""
+        custom_toml = VALID_SELECTOR_TOML.replace(
+            "Agent selector for code review", "Custom selector"
+        )
+        _write_toml(tmp_path, "selector.toml", custom_toml)
+        result = load_selector(custom_dir=tmp_path)
+        assert result.description == "Custom selector"
+
+    def test_builtin_used_when_no_custom_selector(self, tmp_path: Path) -> None:
+        """カスタムディレクトリに selector.toml がない場合はビルトインが使用される。"""
+        _write_toml(tmp_path, "other-agent.toml", VALID_TOML)
+        result = load_selector(custom_dir=tmp_path)
+        assert result.name == "selector"
+        assert result.description != "A test agent"
+
+    def test_invalid_custom_raises_error(self, tmp_path: Path) -> None:
+        """不正なカスタム selector.toml で例外が送出される。"""
+        _write_toml(tmp_path, "selector.toml", 'name = "unclosed')
+        with pytest.raises(Exception):
+            load_selector(custom_dir=tmp_path)
+
+    def test_nonexistent_custom_dir_returns_builtin(self, tmp_path: Path) -> None:
+        """存在しないカスタムディレクトリでビルトインが返される。"""
+        result = load_selector(custom_dir=tmp_path / "nonexistent")
+        assert result.name == "selector"
+
+
+# =============================================================================
+# T-118-003: load_builtin_agents はセレクターを除外
+# =============================================================================
+
+
+class TestLoadBuiltinAgentsExcludesSelector:
+    """load_builtin_agents の結果にセレクターが含まれないことを検証。"""
+
+    def test_selector_not_in_builtin_agents(self) -> None:
+        """ビルトインエージェントリストに "selector" が含まれない。"""
+        result = load_builtin_agents()
+        agent_names = {a.name for a in result.agents}
+        assert "selector" not in agent_names
+
+
+class TestLoadCustomAgentsExcludesSelector:
+    """load_custom_agents の結果にセレクターが含まれないことを検証。"""
+
+    def test_selector_excluded_from_custom_agents(self, tmp_path: Path) -> None:
+        """カスタムディレクトリの selector.toml がエージェントリストに含まれない。"""
+        _write_toml(tmp_path, "selector.toml", VALID_SELECTOR_TOML)
+        _write_toml(tmp_path, "custom-agent.toml", VALID_TOML)
+        result = load_custom_agents(tmp_path)
+        agent_names = {a.name for a in result.agents}
+        assert "selector" not in agent_names
+        assert "test-agent" in agent_names
+
+
+class TestLoadAgentsExcludesSelector:
+    """load_agents の結果にセレクターが含まれないことを検証。"""
+
+    def test_selector_excluded_from_merged_agents(self, tmp_path: Path) -> None:
+        """統合結果にセレクターが含まれない。"""
+        _write_toml(tmp_path, "selector.toml", VALID_SELECTOR_TOML)
+        result = load_agents(custom_dir=tmp_path)
+        agent_names = {a.name for a in result.agents}
+        assert "selector" not in agent_names

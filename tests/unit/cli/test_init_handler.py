@@ -28,6 +28,7 @@ BUILTIN_AGENT_NAMES: tuple[str, ...] = (
     "code-simplifier.toml",
     "comment-analyzer.toml",
     "pr-test-analyzer.toml",
+    "selector.toml",
     "silent-failure-hunter.toml",
     "type-design-analyzer.toml",
 )
@@ -348,8 +349,8 @@ class TestRunInit:
         (agents_dir / "code-reviewer.toml").write_text("custom")
 
         result = run_init(tmp_path)
-        # config.toml + 5 agents = 6 created
-        assert len(result.created) == 6
+        # config.toml + 6 agents (selector.toml 含む) = 7 created
+        assert len(result.created) == 7
         # code-reviewer.toml は skipped
         assert len(result.skipped) == 1
 

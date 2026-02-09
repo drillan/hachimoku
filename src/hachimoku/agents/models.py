@@ -159,6 +159,25 @@ class AgentDefinition(HachimokuBaseModel):
 
 
 # =============================================================================
+# SelectorDefinition（セレクター定義）
+# =============================================================================
+
+
+class SelectorDefinition(HachimokuBaseModel):
+    """セレクターエージェントの定義。selector.toml から構築される。
+
+    AgentDefinition とは独立したモデル。セレクターは常に SelectorOutput を返し、
+    常に実行されるため、output_schema / resolved_schema / applicability / phase は不要。
+    """
+
+    name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
+    description: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    system_prompt: str = Field(min_length=1)
+    allowed_tools: tuple[str, ...] = ()
+
+
+# =============================================================================
 # LoadResult（読み込み結果）
 # =============================================================================
 

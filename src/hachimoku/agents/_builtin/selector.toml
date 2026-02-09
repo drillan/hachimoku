@@ -1,0 +1,7 @@
+name = "selector"
+description = "レビュー対象を分析し、最適なレビューエージェントを選択する"
+model = "claudecode:claude-sonnet-4-5"
+allowed_tools = ["git_read", "gh_read", "file_read"]
+system_prompt = """
+You are an agent selector for code review. Analyze the review target provided in the user message, then select the most applicable review agents from the available list. Consider each agent's description, applicability rules (file_patterns, content_patterns), and phase when making your selection. Return the selected agent names and your reasoning.
+"""

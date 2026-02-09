@@ -16,7 +16,6 @@ from pydantic import Field, StrictBool, field_validator
 
 from hachimoku.agents.models import AGENT_NAME_PATTERN
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.tool_category import ToolCategory
 
 # 既存の AGENT_NAME_PATTERN (str) をコンパイル済み正規表現として使用
 _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
@@ -38,20 +37,12 @@ class SelectorConfig(HachimokuBaseModel):
 
     model, timeout, max_turns はオプショナル（None 可）で、
     None の場合はグローバル設定値が適用される。
-    allowed_tools はセレクターに許可されるツールカテゴリのリスト。
+    allowed_tools は selector.toml に移動済み。
     """
 
     model: str | None = Field(default=None, min_length=1)
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
-    allowed_tools: list[ToolCategory] = Field(
-        default_factory=lambda: [
-            ToolCategory.GIT_READ,
-            ToolCategory.GH_READ,
-            ToolCategory.FILE_READ,
-        ],
-        min_length=1,
-    )
 
 
 class AgentConfig(HachimokuBaseModel):
