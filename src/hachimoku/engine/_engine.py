@@ -16,6 +16,7 @@ from typing import Final
 from hachimoku.models.exit_code import ExitCode
 
 from hachimoku.agents import load_agents
+from hachimoku.agents.loader import load_selector
 from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
@@ -150,8 +151,9 @@ async def run_review(
     # Step 1: 設定解決
     config = resolve_config(cli_overrides=config_overrides)
 
-    # Step 2: エージェント読み込み
+    # Step 2: エージェント読み込み + セレクター定義読み込み
     load_result = load_agents(custom_dir=custom_agents_dir)
+    selector_def = load_selector(custom_dir=custom_agents_dir)
     if load_result.errors:
         report_load_warnings(load_result.errors)
 
@@ -176,6 +178,7 @@ async def run_review(
         selector_output = await run_selector(
             target=target,
             available_agents=filtered_result.agents,
+            selector_definition=selector_def,
             selector_config=config.selector,
             global_model=config.model,
             global_timeout=config.timeout,

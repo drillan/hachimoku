@@ -275,12 +275,14 @@ class TestRunReviewPipeline:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_full_pipeline_success(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -303,12 +305,14 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_selector_failure_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
     ) -> None:
@@ -325,12 +329,14 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_empty_selection_exit_code_0(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
     ) -> None:
@@ -350,12 +356,14 @@ class TestRunReviewPipeline:
 
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_load_errors_in_report(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
     ) -> None:
@@ -380,12 +388,14 @@ class TestRunReviewPipeline:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_all_agents_failed_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -407,12 +417,14 @@ class TestRunReviewPipeline:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_severity_determines_exit_code(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -437,12 +449,14 @@ class TestRunReviewPipeline:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_disabled_agents_excluded(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -477,12 +491,14 @@ class TestRunReviewPipeline:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_multiple_agents_all_fail_mixed_errors_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -518,12 +534,14 @@ class TestRunReviewPipeline:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_partial_failure_with_truncated_not_exit_code_3(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -634,12 +652,14 @@ class TestRunReviewParallelSwitch:
     @patch("hachimoku.engine._engine.execute_sequential")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_parallel_true_calls_execute_parallel(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_seq: AsyncMock,
@@ -665,12 +685,14 @@ class TestRunReviewParallelSwitch:
     @patch("hachimoku.engine._engine.execute_sequential")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_parallel_false_calls_execute_sequential(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_seq: AsyncMock,
@@ -715,12 +737,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_signal_handlers_installed_and_uninstalled(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -760,12 +784,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_same_shutdown_event_passed_to_install_and_executor(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -800,12 +826,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.execute_parallel")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_signal_handlers_uninstalled_on_executor_error(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_execute: AsyncMock,
@@ -832,12 +860,14 @@ class TestRunReviewSignalIntegration:
     @patch("hachimoku.engine._engine.install_signal_handlers")
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
     @patch("hachimoku.engine._engine.load_agents")
     @patch("hachimoku.engine._engine.resolve_config")
     async def test_signal_handlers_not_installed_when_no_agents_selected(
         self,
         mock_config: MagicMock,
         mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
         mock_resolve_content: AsyncMock,
         mock_selector: AsyncMock,
         mock_install: MagicMock,

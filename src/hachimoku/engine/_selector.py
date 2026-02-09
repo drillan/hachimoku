@@ -9,29 +9,18 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from typing import Final
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
-from hachimoku.agents.models import AgentDefinition
+from hachimoku.agents.models import AgentDefinition, SelectorDefinition
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
-
-SELECTOR_SYSTEM_PROMPT: Final[str] = (
-    "You are an agent selector for code review. "
-    "Analyze the review target provided in the user message, "
-    "then select the most applicable review agents from the available list. "
-    "Consider each agent's description, applicability rules (file_patterns, "
-    "content_patterns), and phase when making your selection. "
-    "Return the selected agent names and your reasoning."
-)
-"""セレクターエージェントのシステムプロンプト。"""
 
 
 class SelectorOutput(HachimokuBaseModel):
@@ -57,6 +46,7 @@ class SelectorError(Exception):
 async def run_selector(
     target: DiffTarget | PRTarget | FileTarget,
     available_agents: Sequence[AgentDefinition],
+    selector_definition: SelectorDefinition,
     selector_config: SelectorConfig,
     global_model: str,
     global_timeout: int,
@@ -66,18 +56,20 @@ async def run_selector(
     """セレクターエージェントを実行し、実行すべきエージェントを選択する。
 
     実行フロー:
-        1. SelectorConfig からモデル・タイムアウト・ターン数を解決
-        2. ToolCatalog から SelectorConfig.allowed_tools のツールを解決
-        3. build_selector_instruction() でユーザーメッセージを構築（事前解決済みコンテンツ埋め込み）
-        4. resolve_model() でプレフィックスに応じたモデルオブジェクトを生成
-        5. pydantic-ai Agent(output_type=SelectorOutput) を構築
-        6. asyncio.timeout() + UsageLimits でエージェントを実行
-        7. SelectorOutput を返す
+        1. モデル解決（3層: config > definition > global）
+        2. SelectorConfig からタイムアウト・ターン数を解決
+        3. SelectorDefinition.allowed_tools からツールを解決
+        4. build_selector_instruction() でユーザーメッセージを構築
+        5. resolve_model() でモデルオブジェクトを生成
+        6. pydantic-ai Agent(system_prompt=definition.system_prompt) を構築
+        7. asyncio.timeout() + UsageLimits でエージェントを実行
+        8. SelectorOutput を返す
 
     Args:
         target: レビュー対象。
         available_agents: 利用可能なエージェント定義リスト。
-        selector_config: セレクター個別設定。
+        selector_definition: セレクター定義（system_prompt, allowed_tools, model）。
+        selector_config: セレクター個別設定（model, timeout, max_turns オーバーライド）。
         global_model: グローバルモデル名。
         global_timeout: グローバルタイムアウト秒数。
         global_max_turns: グローバル最大ターン数。
@@ -89,7 +81,12 @@ async def run_selector(
     Raises:
         SelectorError: セレクターエージェントの実行に失敗した場合。
     """
-    model = selector_config.model if selector_config.model is not None else global_model
+    # 3層モデル解決: config > definition > global
+    if selector_config.model is not None:
+        model = selector_config.model
+    else:
+        model = selector_definition.model
+
     timeout = (
         selector_config.timeout
         if selector_config.timeout is not None
@@ -102,8 +99,7 @@ async def run_selector(
     )
 
     try:
-        tool_categories = tuple(str(t) for t in selector_config.allowed_tools)
-        tools = resolve_tools(tool_categories)
+        tools = resolve_tools(selector_definition.allowed_tools)
         user_message = build_selector_instruction(
             target, available_agents, resolved_content
         )
@@ -113,7 +109,7 @@ async def run_selector(
             model=resolved,
             output_type=SelectorOutput,
             tools=list(tools),
-            system_prompt=SELECTOR_SYSTEM_PROMPT,
+            system_prompt=selector_definition.system_prompt,
         )
         if isinstance(resolved, ClaudeCodeModel):
             # mypy が FunctionToolset.tools の dict[str, Tool[Any]] を

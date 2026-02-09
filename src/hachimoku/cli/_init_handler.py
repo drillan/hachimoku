@@ -76,7 +76,6 @@ _CONFIG_TEMPLATE: str = """\
 # model = "claudecode:claude-sonnet-4-5"
 # timeout = 600
 # max_turns = 20
-# allowed_tools = ["git_read", "gh_read", "file_read"]
 
 # --- Agent-Specific Settings ---
 # Override settings for individual agents.

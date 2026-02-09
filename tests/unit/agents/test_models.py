@@ -1,9 +1,11 @@
-"""Phase, PHASE_ORDER, ApplicabilityRule, LoadError, AgentDefinition, LoadResult のテスト。
+"""Phase, PHASE_ORDER, ApplicabilityRule, LoadError, AgentDefinition, LoadResult,
+SelectorDefinition のテスト。
 
 T004: Phase StrEnum — 列挙値(early/main/final)、PHASE_ORDER ソート順検証
 T005: ApplicabilityRule — デフォルト値、正規表現バリデーション、frozen、extra=forbid
 T006: AgentDefinition — 全必須フィールド、name パターン、output_schema 解決、デフォルト値、frozen、extra=forbid
 T007: LoadError / LoadResult — フィールドバリデーション、frozen、extra=forbid
+T-118-001: SelectorDefinition — 全必須フィールド、name パターン、frozen、extra=forbid
 """
 
 import pytest
@@ -17,6 +19,7 @@ from hachimoku.agents.models import (
     LoadError,
     LoadResult,
     Phase,
+    SelectorDefinition,
 )
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.schemas import BaseAgentOutput, ScoredIssues
@@ -525,3 +528,138 @@ class TestLoadResultConstraints:
         """定義外フィールドがバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
             LoadResult(agents=(), extra="z")  # type: ignore[call-arg]
+
+
+# =============================================================================
+# SelectorDefinition — ヘルパー
+# =============================================================================
+
+
+def _valid_selector_data(**overrides: object) -> dict[str, object]:
+    """SelectorDefinition の最小限有効データを返す。"""
+    base: dict[str, object] = {
+        "name": "selector",
+        "description": "Agent selector for code review",
+        "model": "claudecode:claude-sonnet-4-5",
+        "system_prompt": "You are an agent selector.",
+    }
+    base.update(overrides)
+    return base
+
+
+# =============================================================================
+# SelectorDefinition — 正常系
+# =============================================================================
+
+
+class TestSelectorDefinitionValid:
+    """SelectorDefinition の正常系を検証。"""
+
+    def test_valid_selector_definition(self) -> None:
+        """全必須フィールド指定でインスタンス生成が成功する。"""
+        selector = SelectorDefinition.model_validate(_valid_selector_data())
+        assert selector.name == "selector"
+        assert selector.description == "Agent selector for code review"
+        assert selector.model == "claudecode:claude-sonnet-4-5"
+        assert selector.system_prompt == "You are an agent selector."
+
+    def test_default_allowed_tools(self) -> None:
+        """allowed_tools のデフォルト値は空タプル。"""
+        selector = SelectorDefinition.model_validate(_valid_selector_data())
+        assert selector.allowed_tools == ()
+
+    def test_explicit_allowed_tools(self) -> None:
+        """allowed_tools を明示指定できる。"""
+        selector = SelectorDefinition.model_validate(
+            _valid_selector_data(allowed_tools=["git_read", "file_read"])
+        )
+        assert selector.allowed_tools == ("git_read", "file_read")
+
+    def test_isinstance_hachimoku_base_model(self) -> None:
+        """HachimokuBaseModel のインスタンスである。"""
+        selector = SelectorDefinition.model_validate(_valid_selector_data())
+        assert isinstance(selector, HachimokuBaseModel)
+
+    def test_name_accepts_lowercase_and_hyphens(self) -> None:
+        """小文字・数字・ハイフンの name が許可される。"""
+        selector = SelectorDefinition.model_validate(
+            _valid_selector_data(name="my-selector-2")
+        )
+        assert selector.name == "my-selector-2"
+
+
+# =============================================================================
+# SelectorDefinition — 制約
+# =============================================================================
+
+
+class TestSelectorDefinitionConstraints:
+    """SelectorDefinition の制約を検証。"""
+
+    def test_invalid_name_uppercase(self) -> None:
+        """大文字を含む name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            SelectorDefinition.model_validate(_valid_selector_data(name="Selector"))
+
+    def test_invalid_name_empty(self) -> None:
+        """空文字列の name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            SelectorDefinition.model_validate(_valid_selector_data(name=""))
+
+    def test_missing_required_field_name(self) -> None:
+        """name 欠損で ValidationError。"""
+        data = _valid_selector_data()
+        del data["name"]
+        with pytest.raises(ValidationError, match="name"):
+            SelectorDefinition.model_validate(data)
+
+    def test_missing_required_field_description(self) -> None:
+        """description 欠損で ValidationError。"""
+        data = _valid_selector_data()
+        del data["description"]
+        with pytest.raises(ValidationError, match="description"):
+            SelectorDefinition.model_validate(data)
+
+    def test_missing_required_field_model(self) -> None:
+        """model 欠損で ValidationError。"""
+        data = _valid_selector_data()
+        del data["model"]
+        with pytest.raises(ValidationError, match="model"):
+            SelectorDefinition.model_validate(data)
+
+    def test_missing_required_field_system_prompt(self) -> None:
+        """system_prompt 欠損で ValidationError。"""
+        data = _valid_selector_data()
+        del data["system_prompt"]
+        with pytest.raises(ValidationError, match="system_prompt"):
+            SelectorDefinition.model_validate(data)
+
+    def test_frozen_assignment_rejected(self) -> None:
+        """frozen=True によりフィールド変更が拒否される。"""
+        selector = SelectorDefinition.model_validate(_valid_selector_data())
+        with pytest.raises(ValidationError, match="frozen"):
+            selector.name = "changed"  # type: ignore[misc]
+
+    def test_extra_field_rejected(self) -> None:
+        """定義外フィールドがバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            SelectorDefinition.model_validate(_valid_selector_data(unknown="x"))
+
+    def test_output_schema_field_rejected(self) -> None:
+        """AgentDefinition 固有の output_schema が extra=forbid で拒否される。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            SelectorDefinition.model_validate(
+                _valid_selector_data(output_schema="scored_issues")
+            )
+
+    def test_applicability_field_rejected(self) -> None:
+        """AgentDefinition 固有の applicability が extra=forbid で拒否される。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            SelectorDefinition.model_validate(
+                _valid_selector_data(applicability={"always": True})
+            )
+
+    def test_phase_field_rejected(self) -> None:
+        """AgentDefinition 固有の phase が extra=forbid で拒否される。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            SelectorDefinition.model_validate(_valid_selector_data(phase="main"))
