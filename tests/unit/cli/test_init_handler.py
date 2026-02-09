@@ -154,8 +154,8 @@ class TestGenerateConfigTemplate:
         """デフォルト値が含まれている。"""
         template = _generate_config_template()
         assert '"anthropic:claude-sonnet-4-5"' in template
-        assert "300" in template
-        assert "10" in template
+        assert "600" in template
+        assert "20" in template
         assert "true" in template
         assert '"main"' in template
         assert '"markdown"' in template
