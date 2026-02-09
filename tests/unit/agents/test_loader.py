@@ -534,3 +534,81 @@ class TestLoadAgents:
         result = load_agents(custom_dir=tmp_path)
         assert len(result.errors) == 1
         assert result.errors[0].source == "bad.toml"
+
+
+# =============================================================================
+# ビルトインエージェント — allowed_tools 検証
+# =============================================================================
+
+
+class TestBuiltinAgentAllowedTools:
+    """各ビルトインエージェントの allowed_tools を検証。"""
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_allowed_tools(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """全ビルトインエージェントが git_read, gh_read, file_read を持つ。"""
+        agent = _find_agent(builtin_agents, agent_name)
+        assert agent.allowed_tools == ("git_read", "gh_read", "file_read")
+
+
+# =============================================================================
+# ビルトインエージェント — system_prompt 構造検証
+# =============================================================================
+
+
+class TestBuiltinAgentSystemPromptStructure:
+    """各ビルトインエージェントの system_prompt の構造的制約を検証。"""
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_line_count_within_range(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """system_prompt が 30-50 行の範囲内である。"""
+        agent = _find_agent(builtin_agents, agent_name)
+        lines = agent.system_prompt.strip().splitlines()
+        assert 30 <= len(lines) <= 50, (
+            f"{agent_name}: expected 30-50 lines, got {len(lines)}"
+        )
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_contains_agent_name_reference(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """system_prompt にエージェント名への言及を含む。"""
+        agent = _find_agent(builtin_agents, agent_name)
+        prompt_lower = agent.system_prompt.lower()
+        assert agent_name in prompt_lower, (
+            f"{agent_name}: system_prompt does not reference agent name"
+        )
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_no_backslash(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        r"""system_prompt にバックスラッシュを含まない（TOML パース安全性）。"""
+        agent = _find_agent(builtin_agents, agent_name)
+        assert "\\" not in agent.system_prompt, (
+            f"{agent_name}: system_prompt contains backslash"
+        )

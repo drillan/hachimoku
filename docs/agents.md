@@ -34,11 +34,16 @@ description = "コード品質・バグ・ベストプラクティスの総合�
 model = "claude-sonnet-4-5-20250929"
 output_schema = "scored_issues"
 phase = "main"
+allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """
-You are an expert code reviewer. Analyze the provided code changes and identify:
-- Bugs and logical errors
-- Code quality issues
-- Violations of best practices and coding standards
+You are code-reviewer, an expert code quality analyst. Analyze code changes
+for bugs, security issues, and best practice violations.
+
+## Review Methodology
+1. Use run_git(["diff", "--name-only"]) to list changed files.
+2. Use read_file(path) to read surrounding context.
+3. Check for bugs, security vulnerabilities, and performance concerns.
+...
 """
 
 [applicability]
@@ -191,8 +196,10 @@ name = "security-checker"
 description = "セキュリティ脆弱性の検出"
 model = "claude-sonnet-4-5-20250929"
 output_schema = "scored_issues"
+allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """
-You are a security specialist. Analyze the code for vulnerabilities.
+You are security-checker, a security vulnerability specialist.
+Analyze the code for injection, authentication, and data exposure issues.
 """
 
 [applicability]
