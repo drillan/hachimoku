@@ -153,7 +153,17 @@ async def run_review(
 
     # Step 2: エージェント読み込み + セレクター定義読み込み
     load_result = load_agents(custom_dir=custom_agents_dir)
-    selector_def = load_selector(custom_dir=custom_agents_dir)
+    try:
+        selector_def = load_selector(custom_dir=custom_agents_dir)
+    except Exception as exc:
+        print(
+            f"Error: Failed to load selector definition: {exc}\n"
+            f"Hint: Check your selector.toml for syntax or validation errors.",
+            file=sys.stderr,
+        )
+        return _build_empty_engine_result(
+            load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
+        )
     if load_result.errors:
         report_load_warnings(load_result.errors)
 

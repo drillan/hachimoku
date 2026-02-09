@@ -84,8 +84,10 @@ async def run_selector(
     # 3層モデル解決: config > definition > global
     if selector_config.model is not None:
         model = selector_config.model
-    else:
+    elif selector_definition.model is not None:
         model = selector_definition.model
+    else:
+        model = global_model
 
     timeout = (
         selector_config.timeout
