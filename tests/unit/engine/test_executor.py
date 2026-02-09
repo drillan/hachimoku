@@ -15,7 +15,6 @@ from pydantic_ai import Tool
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
-from hachimoku.models.config import Provider
 from hachimoku.engine._executor import (
     execute_parallel,
     execute_sequential,
@@ -42,7 +41,6 @@ def _make_context(
     return AgentExecutionContext(
         agent_name=agent_name,
         model="test",
-        provider=Provider.CLAUDECODE,
         system_prompt="You are a test agent.",
         user_message="Review this code.",
         output_schema=schema_cls,

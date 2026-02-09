@@ -20,7 +20,7 @@ from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
 from hachimoku.engine._selector import SelectorError, SelectorOutput, run_selector
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
-from hachimoku.models.config import Provider, SelectorConfig
+from hachimoku.models.config import SelectorConfig
 from hachimoku.models.tool_category import ToolCategory
 
 
@@ -153,7 +153,7 @@ class TestRunSelectorSuccess:
     Agent.run() をモック化し、ツール実行を回避する。
     """
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_returns_selector_output(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -177,13 +177,12 @@ class TestRunSelectorSuccess:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
         assert isinstance(result, SelectorOutput)
         assert result.selected_agents == ["agent-a", "agent-b"]
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_empty_selection_is_valid(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -204,13 +203,12 @@ class TestRunSelectorSuccess:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
         assert isinstance(result, SelectorOutput)
         assert result.selected_agents == []
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_reasoning_preserved(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -231,12 +229,11 @@ class TestRunSelectorSuccess:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
         assert result.reasoning == "Detailed reasoning here"
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_model_override(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -257,7 +254,6 @@ class TestRunSelectorSuccess:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
 
@@ -265,7 +261,7 @@ class TestRunSelectorSuccess:
         call_kwargs = mock_agent_cls.call_args
         assert call_kwargs.kwargs["model"] == "custom-model"
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_global_model_used_when_config_none(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -286,7 +282,6 @@ class TestRunSelectorSuccess:
             global_model="test-global-model",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
 
@@ -302,7 +297,7 @@ class TestRunSelectorSuccess:
 class TestRunSelectorError:
     """run_selector のエラー系テスト。"""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_exception_raises_selector_error(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -324,11 +319,10 @@ class TestRunSelectorError:
                 global_model="test",
                 global_timeout=300,
                 global_max_turns=10,
-                global_provider=Provider.CLAUDECODE,
                 resolved_content="test diff content",
             )
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_timeout_raises_selector_error(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -350,7 +344,6 @@ class TestRunSelectorError:
                 global_model="test",
                 global_timeout=300,
                 global_max_turns=10,
-                global_provider=Provider.CLAUDECODE,
                 resolved_content="test diff content",
             )
 
@@ -385,43 +378,11 @@ class TestRunSelectorResolveModel:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
 
-        mock_resolve.assert_called_once_with("test", Provider.CLAUDECODE)
+        mock_resolve.assert_called_once_with("test")
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
-
-    @patch("hachimoku.engine._selector.resolve_model")
-    @patch("hachimoku.engine._selector.Agent")
-    async def test_selector_config_provider_override(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
-    ) -> None:
-        """SelectorConfig.provider が global_provider を上書きする。"""
-        mock_resolve.return_value = "resolved-model"
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
-
-        target = _make_target()
-        agents: Sequence[AgentDefinition] = [_make_agent()]
-        config = SelectorConfig(
-            provider="anthropic",  # type: ignore[arg-type]
-            allowed_tools=["git_read", "gh_read", "file_read"],  # type: ignore[list-item]
-        )
-
-        await run_selector(
-            target=target,
-            available_agents=agents,
-            selector_config=config,
-            global_model="test",
-            global_timeout=300,
-            global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
-            resolved_content="test diff content",
-        )
-
-        mock_resolve.assert_called_once_with("test", Provider.ANTHROPIC)
 
     @patch("hachimoku.engine._selector.resolve_model")
     @patch("hachimoku.engine._selector.Agent")
@@ -446,7 +407,6 @@ class TestRunSelectorResolveModel:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
 
@@ -454,7 +414,7 @@ class TestRunSelectorResolveModel:
             mock_instance._function_toolset
         )
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_skips_toolset_registration_for_string_model(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -475,7 +435,6 @@ class TestRunSelectorResolveModel:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
         assert isinstance(result, SelectorOutput)
@@ -489,7 +448,7 @@ class TestRunSelectorResolveModel:
 class TestRunSelectorModelSettings:
     """run_selector が agent.run() に model_settings を渡すテスト。"""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_model_settings_max_turns_passed(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -510,7 +469,6 @@ class TestRunSelectorModelSettings:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
 
@@ -518,7 +476,7 @@ class TestRunSelectorModelSettings:
         assert call_kwargs["model_settings"] == {"max_turns": 10}
         assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_max_turns_override(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -539,7 +497,6 @@ class TestRunSelectorModelSettings:
             global_model="test",
             global_timeout=300,
             global_max_turns=10,
-            global_provider=Provider.CLAUDECODE,
             resolved_content="test diff content",
         )
 

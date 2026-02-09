@@ -180,7 +180,6 @@ async def run_review(
             global_model=config.model,
             global_timeout=config.timeout,
             global_max_turns=config.max_turns,
-            global_provider=config.provider,
             resolved_content=resolved_content,
         )
         report_selector_result(

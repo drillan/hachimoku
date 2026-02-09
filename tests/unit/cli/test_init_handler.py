@@ -146,21 +146,21 @@ class TestGenerateConfigTemplate:
         template = _generate_config_template()
         assert "max_files_per_review" in template
 
-    def test_contains_provider(self) -> None:
+    def test_does_not_contain_provider(self) -> None:
+        """provider はテンプレートに含まれない（#125 で廃止）。"""
         template = _generate_config_template()
-        assert "provider" in template
+        assert "provider" not in template
 
     def test_contains_default_values(self) -> None:
         """デフォルト値が含まれている。"""
         template = _generate_config_template()
-        assert '"anthropic:claude-sonnet-4-5"' in template
+        assert '"claudecode:claude-sonnet-4-5"' in template
         assert "600" in template
         assert "20" in template
         assert "true" in template
         assert '"main"' in template
         assert '"markdown"' in template
         assert "100" in template
-        assert '"claudecode"' in template
 
     def test_all_settings_commented(self) -> None:
         """設定行が全てコメント（# で始まる）である。"""
