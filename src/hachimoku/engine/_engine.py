@@ -22,6 +22,7 @@ from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import AgentExecutionContext, build_execution_context
 from hachimoku.engine._executor import execute_parallel, execute_sequential
 from hachimoku.engine._instruction import build_review_instruction
+from hachimoku.engine._resolver import ContentResolveError, resolve_content
 from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
 from hachimoku.engine._progress import (
     report_load_warnings,
@@ -158,8 +159,17 @@ async def run_review(
     disabled_names = _get_disabled_names(config)
     filtered_result, _ = _filter_disabled_agents(load_result, disabled_names)
 
+    # Step 3.5: コンテンツ事前解決
+    try:
+        resolved_content = await resolve_content(target)
+    except ContentResolveError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return _build_empty_engine_result(
+            load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
+        )
+
     # Step 4: レビュー指示構築
-    user_message = build_review_instruction(target)
+    user_message = build_review_instruction(target, resolved_content)
 
     # Step 5: セレクターエージェント実行
     try:
@@ -171,6 +181,7 @@ async def run_review(
             global_timeout=config.timeout,
             global_max_turns=config.max_turns,
             global_provider=config.provider,
+            resolved_content=resolved_content,
         )
         report_selector_result(
             len(selector_output.selected_agents),

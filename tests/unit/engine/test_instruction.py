@@ -2,6 +2,7 @@
 
 FR-RE-001: 入力モードに応じたプロンプトコンテキストの生成。
 FR-RE-011: --issue オプションの Issue 番号注入。
+Issue #129: resolved_content のインストラクション埋め込み。
 """
 
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
@@ -10,6 +11,9 @@ from hachimoku.engine._instruction import (
     build_selector_instruction,
 )
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+
+_SAMPLE_DIFF = "diff --git a/file.py b/file.py\n+added line"
+_SAMPLE_FILE_CONTENT = "--- src/main.py ---\nprint('hello')"
 
 
 def _make_agent(
@@ -43,14 +47,21 @@ class TestBuildReviewInstructionDiff:
     def test_includes_base_branch(self) -> None:
         """base_branch 名を含む。"""
         target = DiffTarget(base_branch="develop")
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "develop" in instruction
 
-    def test_includes_merge_base_guidance(self) -> None:
-        """マージベースの差分取得ガイダンスを含む。"""
+    def test_includes_resolved_content(self) -> None:
+        """resolved_content がインストラクションに埋め込まれる。"""
         target = DiffTarget(base_branch="main")
-        instruction = build_review_instruction(target)
-        assert "merge-base" in instruction.lower() or "diff" in instruction.lower()
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert _SAMPLE_DIFF in instruction
+
+    def test_no_tool_guidance_for_diff_retrieval(self) -> None:
+        """diff 取得のツール使用ガイダンスが含まれない。"""
+        target = DiffTarget(base_branch="main")
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert "git merge-base" not in instruction
+        assert "git diff" not in instruction
 
 
 class TestBuildReviewInstructionPR:
@@ -59,8 +70,26 @@ class TestBuildReviewInstructionPR:
     def test_includes_pr_number(self) -> None:
         """PR 番号を含む。"""
         target = PRTarget(pr_number=42)
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "42" in instruction
+
+    def test_includes_resolved_content(self) -> None:
+        """resolved_content がインストラクションに埋め込まれる。"""
+        target = PRTarget(pr_number=42)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert _SAMPLE_DIFF in instruction
+
+    def test_no_tool_guidance_for_diff_retrieval(self) -> None:
+        """diff 取得のツール使用ガイダンスが含まれない。"""
+        target = PRTarget(pr_number=42)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert "gh pr diff" not in instruction
+
+    def test_metadata_guidance_still_present(self) -> None:
+        """PR メタデータ取得の指示は残る。"""
+        target = PRTarget(pr_number=42)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert "gh pr view" in instruction
 
 
 class TestBuildReviewInstructionFile:
@@ -69,9 +98,21 @@ class TestBuildReviewInstructionFile:
     def test_includes_file_paths(self) -> None:
         """ファイルパスを含む。"""
         target = FileTarget(paths=("src/main.py", "tests/test.py"))
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "src/main.py" in instruction
         assert "tests/test.py" in instruction
+
+    def test_includes_resolved_content(self) -> None:
+        """resolved_content がインストラクションに埋め込まれる。"""
+        target = FileTarget(paths=("src/main.py",))
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
+        assert _SAMPLE_FILE_CONTENT in instruction
+
+    def test_no_tool_guidance_for_file_read(self) -> None:
+        """ファイル読み込みのツール使用ガイダンスが含まれない。"""
+        target = FileTarget(paths=("src/main.py",))
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
+        assert "Use file tools" not in instruction
 
 
 class TestBuildReviewInstructionIssue:
@@ -80,13 +121,13 @@ class TestBuildReviewInstructionIssue:
     def test_includes_issue_number_when_present(self) -> None:
         """issue_number 指定時に Issue 番号を含む。"""
         target = DiffTarget(base_branch="main", issue_number=123)
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "123" in instruction
 
     def test_excludes_issue_when_none(self) -> None:
         """issue_number=None 時に Issue 参照を含まない。"""
         target = DiffTarget(base_branch="main")
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "#None" not in instruction
         assert "Related Issue" not in instruction
 
@@ -97,19 +138,19 @@ class TestBuildReviewInstructionFileEdgeCases:
     def test_glob_pattern_included_in_instruction(self) -> None:
         """glob パターンがレビュー指示に含まれる（US5-AC4）。"""
         target = FileTarget(paths=("src/**/*.py",))
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "src/**/*.py" in instruction
 
     def test_directory_path_included_in_instruction(self) -> None:
         """ディレクトリパスがレビュー指示に含まれる（US5-AC3）。"""
         target = FileTarget(paths=("src/",))
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "src/" in instruction
 
     def test_mixed_path_types_all_included(self) -> None:
         """ファイル・ディレクトリ・glob の全パスがレビュー指示に含まれる。"""
         target = FileTarget(paths=("src/main.py", "tests/", "**/*.md"))
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "src/main.py" in instruction
         assert "tests/" in instruction
         assert "**/*.md" in instruction
@@ -117,7 +158,7 @@ class TestBuildReviewInstructionFileEdgeCases:
     def test_paths_listed_with_bullet_format(self) -> None:
         """各パスが '- ' プレフィックスのリスト形式で表示される。"""
         target = FileTarget(paths=("a.py", "b/"))
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "- a.py" in instruction
         assert "- b/" in instruction
 
@@ -126,9 +167,9 @@ class TestBuildReviewInstructionIssueCombinations:
     """全モードにおける issue_number 有無の組み合わせを検証（FR-RE-011）。"""
 
     def test_diff_with_issue_includes_both(self) -> None:
-        """diff モード + issue_number で両方含まれる（Related Issue ヘッダ含有を既存テストに追加検証）。"""
+        """diff モード + issue_number で両方含まれる。"""
         target = DiffTarget(base_branch="main", issue_number=42)
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "main" in instruction
         assert "#42" in instruction
         assert "Related Issue" in instruction
@@ -136,27 +177,27 @@ class TestBuildReviewInstructionIssueCombinations:
     def test_pr_with_issue_includes_both(self) -> None:
         """PR モード + issue_number で両方含まれる。"""
         target = PRTarget(pr_number=10, issue_number=42)
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "#10" in instruction
         assert "#42" in instruction
 
     def test_file_with_issue_includes_both(self) -> None:
         """file モード + issue_number でパスと issue 両方含まれる。"""
         target = FileTarget(paths=("src/main.py",), issue_number=42)
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "src/main.py" in instruction
         assert "#42" in instruction
 
     def test_pr_without_issue_excludes_related_issue(self) -> None:
         """PR モードで issue_number=None の場合 Related Issue を含まない。"""
         target = PRTarget(pr_number=10)
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
         assert "Related Issue" not in instruction
 
     def test_file_without_issue_excludes_related_issue(self) -> None:
         """file モードで issue_number=None の場合 Related Issue を含まない。"""
         target = FileTarget(paths=("a.py",))
-        instruction = build_review_instruction(target)
+        instruction = build_review_instruction(target, _SAMPLE_FILE_CONTENT)
         assert "Related Issue" not in instruction
 
 
@@ -171,14 +212,20 @@ class TestBuildSelectorInstruction:
     def test_includes_review_instruction_content(self) -> None:
         """レビュー指示情報を含む。"""
         target = DiffTarget(base_branch="main")
-        instruction = build_selector_instruction(target, [])
+        instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
         assert "main" in instruction
+
+    def test_includes_resolved_content(self) -> None:
+        """resolved_content がセレクターインストラクションにも含まれる。"""
+        target = DiffTarget(base_branch="main")
+        instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
+        assert _SAMPLE_DIFF in instruction
 
     def test_includes_agent_name_and_description(self) -> None:
         """エージェント名と説明を含む。"""
         target = DiffTarget(base_branch="main")
         agent = _make_agent(name="code-reviewer", description="Code quality check")
-        instruction = build_selector_instruction(target, [agent])
+        instruction = build_selector_instruction(target, [agent], _SAMPLE_DIFF)
         assert "code-reviewer" in instruction
         assert "Code quality check" in instruction
 
@@ -189,13 +236,13 @@ class TestBuildSelectorInstruction:
             _make_agent(name="reviewer-a", description="Desc A"),
             _make_agent(name="reviewer-b", description="Desc B"),
         ]
-        instruction = build_selector_instruction(target, agents)
+        instruction = build_selector_instruction(target, agents, _SAMPLE_DIFF)
         assert "reviewer-a" in instruction
         assert "reviewer-b" in instruction
 
     def test_empty_agents_list_handled(self) -> None:
         """空のエージェントリストでも例外なく動作する。"""
         target = PRTarget(pr_number=10)
-        instruction = build_selector_instruction(target, [])
+        instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
         assert isinstance(instruction, str)
         assert len(instruction) > 0

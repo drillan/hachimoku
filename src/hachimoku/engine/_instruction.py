@@ -3,6 +3,7 @@
 FR-RE-001: 入力モードに応じたプロンプトコンテキストの生成。
 FR-RE-011: --issue オプションの Issue 番号注入。
 FR-RE-012: PR モードでの PR メタデータ注入指示。
+Issue #129: エンジンが事前解決したコンテンツをインストラクションに埋め込む。
 """
 
 from __future__ import annotations
@@ -13,26 +14,30 @@ from hachimoku.agents.models import AgentDefinition
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 
 
-def build_review_instruction(target: DiffTarget | PRTarget | FileTarget) -> str:
+def build_review_instruction(
+    target: DiffTarget | PRTarget | FileTarget,
+    resolved_content: str,
+) -> str:
     """ReviewTarget からエージェント向けのユーザーメッセージを構築する。
 
-    入力モードに応じて以下を含むプロンプト文字列を返す:
+    入力モードに応じたヘッダーと、事前解決されたコンテンツを含む
+    プロンプト文字列を返す。
 
-    - **diff モード**: base_branch 名、マージベースからの差分レビュー指示、
-      推奨される diff 取得方法のガイダンス
-    - **PR モード**: PR 番号、PR 差分・メタデータ取得指示
-    - **file モード**: ファイルパスリスト、ファイル内容取得指示
+    - **diff モード**: base_branch 名と事前解決された差分
+    - **PR モード**: PR 番号、メタデータ取得指示、事前解決された差分
+    - **file モード**: ファイルパスリストと事前解決されたファイル内容
 
     共通:
     - issue_number が指定されている場合、Issue 番号と取得指示を追加
 
     Args:
         target: レビュー対象（DiffTarget / PRTarget / FileTarget）。
+        resolved_content: 事前解決されたコンテンツ（diff テキスト、ファイル内容等）。
 
     Returns:
         エージェントに渡すユーザーメッセージ文字列。
     """
-    parts: list[str] = [_build_mode_section(target)]
+    parts: list[str] = [_build_mode_section(target, resolved_content)]
 
     if target.issue_number is not None:
         parts.append(
@@ -46,6 +51,7 @@ def build_review_instruction(target: DiffTarget | PRTarget | FileTarget) -> str:
 def build_selector_instruction(
     target: DiffTarget | PRTarget | FileTarget,
     available_agents: Sequence[AgentDefinition],
+    resolved_content: str,
 ) -> str:
     """セレクターエージェント向けのユーザーメッセージを構築する。
 
@@ -55,11 +61,12 @@ def build_selector_instruction(
     Args:
         target: レビュー対象。
         available_agents: 利用可能なエージェント定義リスト。
+        resolved_content: 事前解決されたコンテンツ。
 
     Returns:
         セレクターエージェントに渡すユーザーメッセージ文字列。
     """
-    review_section = build_review_instruction(target)
+    review_section = build_review_instruction(target, resolved_content)
     agents_section = _build_agents_section(available_agents)
 
     return (
@@ -70,29 +77,29 @@ def build_selector_instruction(
     )
 
 
-def _build_mode_section(target: DiffTarget | PRTarget | FileTarget) -> str:
+def _build_mode_section(
+    target: DiffTarget | PRTarget | FileTarget,
+    resolved_content: str,
+) -> str:
     """入力モードに応じたプロンプトセクションを構築する。"""
     if isinstance(target, DiffTarget):
         return (
-            f"Review the changes in the current branch compared to '{target.base_branch}'.\n"
-            f"Use `git merge-base {target.base_branch} HEAD` to find the common ancestor, "
-            f"then `git diff <merge-base>` to get the diff."
+            f"Review the changes in the current branch compared to "
+            f"'{target.base_branch}'.\n\n"
+            f"{resolved_content}"
         )
 
     if isinstance(target, PRTarget):
         return (
             f"Review Pull Request #{target.pr_number}.\n"
             f"Use `gh pr view {target.pr_number}` to get PR metadata "
-            f"(title, labels, linked issues).\n"
-            f"Use `gh pr diff {target.pr_number}` or git tools to get the diff."
+            f"(title, labels, linked issues).\n\n"
+            f"{resolved_content}"
         )
 
     if isinstance(target, FileTarget):
         paths_list = "\n".join(f"- {p}" for p in target.paths)
-        return (
-            f"Review the following files:\n{paths_list}\n\n"
-            f"Use file tools to read the content of each file."
-        )
+        return f"Review the following files:\n{paths_list}\n\n{resolved_content}"
 
     raise TypeError(f"Unknown target type: {type(target)}")
 

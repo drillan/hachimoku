@@ -178,6 +178,7 @@ class TestRunSelectorSuccess:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
         assert isinstance(result, SelectorOutput)
         assert result.selected_agents == ["agent-a", "agent-b"]
@@ -204,6 +205,7 @@ class TestRunSelectorSuccess:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
         assert isinstance(result, SelectorOutput)
         assert result.selected_agents == []
@@ -230,6 +232,7 @@ class TestRunSelectorSuccess:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
         assert result.reasoning == "Detailed reasoning here"
 
@@ -255,6 +258,7 @@ class TestRunSelectorSuccess:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         # Agent コンストラクタに custom-model が渡されたことを確認
@@ -283,6 +287,7 @@ class TestRunSelectorSuccess:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         call_kwargs = mock_agent_cls.call_args
@@ -320,6 +325,7 @@ class TestRunSelectorError:
                 global_timeout=300,
                 global_max_turns=10,
                 global_provider=Provider.CLAUDECODE,
+                resolved_content="test diff content",
             )
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
@@ -345,6 +351,7 @@ class TestRunSelectorError:
                 global_timeout=300,
                 global_max_turns=10,
                 global_provider=Provider.CLAUDECODE,
+                resolved_content="test diff content",
             )
 
 
@@ -379,6 +386,7 @@ class TestRunSelectorResolveModel:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         mock_resolve.assert_called_once_with("test", Provider.CLAUDECODE)
@@ -410,6 +418,7 @@ class TestRunSelectorResolveModel:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         mock_resolve.assert_called_once_with("test", Provider.ANTHROPIC)
@@ -438,6 +447,7 @@ class TestRunSelectorResolveModel:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         mock_model.set_agent_toolsets.assert_called_once_with(
@@ -466,6 +476,7 @@ class TestRunSelectorResolveModel:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
         assert isinstance(result, SelectorOutput)
 
@@ -500,6 +511,7 @@ class TestRunSelectorModelSettings:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         call_kwargs = mock_instance.run.call_args.kwargs
@@ -528,6 +540,7 @@ class TestRunSelectorModelSettings:
             global_timeout=300,
             global_max_turns=10,
             global_provider=Provider.CLAUDECODE,
+            resolved_content="test diff content",
         )
 
         call_kwargs = mock_instance.run.call_args.kwargs
