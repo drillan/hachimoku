@@ -1,6 +1,6 @@
 name = "type-design-analyzer"
 description = "型設計・インターフェース設計の分析"
-model = "claude-sonnet-4-5-20250929"
+model = "anthropic:claude-sonnet-4-5"
 output_schema = "multi_dimensional_analysis"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

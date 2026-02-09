@@ -111,7 +111,7 @@ erDiagram
 ```toml
 name = "code-reviewer"
 description = "コード品質・バグ・ベストプラクティスのレビュー"
-model = "claude-sonnet-4-5-20250929"
+model = "anthropic:claude-sonnet-4-5"
 output_schema = "scored_issues"
 system_prompt = """
 You are code-reviewer, an expert code quality analyst...
@@ -198,7 +198,7 @@ always = true
 # 必須フィールド
 name = "agent-name"                    # ^[a-z0-9-]+$
 description = "エージェントの説明"
-model = "claude-sonnet-4-5-20250929"
+model = "anthropic:claude-sonnet-4-5"
 output_schema = "scored_issues"        # SCHEMA_REGISTRY 登録名
 system_prompt = """
 システムプロンプトの内容

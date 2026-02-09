@@ -35,7 +35,7 @@ from hachimoku.agents.models import AgentDefinition, LoadResult, Phase
 VALID_TOML = """\
 name = "test-agent"
 description = "A test agent"
-model = "claude-sonnet-4-5-20250929"
+model = "anthropic:claude-sonnet-4-5"
 output_schema = "scored_issues"
 system_prompt = "You are a test agent."
 """
@@ -104,7 +104,7 @@ class TestLoadSingleAgentValid:
         agent = _load_single_agent(path)
         assert agent.name == "test-agent"
         assert agent.description == "A test agent"
-        assert agent.model == "claude-sonnet-4-5-20250929"
+        assert agent.model == "anthropic:claude-sonnet-4-5"
         assert agent.output_schema == "scored_issues"
         assert agent.system_prompt == "You are a test agent."
 

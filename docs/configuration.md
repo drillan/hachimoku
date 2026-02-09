@@ -32,7 +32,7 @@ hachimoku は TOML ベースの階層的な設定システムを提供します�
 
 ```{code-block} toml
 # 実行設定
-model = "sonnet"
+model = "anthropic:claude-sonnet-4-5"
 timeout = 300
 max_turns = 10
 parallel = true
@@ -48,14 +48,14 @@ max_files_per_review = 100
 
 # セレクターエージェント設定
 [selector]
-model = "sonnet"
+model = "anthropic:claude-haiku-4-5"
 timeout = 300
 max_turns = 10
 
 # エージェント個別設定
 [agents.code-reviewer]
 enabled = true
-model = "sonnet"
+model = "anthropic:claude-sonnet-4-5"
 timeout = 600
 max_turns = 15
 
@@ -67,7 +67,7 @@ enabled = false
 
 ```{code-block} toml
 [tool.hachimoku]
-model = "sonnet"
+model = "anthropic:claude-sonnet-4-5"
 timeout = 300
 parallel = false
 ```
@@ -80,7 +80,7 @@ parallel = false
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
-| `model` | `str` | `"sonnet"` | 空文字不可 | 使用する LLM モデル名 |
+| `model` | `str` | `"anthropic:claude-sonnet-4-5"` | 空文字不可 | 使用する LLM モデル名 |
 | `timeout` | `int` | `300` | 正の値 | エージェントのタイムアウト（秒） |
 | `max_turns` | `int` | `10` | 正の値 | エージェントの最大ターン数 |
 | `parallel` | `bool` | `true` | - | 並列実行の有効化 |
@@ -149,7 +149,7 @@ config = resolve_config(
     cli_overrides={"timeout": 600, "parallel": False},
 )
 
-print(config.model)      # "sonnet"
+print(config.model)      # "anthropic:claude-sonnet-4-5"
 print(config.timeout)    # 600（CLI オーバーライドが適用）
 print(config.parallel)   # False（CLI オーバーライドが適用）
 ```

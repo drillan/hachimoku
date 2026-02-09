@@ -40,7 +40,7 @@ _CONFIG_TEMPLATE: str = """\
 # --- Execution Settings ---
 
 # LLM model name
-# model = "sonnet"
+# model = "anthropic:claude-sonnet-4-5"
 
 # Timeout in seconds
 # timeout = 300
@@ -73,7 +73,7 @@ _CONFIG_TEMPLATE: str = """\
 # --- Selector Agent Settings ---
 
 # [selector]
-# model = "sonnet"
+# model = "anthropic:claude-sonnet-4-5"
 # timeout = 300
 # max_turns = 10
 # allowed_tools = ["git_read", "gh_read", "file_read"]
@@ -84,7 +84,7 @@ _CONFIG_TEMPLATE: str = """\
 #
 # [agents.code-reviewer]
 # enabled = true
-# model = "sonnet"
+# model = "anthropic:claude-sonnet-4-5"
 # timeout = 300
 # max_turns = 10
 """
