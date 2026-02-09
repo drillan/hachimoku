@@ -169,7 +169,10 @@ def review_callback(
     ] = None,
     provider: Annotated[
         Provider | None,
-        typer.Option("--provider", help="LLM provider: claudecode or anthropic."),
+        typer.Option(
+            "--provider",
+            help="LLM provider: 'claudecode' (default, no API key) or 'anthropic' (requires ANTHROPIC_API_KEY).",
+        ),
     ] = None,
     max_files: Annotated[
         int | None,

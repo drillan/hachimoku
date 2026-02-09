@@ -60,17 +60,18 @@ async def run_selector(
     global_model: str,
     global_timeout: int,
     global_max_turns: int,
-    global_provider: Provider = Provider.CLAUDECODE,
+    global_provider: Provider,
 ) -> SelectorOutput:
     """セレクターエージェントを実行し、実行すべきエージェントを選択する。
 
     実行フロー:
-        1. SelectorConfig からモデル・タイムアウト・ターン数を解決
+        1. SelectorConfig からモデル・プロバイダー・タイムアウト・ターン数を解決
         2. ToolCatalog から SelectorConfig.allowed_tools のツールを解決
         3. build_selector_instruction() でユーザーメッセージを構築
-        4. pydantic-ai Agent(output_type=SelectorOutput) を構築
-        5. asyncio.timeout() + UsageLimits でエージェントを実行
-        6. SelectorOutput を返す
+        4. resolve_model() でプロバイダーに応じたモデルオブジェクトを生成
+        5. pydantic-ai Agent(output_type=SelectorOutput) を構築
+        6. asyncio.timeout() + UsageLimits でエージェントを実行
+        7. SelectorOutput を返す
 
     Args:
         target: レビュー対象。
@@ -79,6 +80,7 @@ async def run_selector(
         global_model: グローバルモデル名。
         global_timeout: グローバルタイムアウト秒数。
         global_max_turns: グローバル最大ターン数。
+        global_provider: グローバル LLM プロバイダー。
 
     Returns:
         SelectorOutput: 選択されたエージェント名リストと選択理由。

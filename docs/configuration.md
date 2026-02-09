@@ -99,7 +99,7 @@ parallel = false
 ### SelectorConfig
 
 セレクターエージェントの設定上書きです。
-`model`、`timeout`、`max_turns` が `None` の場合は [セレクター定義](selector-definition) の値またはグローバル設定値を使用します。
+`model`、`provider`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
@@ -111,7 +111,7 @@ parallel = false
 ### AgentConfig
 
 エージェントごとの個別設定です。
-`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+`model`、`provider`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|

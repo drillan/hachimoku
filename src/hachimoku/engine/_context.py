@@ -30,6 +30,7 @@ class AgentExecutionContext(HachimokuBaseModel):
     Attributes:
         agent_name: エージェント名。
         model: 解決済みモデル名（個別設定 > グローバル > デフォルト）。
+        provider: 解決済み LLM プロバイダー（個別設定 > グローバル > デフォルト）。
         system_prompt: エージェント定義のシステムプロンプト。
         user_message: レビュー指示情報 + オプションコンテキスト。
         output_schema: 解決済み出力スキーマクラス。
@@ -73,8 +74,8 @@ def build_execution_context(
     """AgentDefinition と設定からエージェント実行コンテキストを構築する。
 
     設定値の解決優先順（FR-RE-004）:
-        1. エージェント個別設定（agents.<name>.model / timeout / max_turns）
-        2. グローバル設定（HachimokuConfig.model / timeout / max_turns）
+        1. エージェント個別設定（agents.<name>.model / provider / timeout / max_turns）
+        2. グローバル設定（HachimokuConfig.model / provider / timeout / max_turns）
         3. デフォルト値（HachimokuConfig のフィールドデフォルト）
 
     Args:

@@ -7,6 +7,8 @@ provider 設定に基づき、pydantic-ai Agent に渡す model 引数を解決�
 
 from __future__ import annotations
 
+import os
+
 from claudecode_model import ClaudeCodeModel
 from pydantic_ai.models import Model
 
@@ -24,11 +26,23 @@ def resolve_model(model: str, provider: Provider) -> str | Model:
 
     Returns:
         anthropic の場合: モデル文字列をそのまま返す。
-        claudecode の場合: ClaudeCodeModel インスタンスを返す。
+        claudecode の場合: ``anthropic:`` プレフィックスを除去し
+            ClaudeCodeModel インスタンスを返す。
+
+    Raises:
+        ValueError: anthropic プロバイダーで ANTHROPIC_API_KEY が未設定の場合。
+        ValueError: 未知のプロバイダーが指定された場合。
     """
     if provider == Provider.ANTHROPIC:
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            raise ValueError(
+                "ANTHROPIC_API_KEY environment variable is required when using "
+                "provider='anthropic'. Set it with: export ANTHROPIC_API_KEY='your-key'"
+            )
         return model
 
-    # provider == Provider.CLAUDECODE
-    bare_name = model.removeprefix(_ANTHROPIC_PREFIX)
-    return ClaudeCodeModel(model_name=bare_name)
+    if provider == Provider.CLAUDECODE:
+        bare_name = model.removeprefix(_ANTHROPIC_PREFIX)
+        return ClaudeCodeModel(model_name=bare_name)
+
+    raise ValueError(f"Unsupported provider: {provider!r}")

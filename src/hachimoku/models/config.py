@@ -38,7 +38,7 @@ class OutputFormat(StrEnum):
 class SelectorConfig(HachimokuBaseModel):
     """セレクターエージェント設定。FR-CF-010.
 
-    model, timeout, max_turns はオプショナル（None 可）で、
+    model, provider, timeout, max_turns はオプショナル（None 可）で、
     None の場合はグローバル設定値が適用される。
     allowed_tools はセレクターに許可されるツールカテゴリのリスト。
     """
@@ -61,7 +61,7 @@ class AgentConfig(HachimokuBaseModel):
     """エージェント個別設定。FR-CF-002 エージェント個別設定セクション.
 
     enabled はデフォルト True の必須フィールド。
-    model, timeout, max_turns はオプショナル（None 可）で、
+    model, provider, timeout, max_turns はオプショナル（None 可）で、
     None の場合はグローバル設定値が適用される（FR-CF-008）。
     """
 

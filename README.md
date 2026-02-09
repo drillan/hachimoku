@@ -72,10 +72,26 @@ uv sync
 | `--model TEXT` | LLM モデル名 |
 | `--timeout INTEGER` | タイムアウト秒数 |
 | `--parallel / --no-parallel` | 並列実行の有効/無効 |
+| `--provider TEXT` | LLM プロバイダー（`claudecode` or `anthropic`） |
 | `--format json` | 出力形式 |
 | `--base-branch TEXT` | diff モードのベースブランチ |
 | `--issue INTEGER` | コンテキスト用 GitHub Issue 番号 |
 | `--no-confirm` | 確認プロンプトをスキップ |
+
+## プロバイダー
+
+hachimoku は2つの LLM プロバイダーをサポートしています:
+
+| プロバイダー | 説明 | API キー |
+|-------------|------|---------|
+| `claudecode` | Claude Code 内蔵モデル（デフォルト） | 不要 |
+| `anthropic` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 |
+
+```bash
+# Anthropic API を使用する場合
+export ANTHROPIC_API_KEY="your-api-key"
+8moku --provider anthropic
+```
 
 ## 設定
 
