@@ -606,6 +606,47 @@ class TestRunReviewPipeline:
         assert result.exit_code == 3
         assert len(result.report.results) == 0
 
+    @patch("hachimoku.engine._engine.execute_parallel", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.install_signal_handlers")
+    @patch("hachimoku.engine._engine.uninstall_signal_handlers")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.build_review_instruction")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_resolved_content_forwarded_to_instruction_and_selector(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_build_instruction: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        _mock_uninstall: MagicMock,
+        _mock_install: MagicMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """resolved_content が build_review_instruction と run_selector に渡される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "resolved diff content"
+        mock_build_instruction.return_value = "user message"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Applicable",
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        # build_review_instruction に resolved_content が渡される
+        mock_build_instruction.assert_called_once()
+        instruction_args = mock_build_instruction.call_args
+        assert instruction_args[0][1] == "resolved diff content"
+
+        # run_selector に resolved_content が渡される
+        mock_selector.assert_called_once()
+        assert mock_selector.call_args[1]["resolved_content"] == "resolved diff content"
+
 
 # =============================================================================
 # run_review — parallel 設定による実行モード切り替え

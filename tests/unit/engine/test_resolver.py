@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -138,12 +138,95 @@ class TestResolveContentDiff:
 
         async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
             mock_proc = AsyncMock()
+            mock_proc.kill = MagicMock()  # kill() は同期メソッド
             mock_proc.communicate.side_effect = asyncio.TimeoutError()
             return mock_proc
 
         with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
             with pytest.raises(ContentResolveError, match="timed out"):
                 await resolve_content(target)
+
+    async def test_subprocess_timeout_kills_process(self) -> None:
+        """タイムアウト時にプロセスが kill される。"""
+        target = DiffTarget(base_branch="main")
+
+        mock_proc = AsyncMock()
+        mock_proc.kill = MagicMock()  # kill() は同期メソッド
+        mock_proc.communicate.side_effect = asyncio.TimeoutError()
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(ContentResolveError, match="timed out"):
+                await resolve_content(target)
+
+        mock_proc.kill.assert_called_once()
+        mock_proc.wait.assert_called_once()
+
+    async def test_merge_base_empty_output_raises_error(self) -> None:
+        """git merge-base が空文字を返した場合 ContentResolveError を送出する。"""
+        target = DiffTarget(base_branch="main")
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            mock_proc.communicate.return_value = (b"", b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(ContentResolveError, match="empty output"):
+                await resolve_content(target)
+
+    async def test_merge_base_stripped_value_passed_to_diff(self) -> None:
+        """merge-base の strip 済み値が git diff に渡される。"""
+        target = DiffTarget(base_branch="main")
+        calls: list[tuple[object, ...]] = []
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            calls.append(args)
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            if "merge-base" in args:
+                mock_proc.communicate.return_value = (b"abc123\n", b"")
+            else:
+                mock_proc.communicate.return_value = (b"diff output", b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            await resolve_content(target)
+
+        assert len(calls) == 2
+        diff_call = calls[1]
+        assert diff_call == ("git", "diff", "abc123")
+
+    async def test_non_utf8_stdout_raises_error(self) -> None:
+        """stdout に非 UTF-8 バイトが含まれる場合 ContentResolveError を送出する。"""
+        target = PRTarget(pr_number=42)
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            mock_proc.communicate.return_value = (b"\xff\xfe invalid", b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(ContentResolveError, match="non-UTF-8"):
+                await resolve_content(target)
+
+    async def test_exception_chain_preserved(self) -> None:
+        """元の例外が __cause__ として保持される。"""
+        target = DiffTarget(base_branch="main")
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            side_effect=FileNotFoundError("git not found"),
+        ):
+            with pytest.raises(ContentResolveError) as exc_info:
+                await resolve_content(target)
+
+        assert exc_info.value.__cause__ is not None
+        assert isinstance(exc_info.value.__cause__, FileNotFoundError)
 
 
 # =============================================================================
@@ -236,8 +319,41 @@ class TestResolveContentFile:
         """存在しないファイルの場合 ContentResolveError を送出する。"""
         target = FileTarget(paths=(str(tmp_path / "nonexistent.py"),))
 
-        with pytest.raises(ContentResolveError, match="not found"):
+        with pytest.raises(ContentResolveError, match="Cannot read file"):
             await resolve_content(target)
+
+    async def test_binary_file_raises_error(self, tmp_path: Path) -> None:
+        """バイナリファイル（非 UTF-8）の場合 ContentResolveError を送出する。"""
+        binary_file = tmp_path / "data.bin"
+        binary_file.write_bytes(b"\xff\xfe\x00\x01")
+        target = FileTarget(paths=(str(binary_file),))
+
+        with pytest.raises(ContentResolveError, match="not a valid UTF-8"):
+            await resolve_content(target)
+
+    async def test_permission_error_raises_content_resolve_error(
+        self, tmp_path: Path
+    ) -> None:
+        """PermissionError の場合 ContentResolveError を送出する。"""
+        file = tmp_path / "secret.py"
+        file.write_text("secret", encoding="utf-8")
+        file.chmod(0o000)
+        target = FileTarget(paths=(str(file),))
+
+        try:
+            with pytest.raises(ContentResolveError, match="Cannot read file"):
+                await resolve_content(target)
+        finally:
+            file.chmod(0o644)
+
+    async def test_file_exception_chain_preserved(self, tmp_path: Path) -> None:
+        """ファイル例外の __cause__ が保持される。"""
+        target = FileTarget(paths=(str(tmp_path / "nonexistent.py"),))
+
+        with pytest.raises(ContentResolveError) as exc_info:
+            await resolve_content(target)
+
+        assert exc_info.value.__cause__ is not None
 
 
 # =============================================================================

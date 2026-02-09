@@ -51,9 +51,14 @@ async def _resolve_diff(target: DiffTarget) -> str:
 
     git merge-base でマージベースを取得し、git diff で差分を取得する。
     """
-    merge_base = await _run_subprocess("git", "merge-base", target.base_branch, "HEAD")
-    diff = await _run_subprocess("git", "diff", merge_base.strip())
-    return diff
+    merge_base = (
+        await _run_subprocess("git", "merge-base", target.base_branch, "HEAD")
+    ).strip()
+    if not merge_base:
+        raise ContentResolveError(
+            f"git merge-base returned empty output for branch '{target.base_branch}'"
+        )
+    return await _run_subprocess("git", "diff", merge_base)
 
 
 async def _resolve_pr_diff(target: PRTarget) -> str:
@@ -69,14 +74,14 @@ def _resolve_file_content(target: FileTarget) -> str:
     sections: list[str] = []
     for path_str in target.paths:
         file_path = Path(path_str)
-        if not file_path.is_file():
-            raise ContentResolveError(f"File not found: {path_str}")
         try:
             content = file_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as exc:
             raise ContentResolveError(
                 f"File '{path_str}' is not a valid UTF-8 text file"
-            ) from None
+            ) from exc
+        except OSError as exc:
+            raise ContentResolveError(f"Cannot read file '{path_str}': {exc}") from exc
         sections.append(f"--- {path_str} ---\n{content}")
     return "\n\n".join(sections)
 
@@ -91,7 +96,7 @@ async def _run_subprocess(*args: str) -> str:
         stdout のテキスト出力。
 
     Raises:
-        ContentResolveError: コマンド失敗、未検出、タイムアウト時。
+        ContentResolveError: コマンド失敗、未検出、タイムアウト、デコード失敗時。
     """
     cmd_display = " ".join(args)
     try:
@@ -103,18 +108,25 @@ async def _run_subprocess(*args: str) -> str:
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(), timeout=_SUBPROCESS_TIMEOUT_SECONDS
         )
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         raise ContentResolveError(
             f"Command not found: {args[0]}. "
             f"Ensure {args[0]} is installed and available in PATH."
-        ) from None
-    except TimeoutError:
+        ) from exc
+    except TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
         raise ContentResolveError(
             f"Command timed out after {_SUBPROCESS_TIMEOUT_SECONDS}s: {cmd_display}"
-        ) from None
+        ) from exc
 
     if proc.returncode != 0:
         stderr_text = stderr.decode(errors="replace").strip()
         raise ContentResolveError(f"Command failed ({cmd_display}): {stderr_text}")
 
-    return stdout.decode(errors="replace")
+    try:
+        return stdout.decode(errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ContentResolveError(
+            f"Command output contains non-UTF-8 bytes: {cmd_display}"
+        ) from exc
