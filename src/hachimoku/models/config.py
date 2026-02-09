@@ -21,6 +21,13 @@ from hachimoku.models.tool_category import ToolCategory
 _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
 
 
+class Provider(StrEnum):
+    """LLM プロバイダー。FR-CF-002."""
+
+    CLAUDECODE = "claudecode"
+    ANTHROPIC = "anthropic"
+
+
 class OutputFormat(StrEnum):
     """レビュー結果の出力形式。FR-CF-002."""
 
@@ -37,6 +44,7 @@ class SelectorConfig(HachimokuBaseModel):
     """
 
     model: str | None = Field(default=None, min_length=1)
+    provider: Provider | None = None
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
     allowed_tools: list[ToolCategory] = Field(
@@ -59,6 +67,7 @@ class AgentConfig(HachimokuBaseModel):
 
     enabled: StrictBool = True
     model: str | None = Field(default=None, min_length=1)
+    provider: Provider | None = None
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
 
@@ -70,6 +79,7 @@ class HachimokuConfig(HachimokuBaseModel):
     """
 
     # 実行設定
+    provider: Provider = Provider.CLAUDECODE
     model: str = Field(default="anthropic:claude-sonnet-4-5", min_length=1)
     timeout: int = Field(default=300, gt=0)
     max_turns: int = Field(default=10, gt=0)

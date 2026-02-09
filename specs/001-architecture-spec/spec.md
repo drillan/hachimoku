@@ -264,6 +264,7 @@
 - **FR-030**: file モードのレビュー結果は `.hachimoku/reviews/files.jsonl` に蓄積しなければならない。各行のメタデータには以下を含む: レビュー対象となったファイルパスのリスト、レビュー実行日時（ISO 8601 形式）、レビュー実行時の作業ディレクトリ（絶対パス）、AgentResult リスト、全体サマリー
 - **FR-031**: file モードは `--issue` オプションと併用可能としなければならない。`8moku src/auth.py --issue 122` のように指定した場合、Issue 番号がエージェントのプロンプトコンテキストに含まれる（diff モード・PR モードと同様の動作）
 - **FR-032**: file モードで指定されたファイル数（glob 展開・ディレクトリ再帰探索後の最終ファイル数）が設定項目 `max_files_per_review`（デフォルト: 100）を超える場合、警告メッセージを表示し確認を求めなければならない。`--no-confirm` オプション指定時は確認をスキップする
+- **FR-033**: システムは LLM プロバイダーとして `claudecode`（Claude Code 内蔵モデル、API キー不要）と `anthropic`（Anthropic API 直接呼び出し、`ANTHROPIC_API_KEY` 必要）の2種類を `provider` 設定項目で切り替え可能でなければならない。デフォルトは `claudecode`。プロバイダー解決は Agent 構築直前に行い、`claudecode` の場合は `claudecode-model` パッケージの `ClaudeCodeModel` を使用する（Issue #123）
 
 ### Key Entities
 

@@ -146,6 +146,10 @@ class TestGenerateConfigTemplate:
         template = _generate_config_template()
         assert "max_files_per_review" in template
 
+    def test_contains_provider(self) -> None:
+        template = _generate_config_template()
+        assert "provider" in template
+
     def test_contains_default_values(self) -> None:
         """デフォルト値が含まれている。"""
         template = _generate_config_template()
@@ -156,6 +160,7 @@ class TestGenerateConfigTemplate:
         assert '"main"' in template
         assert '"markdown"' in template
         assert "100" in template
+        assert '"claudecode"' in template
 
     def test_all_settings_commented(self) -> None:
         """設定行が全てコメント（# で始まる）である。"""

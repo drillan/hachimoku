@@ -170,6 +170,7 @@ async def run_review(
             global_model=config.model,
             global_timeout=config.timeout,
             global_max_turns=config.max_turns,
+            global_provider=config.provider,
         )
         report_selector_result(
             len(selector_output.selected_agents),

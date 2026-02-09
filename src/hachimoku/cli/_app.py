@@ -40,7 +40,7 @@ from hachimoku.cli._input_resolver import (
 from hachimoku.config import find_project_root, resolve_config
 from hachimoku.engine import run_review
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
-from hachimoku.models.config import HachimokuConfig, OutputFormat
+from hachimoku.models.config import HachimokuConfig, OutputFormat, Provider
 from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.report import ReviewReport
 
@@ -167,6 +167,10 @@ def review_callback(
         bool | None,
         typer.Option("--show-cost/--no-show-cost", help="Show cost information."),
     ] = None,
+    provider: Annotated[
+        Provider | None,
+        typer.Option("--provider", help="LLM provider: claudecode or anthropic."),
+    ] = None,
     max_files: Annotated[
         int | None,
         typer.Option(
@@ -212,6 +216,7 @@ def review_callback(
         output_format=output_format,
         save_reviews=save_reviews,
         show_cost=show_cost,
+        provider=provider,
         max_files=max_files,
     )
 
@@ -463,6 +468,7 @@ def _build_config_overrides(
     output_format: OutputFormat | None,
     save_reviews: bool | None,
     show_cost: bool | None,
+    provider: Provider | None,
     max_files: int | None,
 ) -> dict[str, object]:
     """CLI オプションから config_overrides 辞書を構築する。
@@ -479,6 +485,7 @@ def _build_config_overrides(
         "output_format": output_format,
         "save_reviews": save_reviews,
         "show_cost": show_cost,
+        "provider": provider,
         "max_files_per_review": max_files,
     }
     return {k: v for k, v in raw.items() if v is not None}

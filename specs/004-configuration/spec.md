@@ -153,6 +153,7 @@
   | `timeout` | `--timeout` | `300` | 正の整数 |
   | `max_turns` | `--max-turns` | `10` | 正の整数 |
   | `parallel` | `--parallel` | `true` | boolean |
+  | `provider` | `--provider` | `"claudecode"` | `"claudecode"` \| `"anthropic"` |
   | `base_branch` | `--base-branch` | `"main"` | 文字列 |
 
   **出力設定**:
@@ -173,12 +174,14 @@
   - `model`: セレクターエージェントのモデル上書き（デフォルト: なし、SelectorDefinition.model → グローバル `model` の順で解決）
   - `timeout`: セレクターエージェントのタイムアウト（デフォルト: なし、グローバル `timeout` を使用）
   - `max_turns`: セレクターエージェントの最大ターン数（デフォルト: なし、グローバル `max_turns` を使用）
+  - `provider`: セレクターエージェントのプロバイダー上書き（デフォルト: なし、グローバル `provider` を使用）（Issue #123）
 
   **エージェント個別設定**（`[agents.<name>]` セクション、CLI からの上書き対象外）:
   - `enabled`: エージェントの有効/無効（デフォルト: `true`、boolean）
   - `model`: エージェント固有のモデル上書き（デフォルト: なし、グローバル `model` を使用）
   - `timeout`: エージェント固有のタイムアウト上書き（デフォルト: なし、グローバル `timeout` を使用）
   - `max_turns`: エージェント固有の最大ターン数上書き（デフォルト: なし、グローバル `max_turns` を使用）
+  - `provider`: エージェント固有のプロバイダー上書き（デフォルト: なし、グローバル `provider` を使用）（Issue #123）
 
   **per-invocation オプション（本仕様スコープ外、006-cli-interface で定義）**:
   - `--issue <番号>`: Issue コンテキスト注入（親仕様 FR-024）
@@ -208,9 +211,9 @@
 
 ### Key Entities
 
-- **HachimokuConfig（設定モデル）**: 全設定項目を統合した不変モデル。実行設定（model, timeout, max_turns, parallel, base_branch）、出力設定（output_format, save_reviews, show_cost）、ファイルモード設定（max_files_per_review）、セレクターエージェント設定（selector）、エージェント個別設定（agents マップ）を持つ。HachimokuBaseModel を継承し、厳格モード・不変モードで動作する
-- **SelectorConfig（セレクターエージェント設定）**: セレクターエージェント（エージェント選択用 pydantic-ai エージェント）の設定上書き情報を表す不変モデル。モデル上書き（model）、タイムアウト上書き（timeout）、最大ターン数上書き（max_turns）を持つ。全フィールドはオプショナルで、未設定の場合は SelectorDefinition の値またはグローバル値が適用される。Issue #64 で導入、Issue #118 で `allowed_tools` を SelectorDefinition に移管
-- **AgentConfig（エージェント個別設定）**: エージェントごとの設定上書き情報を表す不変モデル。有効/無効フラグ（enabled）、モデル上書き（model）、タイムアウト上書き（timeout）、最大ターン数上書き（max_turns）を持つ。全フィールドはオプショナルで、未設定の場合はグローバル値が適用される
+- **HachimokuConfig（設定モデル）**: 全設定項目を統合した不変モデル。実行設定（model, timeout, max_turns, parallel, provider, base_branch）、出力設定（output_format, save_reviews, show_cost）、ファイルモード設定（max_files_per_review）、セレクターエージェント設定（selector）、エージェント個別設定（agents マップ）を持つ。HachimokuBaseModel を継承し、厳格モード・不変モードで動作する
+- **SelectorConfig（セレクターエージェント設定）**: セレクターエージェント（エージェント選択用 pydantic-ai エージェント）の設定上書き情報を表す不変モデル。モデル上書き（model）、タイムアウト上書き（timeout）、最大ターン数上書き（max_turns）、プロバイダー上書き（provider）を持つ。全フィールドはオプショナルで、未設定の場合は SelectorDefinition の値またはグローバル値が適用される。Issue #64 で導入、Issue #118 で `allowed_tools` を SelectorDefinition に移管、Issue #123 で `provider` 追加
+- **AgentConfig（エージェント個別設定）**: エージェントごとの設定上書き情報を表す不変モデル。有効/無効フラグ（enabled）、モデル上書き（model）、タイムアウト上書き（timeout）、最大ターン数上書き（max_turns）、プロバイダー上書き（provider）を持つ。全フィールドはオプショナルで、未設定の場合はグローバル値が適用される（Issue #123 で `provider` 追加）
 - **OutputFormat（出力形式）**: レビュー結果の出力形式を表す列挙型。markdown と json の2値
 - **ConfigResolver（設定リゾルバー）**: 5層の設定ソースから最終的な HachimokuConfig を構築する処理。各ソースの読み込み・パース・バリデーションと、項目単位のマージロジックを提供する
 - **ProjectLocator（プロジェクト探索）**: カレントディレクトリから `.hachimoku/` ディレクトリを探索し、プロジェクトルートを特定する処理。設定ファイル読み込みの起点として機能する

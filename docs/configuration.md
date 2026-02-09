@@ -36,6 +36,7 @@ model = "anthropic:claude-sonnet-4-5"
 timeout = 300
 max_turns = 10
 parallel = true
+provider = "claudecode"
 base_branch = "main"
 
 # 出力設定
@@ -51,6 +52,7 @@ max_files_per_review = 100
 model = "anthropic:claude-haiku-4-5"
 timeout = 300
 max_turns = 10
+provider = "claudecode"
 
 # エージェント個別設定
 [agents.code-reviewer]
@@ -58,6 +60,7 @@ enabled = true
 model = "anthropic:claude-sonnet-4-5"
 timeout = 600
 max_turns = 15
+provider = "anthropic"
 
 [agents.comment-analyzer]
 enabled = false
@@ -84,6 +87,7 @@ parallel = false
 | `timeout` | `int` | `300` | 正の値 | エージェントのタイムアウト（秒） |
 | `max_turns` | `int` | `10` | 正の値 | エージェントの最大ターン数 |
 | `parallel` | `bool` | `true` | - | 並列実行の有効化 |
+| `provider` | `str` | `"claudecode"` | `"claudecode"` or `"anthropic"` | LLM プロバイダー |
 | `base_branch` | `str` | `"main"` | 空文字不可 | diff モードの基準ブランチ |
 | `output_format` | `str` | `"markdown"` | `"markdown"` or `"json"` | 出力形式 |
 | `save_reviews` | `bool` | `true` | - | レビュー履歴の保存 |
@@ -102,6 +106,7 @@ parallel = false
 | `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
+| `provider` | `str \| None` | `None` | `"claudecode"` or `"anthropic"` | プロバイダーの上書き |
 
 ### AgentConfig
 
@@ -114,6 +119,7 @@ parallel = false
 | `model` | `str \| None` | `None` | 空文字不可 | モデル名 |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
+| `provider` | `str \| None` | `None` | `"claudecode"` or `"anthropic"` | プロバイダーの上書き |
 
 エージェント名は `[agents.<name>]` 形式で指定し、`^[a-z0-9-]+$` パターンに一致する必要があります。
 
