@@ -13,6 +13,7 @@ from typing import Final
 
 from claudecode_model import ClaudeCodeModel
 from pydantic_ai import Agent
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition
@@ -128,6 +129,9 @@ async def run_selector(
             result = await agent.run(
                 user_message,
                 usage_limits=UsageLimits(request_limit=max_turns),
+                # ClaudeCodeModel の内部ターン制限を設定。
+                # ModelSettings TypedDict に max_turns は未定義のためキャスト。
+                model_settings=ModelSettings(max_turns=max_turns),  # type: ignore[typeddict-unknown-key]
             )
 
         return result.output

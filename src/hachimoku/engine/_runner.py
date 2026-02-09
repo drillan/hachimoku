@@ -16,6 +16,7 @@ import time
 from claudecode_model import ClaudeCodeModel
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.engine._context import AgentExecutionContext
@@ -74,6 +75,9 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             result = await agent.run(
                 context.user_message,
                 usage_limits=UsageLimits(request_limit=context.max_turns),
+                # ClaudeCodeModel の内部ターン制限を設定。
+                # ModelSettings TypedDict に max_turns は未定義のためキャスト。
+                model_settings=ModelSettings(max_turns=context.max_turns),  # type: ignore[typeddict-unknown-key]
             )
 
         elapsed = time.monotonic() - start_time
