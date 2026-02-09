@@ -39,6 +39,11 @@ class TestResolveModelClaudeCodePrefix:
         assert isinstance(result, ClaudeCodeModel)
         assert result.model_name == "claudecode:model"
 
+    def test_empty_model_name_raises_error(self) -> None:
+        """'claudecode:' のみ（モデル名なし）で ValueError が発生する。"""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            resolve_model("claudecode:")
+
 
 class TestResolveModelAnthropicPrefix:
     """'anthropic:' プレフィックスのモデル解決テスト。"""
@@ -72,6 +77,11 @@ class TestResolveModelAnthropicPrefix:
         """ANTHROPIC_API_KEY が空文字列の場合も ValueError が発生する。"""
         with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
             resolve_model("anthropic:claude-sonnet-4-5")
+
+    def test_empty_model_name_raises_error(self) -> None:
+        """'anthropic:' のみ（モデル名なし）で ValueError が発生する。"""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            resolve_model("anthropic:")
 
 
 class TestResolveModelUnknownPrefix:

@@ -34,9 +34,20 @@ def resolve_model(model: str) -> str | Model:
     """
     if model.startswith(_CLAUDECODE_PREFIX):
         bare_name = model.removeprefix(_CLAUDECODE_PREFIX)
+        if not bare_name:
+            raise ValueError(
+                f"Model name cannot be empty after prefix in '{model}'. "
+                "Specify a model name, e.g. 'claudecode:claude-sonnet-4-5'."
+            )
         return ClaudeCodeModel(model_name=bare_name)
 
     if model.startswith(_ANTHROPIC_PREFIX):
+        bare_name = model.removeprefix(_ANTHROPIC_PREFIX)
+        if not bare_name:
+            raise ValueError(
+                f"Model name cannot be empty after prefix in '{model}'. "
+                "Specify a model name, e.g. 'anthropic:claude-sonnet-4-5'."
+            )
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise ValueError(
                 "ANTHROPIC_API_KEY environment variable is required when using "
