@@ -64,7 +64,7 @@ CLI がレビュー実行を 005-review-engine に委譲し、結果を stdout �
 3. **Given** レビュー結果に問題がない状態, **When** レビューが完了する, **Then** 終了コード 0 が返される
 4. **Given** 全エージェントが実行失敗した状態, **When** レビューが完了する, **Then** 終了コード 3 が返される
 5. **Given** `8moku > result.md` のようにリダイレクトする状態, **When** レビューが完了する, **Then** `result.md` にはレビューレポートのみが含まれ、進捗情報は含まれない
-6. **Given** CLI オプション `--model sonnet --timeout 600` を指定する状態, **When** レビューを実行する, **Then** CLI オプションの値が設定階層の最高優先として適用される
+6. **Given** CLI オプション `--model anthropic:claude-sonnet-4-5 --timeout 600` を指定する状態, **When** レビューを実行する, **Then** CLI オプションの値が設定階層の最高優先として適用される
 7. **Given** `--format json` を指定する状態, **When** レビューが完了する, **Then** JSON 形式のレビューレポートが stdout に出力される
 8. **Given** diff モードで `--issue 122` を指定する状態, **When** `8moku --issue 122` を実行, **Then** diff レビューに Issue #122 のコンテキストが含まれる
 9. **Given** PR モードで `--issue 50` を指定する状態, **When** `8moku 123 --issue 50` を実行, **Then** PR #123 のレビューに Issue #50 のコンテキストが含まれる

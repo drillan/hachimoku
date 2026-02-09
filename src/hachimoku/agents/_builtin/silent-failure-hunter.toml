@@ -1,6 +1,6 @@
 name = "silent-failure-hunter"
 description = "サイレント障害・エラーハンドリング不備の検出"
-model = "claude-sonnet-4-5-20250929"
+model = "anthropic:claude-sonnet-4-5"
 output_schema = "severity_classified"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

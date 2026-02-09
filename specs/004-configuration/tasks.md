@@ -41,7 +41,7 @@
   - extra="forbid" (未知キー拒否)
 - [ ] T005 [P] Write tests for `HachimokuConfig` model in `tests/unit/models/test_config.py`:
   - デフォルト値のみでインスタンス構築可能
-  - 各フィールドのデフォルト値（model="sonnet", timeout=300, max_turns=10, parallel=True, base_branch="main", output_format=MARKDOWN, save_reviews=True, show_cost=False, max_files_per_review=100, agents={})
+  - 各フィールドのデフォルト値（model="anthropic:claude-sonnet-4-5", timeout=300, max_turns=10, parallel=True, base_branch="main", output_format=MARKDOWN, save_reviews=True, show_cost=False, max_files_per_review=100, agents={})
   - バリデーション: timeout/max_turns/max_files_per_review > 0, model/base_branch min_length=1, output_format enum, parallel に非 boolean 値（例: 文字列 "abc"）で ValidationError
   - agents キーの名前パターン検証（`^[a-z0-9-]+$`、不正名でエラー）
   - extra="forbid": 未知キー拒否で `ValidationError`（`match=` で未知キー名を含むことを検証）

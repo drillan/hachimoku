@@ -1,6 +1,6 @@
 name = "code-reviewer"
 description = "コード品質・バグ・ベストプラクティスの総合レビュー"
-model = "claude-sonnet-4-5-20250929"
+model = "anthropic:claude-sonnet-4-5"
 output_schema = "scored_issues"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

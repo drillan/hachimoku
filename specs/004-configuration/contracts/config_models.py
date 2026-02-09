@@ -47,7 +47,7 @@ class HachimokuConfig(HachimokuBaseModel):
     """
 
     # 実行設定
-    model: str = Field(default="sonnet", min_length=1)
+    model: str = Field(default="anthropic:claude-sonnet-4-5", min_length=1)
     timeout: int = Field(default=300, gt=0)
     max_turns: int = Field(default=10, gt=0)
     parallel: bool = True

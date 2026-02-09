@@ -53,7 +53,7 @@
 
 | Field | Type | Default | Constraints | CLI Option | Description |
 |-------|------|---------|-------------|------------|-------------|
-| `model` | `str` | `"sonnet"` | `min_length=1` | `--model` | 使用する LLM モデル名 |
+| `model` | `str` | `"anthropic:claude-sonnet-4-5"` | `min_length=1` | `--model` | 使用する LLM モデル名 |
 | `timeout` | `int` | `300` | `> 0` | `--timeout` | エージェント実行タイムアウト（秒） |
 | `max_turns` | `int` | `10` | `> 0` | `--max-turns` | エージェント最大ターン数 |
 | `parallel` | `bool` | `True` | - | `--parallel` | 並列実行モード |

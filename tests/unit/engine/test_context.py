@@ -550,7 +550,7 @@ class TestBuildExecutionContextPhaseVariants:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.model == "sonnet"
+        assert ctx.model == "anthropic:claude-sonnet-4-5"
         assert ctx.timeout_seconds == 300
         assert ctx.max_turns == 10
 
