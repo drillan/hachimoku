@@ -126,6 +126,9 @@ ReviewSummary 計算時には AgentSuccess と同様に有効な結果として�
 | `status` | `Literal["error"]` | Yes | 固定値 `"error"` |
 | `agent_name` | `str` | Yes | 空文字列不可 |
 | `error_message` | `str` | Yes | 空文字列不可 |
+| `exit_code` | `int \| None` | No | CLI プロセス終了コード。デフォルト `None` |
+| `error_type` | `str \| None` | No | 構造化エラー種別。空文字列不可。デフォルト `None` |
+| `stderr` | `str \| None` | No | 標準エラー出力。デフォルト `None` |
 
 ### AgentTimeout
 

@@ -123,7 +123,10 @@ async def run_selector(
             result = await agent.run(
                 user_message,
                 usage_limits=UsageLimits(request_limit=max_turns),
-                model_settings=ClaudeCodeModelSettings(max_turns=max_turns),
+                model_settings=ClaudeCodeModelSettings(
+                    max_turns=max_turns,
+                    timeout=timeout,
+                ),
             )
 
         return result.output
