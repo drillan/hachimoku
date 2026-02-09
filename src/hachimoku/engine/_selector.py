@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import Final
 
+from claudecode_model import ClaudeCodeModel
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
@@ -117,6 +118,11 @@ async def run_selector(
             tools=list(tools),
             system_prompt=SELECTOR_SYSTEM_PROMPT,
         )
+        if isinstance(resolved, ClaudeCodeModel):
+            # mypy が FunctionToolset.tools の dict[str, Tool[Any]] を
+            # AgentToolset.tools の dict[str, PydanticAITool] と互換とみなせないため。
+            # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
+            resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
         async with asyncio.timeout(timeout):
             result = await agent.run(
