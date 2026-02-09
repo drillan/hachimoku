@@ -90,7 +90,7 @@ parallel = false
 | `provider` | `str` | `"claudecode"` | `"claudecode"` or `"anthropic"` | LLM プロバイダー |
 | `base_branch` | `str` | `"main"` | 空文字不可 | diff モードの基準ブランチ |
 | `output_format` | `str` | `"markdown"` | `"markdown"` or `"json"` | 出力形式 |
-| `save_reviews` | `bool` | `true` | - | レビュー履歴の保存 |
+| `save_reviews` | `bool` | `true` | - | レビュー履歴の JSONL 保存（後述） |
 | `show_cost` | `bool` | `false` | - | コスト情報の表示 |
 | `max_files_per_review` | `int` | `100` | 正の値 | file モードの最大ファイル数 |
 | `selector` | `SelectorConfig` | 後述 | - | セレクターエージェント設定 |
@@ -122,6 +122,34 @@ parallel = false
 | `provider` | `str \| None` | `None` | `"claudecode"` or `"anthropic"` | プロバイダーの上書き |
 
 エージェント名は `[agents.<name>]` 形式で指定し、`^[a-z0-9-]+$` パターンに一致する必要があります。
+
+## レビュー履歴の蓄積
+
+`save_reviews = true`（デフォルト）の場合、レビュー完了後に結果を `.hachimoku/reviews/` ディレクトリへ JSONL 形式で自動蓄積します。
+
+### 蓄積先ファイル
+
+レビューモードごとに蓄積先ファイルが分かれます。
+
+| レビューモード | 蓄積先ファイル | 例 |
+|--------------|--------------|---|
+| diff | `diff.jsonl` | `.hachimoku/reviews/diff.jsonl` |
+| PR | `pr-{番号}.jsonl` | `.hachimoku/reviews/pr-123.jsonl` |
+| file | `files.jsonl` | `.hachimoku/reviews/files.jsonl` |
+
+各行は独立した JSON オブジェクトです。新しいレビューは既存ファイルに追記されます。
+
+### 無効化
+
+```{code-block} toml
+save_reviews = false
+```
+
+CLI オプションでも制御できます。
+
+```{code-block} bash
+8moku review --no-save-reviews
+```
 
 ## プロジェクトルート探索
 

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from collections.abc import Iterator
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from hachimoku.agents import AgentDefinition, LoadError, LoadResult
 from hachimoku.engine._engine import EngineResult
@@ -16,6 +20,14 @@ PATCH_RESOLVE_FILES = "hachimoku.cli._app.resolve_files"
 PATCH_LOAD_AGENTS = "hachimoku.cli._app.load_agents"
 PATCH_LOAD_BUILTIN_AGENTS = "hachimoku.cli._app.load_builtin_agents"
 PATCH_FIND_PROJECT_ROOT = "hachimoku.cli._app.find_project_root"
+PATCH_SAVE_REVIEW_HISTORY = "hachimoku.cli._history_writer.save_review_history"
+
+
+@pytest.fixture(autouse=True)
+def _prevent_review_history_writes() -> Iterator[None]:
+    """テストが実ファイルシステムにレビュー履歴を書き込むことを防止する。"""
+    with patch(PATCH_SAVE_REVIEW_HISTORY, return_value=Path("/dev/null")):
+        yield
 
 
 def make_engine_result(exit_code: ExitCode = ExitCode.SUCCESS) -> EngineResult:

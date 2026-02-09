@@ -36,6 +36,7 @@ from tests.unit.cli.conftest import (
     PATCH_RESOLVE_CONFIG,
     PATCH_RESOLVE_FILES,
     PATCH_RUN_REVIEW,
+    PATCH_SAVE_REVIEW_HISTORY,
     make_agent_definition,
     make_engine_result,
     make_load_result,
@@ -1546,3 +1547,112 @@ class TestEdgeCases:
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
         mock_run_review.assert_called_once()
+
+
+# --- _save_review_result テスト (I-1) ---
+
+
+class TestSaveReviewResult:
+    """_save_review_result の動作を review_callback 経由で検証する。"""
+
+    @patch(PATCH_SAVE_REVIEW_HISTORY, return_value=Path("/tmp/diff.jsonl"))
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_save_reviews_true_calls_save(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        mock_save: MagicMock,
+    ) -> None:
+        """save_reviews=True → save_review_history が呼ばれる。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app)
+        mock_save.assert_called_once()
+
+    @patch(PATCH_SAVE_REVIEW_HISTORY)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_save_reviews_false_skips_save(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        mock_save: MagicMock,
+    ) -> None:
+        """save_reviews=False → save_review_history が呼ばれない。"""
+        mock_config.return_value = HachimokuConfig(save_reviews=False)
+        mock_run_review.return_value = make_engine_result()
+        runner.invoke(app)
+        mock_save.assert_not_called()
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_no_project_root_warns_and_exits_normally(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """find_project_root=None → 警告出力、終了コード不変。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app)
+        assert result.exit_code == 0
+        assert ".hachimoku/ directory not found" in result.output
+
+    @patch(
+        PATCH_SAVE_REVIEW_HISTORY,
+        side_effect=__import__(
+            "hachimoku.cli._history_writer", fromlist=["HistoryWriteError"]
+        ).HistoryWriteError("dir not found"),
+    )
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_history_write_error_warns_and_exits_normally(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_save: MagicMock,
+    ) -> None:
+        """HistoryWriteError → 警告出力、終了コード不変。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app)
+        assert result.exit_code == 0
+        assert "Failed to save review history" in result.output
+
+    @patch(
+        PATCH_SAVE_REVIEW_HISTORY,
+        side_effect=__import__(
+            "hachimoku.cli._history_writer", fromlist=["GitInfoError"]
+        ).GitInfoError("git not found"),
+    )
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_git_info_error_warns_and_exits_normally(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_save: MagicMock,
+    ) -> None:
+        """GitInfoError → 警告出力、終了コード不変。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app)
+        assert result.exit_code == 0
+        assert "Failed to save review history" in result.output
+
+    @patch(
+        PATCH_SAVE_REVIEW_HISTORY,
+        side_effect=RuntimeError("unexpected"),
+    )
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_unexpected_error_warns_and_exits_normally(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_save: MagicMock,
+    ) -> None:
+        """予期しない例外 → 警告出力、終了コード不変（C-1 修正の検証）。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app)
+        assert result.exit_code == 0
+        assert "Unexpected error saving review history" in result.output
