@@ -119,8 +119,9 @@ async def run_selector(
             system_prompt=SELECTOR_SYSTEM_PROMPT,
         )
         if isinstance(resolved, ClaudeCodeModel):
-            # FunctionToolset と AgentToolset のジェネリクス差異による型エラー。
-            # claudecode_model が agent._function_toolset の使用を公式に推奨。
+            # mypy が FunctionToolset.tools の dict[str, Tool[Any]] を
+            # AgentToolset.tools の dict[str, PydanticAITool] と互換とみなせないため。
+            # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
             resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
         async with asyncio.timeout(timeout):
