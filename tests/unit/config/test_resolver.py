@@ -335,7 +335,7 @@ class TestResolveConfigOnlyProjectConfig:
         assert config.model == "opus"
         assert config.timeout == 600
         # 他はデフォルト
-        assert config.max_turns == 10
+        assert config.max_turns == 20
 
 
 class TestResolveConfigOnlyPyprojectConfig:
@@ -351,7 +351,7 @@ class TestResolveConfigOnlyPyprojectConfig:
             config = resolve_config(start_dir=tmp_path)
         assert config.model == "haiku"
         assert config.timeout == 120
-        assert config.max_turns == 10  # デフォルト
+        assert config.max_turns == 20  # デフォルト
 
 
 class TestResolveConfigOnlyUserGlobalConfig:
@@ -371,7 +371,7 @@ class TestResolveConfigOnlyUserGlobalConfig:
             config = resolve_config(start_dir=tmp_path)
         assert config.model == "user-model"
         assert config.max_turns == 20
-        assert config.timeout == 300  # デフォルト
+        assert config.timeout == 600  # デフォルト
 
 
 class TestResolveConfigProjectDirWithoutConfigToml:

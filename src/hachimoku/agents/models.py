@@ -115,6 +115,8 @@ class AgentDefinition(HachimokuBaseModel):
         allowed_tools: 許可するツールのリスト。
         applicability: 適用ルール。
         phase: 実行フェーズ。
+        max_turns: エージェント固有の最大ターン数。None の場合はグローバル設定を使用。
+        timeout: エージェント固有のタイムアウト秒数。None の場合はグローバル設定を使用。
     """
 
     name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
@@ -128,6 +130,8 @@ class AgentDefinition(HachimokuBaseModel):
         default_factory=lambda: ApplicabilityRule(always=True)
     )
     phase: Phase = Phase.MAIN
+    max_turns: int | None = Field(default=None, gt=0)
+    timeout: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="before")
     @classmethod

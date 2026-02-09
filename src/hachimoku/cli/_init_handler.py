@@ -43,10 +43,10 @@ _CONFIG_TEMPLATE: str = """\
 # model = "anthropic:claude-sonnet-4-5"
 
 # Timeout in seconds
-# timeout = 300
+# timeout = 600
 
 # Maximum agent turns
-# max_turns = 10
+# max_turns = 20
 
 # Enable parallel execution
 # parallel = true
@@ -77,8 +77,8 @@ _CONFIG_TEMPLATE: str = """\
 
 # [selector]
 # model = "anthropic:claude-sonnet-4-5"
-# timeout = 300
-# max_turns = 10
+# timeout = 600
+# max_turns = 20
 # provider = "claudecode"
 # allowed_tools = ["git_read", "gh_read", "file_read"]
 
@@ -89,8 +89,8 @@ _CONFIG_TEMPLATE: str = """\
 # [agents.code-reviewer]
 # enabled = true
 # model = "anthropic:claude-sonnet-4-5"
-# timeout = 300
-# max_turns = 10
+# timeout = 600
+# max_turns = 20
 # provider = "claudecode"
 """
 

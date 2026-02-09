@@ -220,10 +220,10 @@ class TestHachimokuConfigDefaults:
         assert HachimokuConfig().model == "anthropic:claude-sonnet-4-5"
 
     def test_default_timeout(self) -> None:
-        assert HachimokuConfig().timeout == 300
+        assert HachimokuConfig().timeout == 600
 
     def test_default_max_turns(self) -> None:
-        assert HachimokuConfig().max_turns == 10
+        assert HachimokuConfig().max_turns == 20
 
     def test_default_parallel(self) -> None:
         """parallel のデフォルトが True であること。"""
