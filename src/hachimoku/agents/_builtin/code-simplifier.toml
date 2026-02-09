@@ -31,14 +31,14 @@ Organize each suggestion into one of these 4 categories:
 - modernization: Adopting modern language features, replacing deprecated patterns.
 
 ## Tool Usage
-- run_git(args): Read diffs to focus on changed code. Allowed: diff, log, show, status.
-- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view.
+- run_git(args): Read diffs to focus on changed code. Allowed: diff, log, show, status, merge-base, rev-parse, branch, ls-files.
+- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view, api (GET only).
 - read_file(path): Read full files to find broader simplification opportunities.
-- list_directory(path, pattern): Discover related files for cross-file deduplication.
+- list_directory(path, pattern=None): Discover related files for cross-file deduplication.
 
 ## Output Format
 - Set agent_name to "code-simplifier" in every ReviewIssue.
-- Use suggestions for each ImprovementItem: title, description, priority, and location.
+- Use suggestions for each ImprovementItem: title, description, priority, and location (optional).
 - Set the category field on each ReviewIssue to one of the 4 categories above.
 - Each improvement should also appear in the issues list as a ReviewIssue.
 - In description, explain the before/after difference and why the simplification is beneficial.

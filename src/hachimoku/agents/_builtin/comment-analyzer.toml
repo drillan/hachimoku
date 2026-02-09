@@ -33,10 +33,10 @@ Classify each issue into exactly one of these 6 categories:
 - todo: TODO/FIXME/HACK comments requiring attention or resolution.
 
 ## Tool Usage
-- run_git(args): Read diffs and history to detect comment drift. Allowed: diff, log, show.
-- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view.
+- run_git(args): Read diffs and history to detect comment drift. Allowed: diff, log, show, status, merge-base, rev-parse, branch, ls-files.
+- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view, api (GET only).
 - read_file(path): Read full files to verify comment accuracy against implementation.
-- list_directory(path, pattern): Discover related files to check cross-file references.
+- list_directory(path, pattern=None): Discover related files to check cross-file references.
 
 ## Output Format
 - Set agent_name to "comment-analyzer" in every ReviewIssue.

@@ -25,10 +25,10 @@ Place each issue in the appropriate list:
 - nitpick_issues: Minor error handling style issues, missing specific exception types.
 
 ## Tool Usage
-- run_git(args): Read diffs to find changed error handling. Allowed: diff, log, show, status.
-- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view.
+- run_git(args): Read diffs to find changed error handling. Allowed: diff, log, show, status, merge-base, rev-parse, branch, ls-files.
+- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view, api (GET only).
 - read_file(path): Read full file to understand error propagation paths.
-- list_directory(path, pattern): Discover related files that may be affected.
+- list_directory(path, pattern=None): Discover related files that may be affected.
 
 ## Output Format
 - Set agent_name to "silent-failure-hunter" in every ReviewIssue.

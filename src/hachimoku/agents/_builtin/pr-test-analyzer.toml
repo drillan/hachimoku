@@ -32,10 +32,10 @@ Set risk_level based on overall test adequacy:
 - Nitpick: Comprehensive coverage with only stylistic suggestions.
 
 ## Tool Usage
-- run_git(args): Read diffs and history. Allowed: diff, log, show, status, ls-files.
-- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view.
+- run_git(args): Read diffs and history. Allowed: diff, log, show, status, merge-base, rev-parse, branch, ls-files.
+- run_gh(args): Read PR context. Allowed: pr view, pr diff, issue view, api (GET only).
 - read_file(path): Read implementation and test files for detailed analysis.
-- list_directory(path, pattern): Discover test directories and file organization.
+- list_directory(path, pattern=None): Discover test directories and file organization.
 
 ## Output Format
 - Set agent_name to "pr-test-analyzer" in every ReviewIssue.
