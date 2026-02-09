@@ -208,12 +208,17 @@ def load_selector(custom_dir: Path | None = None) -> SelectorDefinition:
 
     Raises:
         FileNotFoundError: ビルトインセレクター定義が見つからない場合。
+        NotADirectoryError: custom_dir がファイルパスの場合。
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
     """
     builtin = load_builtin_selector()
     if custom_dir is None:
         return builtin
+    if custom_dir.exists() and not custom_dir.is_dir():
+        raise NotADirectoryError(
+            f"custom_dir はディレクトリではありません: {custom_dir}"
+        )
 
     custom_path = custom_dir / SELECTOR_FILENAME
     if not custom_path.exists():

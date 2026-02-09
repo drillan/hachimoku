@@ -63,7 +63,7 @@ def _make_selector_config(
 
 
 def _make_selector_definition(
-    model: str = "anthropic:claude-sonnet-4-5",
+    model: str | None = "anthropic:claude-sonnet-4-5",
     system_prompt: str = "You are an agent selector.",
     allowed_tools: tuple[str, ...] = ("git_read", "gh_read", "file_read"),
 ) -> SelectorDefinition:
@@ -599,3 +599,32 @@ class TestRunSelectorDefinitionIntegration:
 
         call_kwargs = mock_agent_cls.call_args
         assert call_kwargs.kwargs["model"] == "config-model"
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_global_model_used_when_config_and_definition_none(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """config.model と definition.model が両方 None の場合、global_model が使用される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config(model=None)
+        definition = _make_selector_definition(model=None)
+
+        await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_definition=definition,
+            selector_config=config,
+            global_model="global-model",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff content",
+        )
+
+        call_kwargs = mock_agent_cls.call_args
+        assert call_kwargs.kwargs["model"] == "global-model"

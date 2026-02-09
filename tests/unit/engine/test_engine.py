@@ -327,6 +327,26 @@ class TestRunReviewPipeline:
         assert result.exit_code == 3
         assert len(result.report.results) == 0
 
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_load_selector_failure_exit_code_3(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        mock_load_selector: MagicMock,
+    ) -> None:
+        """load_selector 失敗時に exit_code=3 とエラーメッセージが返される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_load_selector.side_effect = FileNotFoundError(
+            "Builtin selector definition not found: selector.toml"
+        )
+
+        result = await run_review(target=_make_target())
+
+        assert result.exit_code == 3
+
     @patch("hachimoku.engine._engine.run_selector")
     @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
     @patch("hachimoku.engine._engine.load_selector")

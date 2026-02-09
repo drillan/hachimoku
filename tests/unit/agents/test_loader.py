@@ -664,9 +664,10 @@ class TestLoadBuiltinSelector:
         result = load_builtin_selector()
         assert len(result.allowed_tools) > 0
 
-    def test_model_non_empty(self) -> None:
-        """ビルトインセレクターの model が空でない。"""
+    def test_model_is_set(self) -> None:
+        """ビルトインセレクターの model が設定されている。"""
         result = load_builtin_selector()
+        assert result.model is not None
         assert len(result.model) > 0
 
 
@@ -700,16 +701,35 @@ class TestLoadSelector:
         assert result.name == "selector"
         assert result.description != "A test agent"
 
-    def test_invalid_custom_raises_error(self, tmp_path: Path) -> None:
-        """不正なカスタム selector.toml で例外が送出される。"""
+    def test_invalid_custom_toml_syntax_raises_error(self, tmp_path: Path) -> None:
+        """TOML 構文エラーのカスタム selector.toml で TOMLDecodeError が送出される。"""
+        import tomllib
+
         _write_toml(tmp_path, "selector.toml", 'name = "unclosed')
-        with pytest.raises(Exception):
+        with pytest.raises(tomllib.TOMLDecodeError):
+            load_selector(custom_dir=tmp_path)
+
+    def test_invalid_custom_validation_raises_error(self, tmp_path: Path) -> None:
+        """必須フィールド欠損のカスタム selector.toml で ValidationError が送出される。"""
+        _write_toml(
+            tmp_path,
+            "selector.toml",
+            'name = "selector"\ndescription = "Missing system_prompt"',
+        )
+        with pytest.raises(ValidationError, match="system_prompt"):
             load_selector(custom_dir=tmp_path)
 
     def test_nonexistent_custom_dir_returns_builtin(self, tmp_path: Path) -> None:
         """存在しないカスタムディレクトリでビルトインが返される。"""
         result = load_selector(custom_dir=tmp_path / "nonexistent")
         assert result.name == "selector"
+
+    def test_file_as_custom_dir_raises_not_a_directory(self, tmp_path: Path) -> None:
+        """custom_dir がファイルの場合 NotADirectoryError が送出される。"""
+        file_path = tmp_path / "not-a-dir"
+        file_path.write_text("not a directory")
+        with pytest.raises(NotADirectoryError):
+            load_selector(custom_dir=file_path)
 
 
 # =============================================================================
