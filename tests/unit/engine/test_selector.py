@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from claudecode_model import ClaudeCodeModel
+
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
 from hachimoku.engine._selector import SelectorError, SelectorOutput, run_selector
 from hachimoku.engine._target import DiffTarget
@@ -410,3 +412,58 @@ class TestRunSelectorResolveModel:
         )
 
         mock_resolve.assert_called_once_with("test", Provider.ANTHROPIC)
+
+    @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_registers_toolsets_for_claudecode_model(
+        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+    ) -> None:
+        """ClaudeCodeModel の場合、set_agent_toolsets が呼ばれる。"""
+        mock_model = MagicMock(spec=ClaudeCodeModel)
+        mock_resolve.return_value = mock_model
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_config=config,
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            global_provider=Provider.CLAUDECODE,
+        )
+
+        mock_model.set_agent_toolsets.assert_called_once_with(
+            mock_instance._function_toolset
+        )
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_skips_toolset_registration_for_string_model(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """文字列モデルの場合、set_agent_toolsets は呼ばれない。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        result = await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_config=config,
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            global_provider=Provider.CLAUDECODE,
+        )
+        assert isinstance(result, SelectorOutput)

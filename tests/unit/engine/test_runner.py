@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from claudecode_model import ClaudeCodeModel
 from pydantic import ValidationError
 from pydantic_ai import Tool
 
@@ -325,3 +326,40 @@ class TestRunAgentResolveModel:
 
         mock_agent_cls.assert_called_once()
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
+
+    @patch("hachimoku.engine._runner.resolve_model")
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_registers_toolsets_for_claudecode_model(
+        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+    ) -> None:
+        """ClaudeCodeModel の場合、set_agent_toolsets が呼ばれる。"""
+        mock_model = MagicMock(spec=ClaudeCodeModel)
+        mock_resolve.return_value = mock_model
+        mock_result = MagicMock()
+        mock_result.output.issues = []
+        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_instance = mock_agent_cls.return_value
+        mock_instance.run = AsyncMock(return_value=mock_result)
+
+        ctx = _make_context()
+        await run_agent(ctx)
+
+        mock_model.set_agent_toolsets.assert_called_once_with(
+            mock_instance._function_toolset
+        )
+
+    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, p: m)
+    @patch("hachimoku.engine._runner.Agent")
+    async def test_skips_toolset_registration_for_string_model(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """文字列モデルの場合、set_agent_toolsets は呼ばれない。"""
+        mock_result = MagicMock()
+        mock_result.output.issues = []
+        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+
+        ctx = _make_context()
+        result = await run_agent(ctx)
+
+        assert isinstance(result, AgentSuccess)

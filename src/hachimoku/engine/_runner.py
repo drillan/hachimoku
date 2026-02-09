@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import time
 
+from claudecode_model import ClaudeCodeModel
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
@@ -63,6 +64,10 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             tools=list(context.tools),
             system_prompt=context.system_prompt,
         )
+        if isinstance(resolved, ClaudeCodeModel):
+            # FunctionToolset と AgentToolset のジェネリクス差異による型エラー。
+            # claudecode_model が agent._function_toolset の使用を公式に推奨。
+            resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
         async with asyncio.timeout(context.timeout_seconds):
             result = await agent.run(
