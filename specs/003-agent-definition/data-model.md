@@ -114,9 +114,9 @@ description = "コード品質・バグ・ベストプラクティスのレビ�
 model = "claude-sonnet-4-5-20250929"
 output_schema = "scored_issues"
 system_prompt = """
-You are a code reviewer...
+You are code-reviewer, an expert code quality analyst...
 """
-allowed_tools = []
+allowed_tools = ["git_read", "gh_read", "file_read"]
 phase = "main"
 
 [applicability]
@@ -205,7 +205,7 @@ system_prompt = """
 """
 
 # オプションフィールド
-allowed_tools = ["tool1", "tool2"]     # デフォルト: []
+allowed_tools = ["git_read", "gh_read", "file_read"]  # デフォルト: []
 phase = "main"                         # "early" | "main" | "final", デフォルト: "main"
 
 # オプション: 適用ルール（省略時は always = true）
