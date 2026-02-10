@@ -12,6 +12,7 @@ import logging
 from collections.abc import Sequence
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
+from claudecode_model.exceptions import CLIExecutionError
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
@@ -43,7 +44,25 @@ class SelectorError(Exception):
 
     タイムアウト・実行エラー・不正な出力など、セレクター実行中の
     あらゆる失敗を表す。
+
+    Attributes:
+        exit_code: CLI プロセス終了コード（CLIExecutionError 由来、オプション）。
+        error_type: 構造化エラー種別（CLIExecutionError 由来、オプション）。
+        stderr: 標準エラー出力（CLIExecutionError 由来、オプション）。
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        exit_code: int | None = None,
+        error_type: str | None = None,
+        stderr: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+        self.error_type = error_type
+        self.stderr = stderr
 
 
 async def run_selector(
@@ -141,4 +160,19 @@ async def run_selector(
             exc,
             exc_info=True,
         )
-        raise SelectorError(f"Selector agent failed: {exc}") from exc
+
+        exit_code: int | None = None
+        error_type: str | None = None
+        stderr: str | None = None
+
+        if isinstance(exc, CLIExecutionError):
+            exit_code = exc.exit_code
+            error_type = exc.error_type
+            stderr = exc.stderr
+
+        raise SelectorError(
+            f"Selector agent failed: {exc}",
+            exit_code=exit_code,
+            error_type=error_type,
+            stderr=stderr,
+        ) from exc
