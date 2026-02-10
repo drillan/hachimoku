@@ -8,12 +8,32 @@
 from __future__ import annotations
 
 import os
+from typing import Final
 
 from claudecode_model import ClaudeCodeModel
 from pydantic_ai.models import Model
 
 _ANTHROPIC_PREFIX: str = "anthropic:"
 _CLAUDECODE_PREFIX: str = "claudecode:"
+
+# Claude CLI ビルトインツールのブロックリスト。
+# pydantic-ai 登録ツール（run_git, run_gh, read_file, list_directory）のみを
+# 使用させるため、CLI ビルトインツールを無効化する。
+# Issue #161: ビルトインツール使用による権限拒否・ターン浪費の防止。
+_DISALLOWED_BUILTIN_TOOLS: Final[tuple[str, ...]] = (
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Glob",
+    "Grep",
+    "WebSearch",
+    "WebFetch",
+    "NotebookEdit",
+    "TodoRead",
+    "TodoWrite",
+)
 
 
 def resolve_model(model: str) -> str | Model:
@@ -39,7 +59,10 @@ def resolve_model(model: str) -> str | Model:
                 f"Model name cannot be empty after prefix in '{model}'. "
                 "Specify a model name, e.g. 'claudecode:claude-opus-4-6'."
             )
-        return ClaudeCodeModel(model_name=bare_name)
+        return ClaudeCodeModel(
+            model_name=bare_name,
+            disallowed_tools=list(_DISALLOWED_BUILTIN_TOOLS),
+        )
 
     if model.startswith(_ANTHROPIC_PREFIX):
         bare_name = model.removeprefix(_ANTHROPIC_PREFIX)
