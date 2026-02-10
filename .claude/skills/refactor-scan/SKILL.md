@@ -1,11 +1,6 @@
 ---
 name: refactor-scan
-description: >
-  similarity-py を使った重複コード検出とリファクタリング分析レポート生成。
-  PR・Issue 単位のスコープ指定にも対応。
-  ソースコードは変更せず分析レポートのみ生成する。
-disable-model-invocation: true
-argument-hint: "[--pr <number>] [--issue <number>] [--path <path>] [output.md]"
+description: similarity-py を使った重複コード検出とリファクタリング分析レポート生成。PR・Issue 単位のスコープ指定にも対応。ソースコードは変更せず分析レポートのみ生成する。
 ---
 
 # refactor-scan
