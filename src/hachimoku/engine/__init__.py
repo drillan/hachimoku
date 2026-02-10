@@ -16,11 +16,12 @@ pydantic-ai ベースのマルチエージェントレビュー実行エンジ�
 
 from hachimoku.engine._engine import EngineResult, run_review
 from hachimoku.engine._resolver import ContentResolveError
-from hachimoku.engine._selector import SelectorError, SelectorOutput
+from hachimoku.engine._selector import ReferencedContent, SelectorError, SelectorOutput
 
 __all__ = [
     "ContentResolveError",
     "EngineResult",
+    "ReferencedContent",
     "SelectorError",
     "SelectorOutput",
     "run_review",

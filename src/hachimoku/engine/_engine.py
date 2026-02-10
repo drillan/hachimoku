@@ -219,12 +219,13 @@ async def run_review(
             load_result.errors, exit_code=ExitCode.SUCCESS
         )
 
-    # Step 5.5: セレクターメタデータを user_message に追記（Issue #148）
+    # Step 5.5: セレクターメタデータを user_message に追記（Issue #148, #159）
     selector_context = build_selector_context_section(
         change_intent=selector_output.change_intent,
         affected_files=selector_output.affected_files,
         relevant_conventions=selector_output.relevant_conventions,
         issue_context=selector_output.issue_context,
+        referenced_content=selector_output.referenced_content,
     )
     if selector_context:
         user_message = f"{user_message}\n\n{selector_context}"

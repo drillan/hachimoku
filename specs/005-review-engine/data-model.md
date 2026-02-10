@@ -92,6 +92,20 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 - `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
 - `AgentDefinition` とは異なり、`output_schema`・`phase`・`applicability` を持たない。セレクターの出力は `SelectorOutput` に固定され、フェーズ・適用条件の概念はない
 
+### ReferencedContent（参照先コンテンツ）
+
+**ファイル**: `src/hachimoku/engine/_selector.py`（Issue #159）
+
+diff 内で参照されている外部リソースの取得結果。
+
+| Field | Type | Description |
+|-------|------|-------------|
+| reference_type | `str` | 参照の種類（"issue", "file", "spec" 等） |
+| reference_id | `str` | 参照識別子（例: "#152", "src/foo.py"） |
+| content | `str` | 取得した参照先の内容テキスト |
+
+- `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
+
 ### SelectorOutput（セレクター出力）
 
 **ファイル**: `src/hachimoku/engine/_selector.py`
@@ -102,6 +116,11 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 |-------|------|-------------|
 | selected_agents | `list[str]` | 実行すべきエージェント名リスト |
 | reasoning | `str` | 選択理由（デバッグ用） |
+| change_intent | `str` | 変更の意図・目的の要約（default=""）（Issue #148） |
+| affected_files | `list[str]` | diff 外で影響を受けるファイルパス（default=[]）（Issue #148） |
+| relevant_conventions | `list[str]` | 関連プロジェクト規約（default=[]）（Issue #148） |
+| issue_context | `str` | Issue 関連情報の要約（default=""）（Issue #148） |
+| referenced_content | `list[ReferencedContent]` | diff 内参照先の取得結果（default=[]）（Issue #159） |
 
 ### AggregatorDefinition（集約エージェント定義）
 
@@ -188,7 +207,7 @@ ReviewEngine
   │
   ├── SelectorAgent ─────────── (エージェント選択)
   │     ├── input: instructions + agent_definitions + SelectorDefinition
-  │     └── output: SelectorOutput(selected_agents, reasoning)
+  │     └── output: SelectorOutput(selected_agents, reasoning, change_intent, affected_files, relevant_conventions, issue_context, referenced_content)
   │
   ├── AgentExecutionContext ──── (per agent)
   │     ├── model, system_prompt, user_message

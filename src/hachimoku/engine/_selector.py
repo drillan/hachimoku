@@ -28,6 +28,23 @@ from hachimoku.models.config import SelectorConfig
 logger = logging.getLogger(__name__)
 
 
+class ReferencedContent(HachimokuBaseModel):
+    """diff 内で参照されている外部リソースの取得結果。
+
+    Issue #159: セレクターが diff 内の参照（Issue 番号、ファイルパス等）を
+    検出し、取得した内容をレビューエージェントに伝播するためのモデル。
+
+    Attributes:
+        reference_type: 参照の種類（"issue", "file", "spec", "other"）。
+        reference_id: 参照識別子（例: "#152", "src/foo.py"）。
+        content: 取得した参照先の内容テキスト。
+    """
+
+    reference_type: str = Field(min_length=1)
+    reference_id: str = Field(min_length=1)
+    content: str = Field(min_length=1)
+
+
 class SelectorOutput(HachimokuBaseModel):
     """セレクターエージェントの構造化出力。
 
@@ -38,6 +55,7 @@ class SelectorOutput(HachimokuBaseModel):
         affected_files: diff 外で影響を受ける可能性のあるファイルパス。
         relevant_conventions: 当該変更に関連するプロジェクト規約。
         issue_context: Issue 関連情報の要約。
+        referenced_content: diff 内で参照されている外部リソースの取得結果。
     """
 
     selected_agents: list[str]
@@ -46,6 +64,7 @@ class SelectorOutput(HachimokuBaseModel):
     affected_files: list[str] = Field(default_factory=list)
     relevant_conventions: list[str] = Field(default_factory=list)
     issue_context: str = ""
+    referenced_content: list[ReferencedContent] = Field(default_factory=list)
 
 
 class SelectorError(Exception):

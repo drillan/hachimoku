@@ -11,6 +11,7 @@ from hachimoku.engine._instruction import (
     build_selector_context_section,
     build_selector_instruction,
 )
+from hachimoku.engine._selector import ReferencedContent
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 
 _SAMPLE_DIFF = "diff --git a/file.py b/file.py\n+added line"
@@ -371,3 +372,140 @@ class TestBuildSelectorContextSectionCombinations:
         assert "### Affected Files (Outside Diff)" in result
         assert "### Relevant Project Conventions" not in result
         assert "### Issue Context" not in result
+
+
+# =============================================================================
+# build_selector_context_section — referenced_content（Issue #159）
+# =============================================================================
+
+
+class TestBuildSelectorContextSectionReferencedContent:
+    """build_selector_context_section の referenced_content テスト。
+
+    Issue #159: diff 内で参照されている外部リソースの取得結果をレンダリング。
+    """
+
+    def test_referenced_content_section_included(self) -> None:
+        """referenced_content が非空の場合、### Referenced Content セクションが含まれる。"""
+        ref = ReferencedContent(
+            reference_type="issue",
+            reference_id="#152",
+            content="Issue body text",
+        )
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=[ref],
+        )
+        assert "## Selector Analysis Context" in result
+        assert "### Referenced Content" in result
+
+    def test_referenced_content_type_and_id_in_heading(self) -> None:
+        """reference_type と reference_id が見出しフォーマットでレンダリングされる。"""
+        ref = ReferencedContent(
+            reference_type="issue",
+            reference_id="#152",
+            content="Issue body text",
+        )
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=[ref],
+        )
+        assert "#### [issue] #152" in result
+
+    def test_referenced_content_body_in_code_block(self) -> None:
+        """content がコードブロック内に含まれる。"""
+        ref = ReferencedContent(
+            reference_type="file",
+            reference_id="src/foo.py",
+            content="def foo():\n    pass",
+        )
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=[ref],
+        )
+        assert "```" in result
+        assert "def foo():\n    pass" in result
+
+    def test_multiple_references_all_rendered(self) -> None:
+        """複数の参照が全てレンダリングされる。"""
+        refs = [
+            ReferencedContent(
+                reference_type="issue",
+                reference_id="#152",
+                content="Issue body",
+            ),
+            ReferencedContent(
+                reference_type="file",
+                reference_id="src/foo.py",
+                content="file content",
+            ),
+        ]
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=refs,
+        )
+        assert "#152" in result
+        assert "src/foo.py" in result
+        assert "Issue body" in result
+        assert "file content" in result
+
+    def test_content_with_triple_backticks_uses_longer_fence(self) -> None:
+        """content に ``` が含まれる場合、より長いフェンスが使用される。"""
+        ref = ReferencedContent(
+            reference_type="file",
+            reference_id="README.md",
+            content="Example:\n```python\nprint('hello')\n```",
+        )
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=[ref],
+        )
+        assert "````" in result
+        assert "```python" in result
+
+    def test_empty_referenced_content_excluded(self) -> None:
+        """空リストの場合 Referenced Content セクションが含まれない。"""
+        result = build_selector_context_section(
+            change_intent="Fix bug",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=[],
+        )
+        assert "### Referenced Content" not in result
+
+    def test_referenced_content_with_other_metadata(self) -> None:
+        """他のメタデータとの組み合わせで全セクションが正しく出力される。"""
+        ref = ReferencedContent(
+            reference_type="spec",
+            reference_id="specs/005/spec.md",
+            content="FR-RE-002: Pipeline spec",
+        )
+        result = build_selector_context_section(
+            change_intent="Refactor engine",
+            affected_files=["src/engine.py"],
+            relevant_conventions=["TDD strict"],
+            issue_context="Issue #42",
+            referenced_content=[ref],
+        )
+        assert "### Change Intent" in result
+        assert "### Affected Files (Outside Diff)" in result
+        assert "### Relevant Project Conventions" in result
+        assert "### Issue Context" in result
+        assert "### Referenced Content" in result
+        assert "specs/005/spec.md" in result
