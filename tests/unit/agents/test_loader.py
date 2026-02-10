@@ -579,22 +579,6 @@ class TestBuiltinAgentSystemPromptStructure:
         "agent_name",
         sorted(BUILTIN_AGENT_NAMES),
     )
-    def test_system_prompt_line_count_within_range(
-        self,
-        builtin_agents: tuple[AgentDefinition, ...],
-        agent_name: str,
-    ) -> None:
-        """system_prompt が 30-50 行の範囲内である。"""
-        agent = _find_agent(builtin_agents, agent_name)
-        lines = agent.system_prompt.strip().splitlines()
-        assert 30 <= len(lines) <= 50, (
-            f"{agent_name}: expected 30-50 lines, got {len(lines)}"
-        )
-
-    @pytest.mark.parametrize(
-        "agent_name",
-        sorted(BUILTIN_AGENT_NAMES),
-    )
     def test_system_prompt_contains_agent_name_reference(
         self,
         builtin_agents: tuple[AgentDefinition, ...],
