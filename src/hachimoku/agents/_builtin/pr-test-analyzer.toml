@@ -1,6 +1,6 @@
 name = "pr-test-analyzer"
 description = "テストカバレッジの欠落・テスト品質の分析"
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-opus-4-6"
 output_schema = "test_gap_assessment"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

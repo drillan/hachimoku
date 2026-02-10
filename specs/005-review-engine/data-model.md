@@ -223,13 +223,13 @@ ReviewEngine
 AgentDefinition.model ──┐
 AgentConfig.model ──────┤  ← 個別設定が最優先
 HachimokuConfig.model ──┤  ← グローバル設定
-(default: "claudecode:claude-sonnet-4-5") ────┘  ← HachimokuConfig のデフォルト値
+(default: "claudecode:claude-opus-4-6") ────┘  ← HachimokuConfig のデフォルト値
 
 同様に timeout, max_turns も解決:
   AgentConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
 
 セレクターのモデル解決:
-  SelectorConfig.model > SelectorDefinition.model > HachimokuConfig.model > default("claudecode:claude-sonnet-4-5")
+  SelectorConfig.model > SelectorDefinition.model > HachimokuConfig.model > default("claudecode:claude-opus-4-6")
 
 セレクターの allowed_tools:
   SelectorDefinition.allowed_tools のみ（SelectorConfig からは削除済み）
@@ -238,7 +238,7 @@ HachimokuConfig.model ──┤  ← グローバル設定
   SelectorConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
 
 集約エージェントのモデル解決 (Issue #152):
-  AggregationConfig.model > AggregatorDefinition.model > HachimokuConfig.model > default("claudecode:claude-sonnet-4-5")
+  AggregationConfig.model > AggregatorDefinition.model > HachimokuConfig.model > default("claudecode:claude-opus-4-6")
 
 集約の timeout, max_turns (Issue #152):
   AggregationConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値

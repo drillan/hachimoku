@@ -21,7 +21,7 @@ def resolve_model(model: str) -> str | Model:
 
     Args:
         model: プレフィックス付きモデル名文字列
-            （例: ``"claudecode:claude-sonnet-4-5"``, ``"anthropic:claude-sonnet-4-5"``）。
+            （例: ``"claudecode:claude-opus-4-6"``, ``"anthropic:claude-opus-4-6"``）。
 
     Returns:
         claudecode の場合: ``claudecode:`` プレフィックスを除去し
@@ -37,7 +37,7 @@ def resolve_model(model: str) -> str | Model:
         if not bare_name:
             raise ValueError(
                 f"Model name cannot be empty after prefix in '{model}'. "
-                "Specify a model name, e.g. 'claudecode:claude-sonnet-4-5'."
+                "Specify a model name, e.g. 'claudecode:claude-opus-4-6'."
             )
         return ClaudeCodeModel(model_name=bare_name)
 
@@ -46,7 +46,7 @@ def resolve_model(model: str) -> str | Model:
         if not bare_name:
             raise ValueError(
                 f"Model name cannot be empty after prefix in '{model}'. "
-                "Specify a model name, e.g. 'anthropic:claude-sonnet-4-5'."
+                "Specify a model name, e.g. 'anthropic:claude-opus-4-6'."
             )
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise ValueError(

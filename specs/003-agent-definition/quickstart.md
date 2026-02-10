@@ -64,7 +64,7 @@ for error in result.errors:
 # .hachimoku/agents/security-reviewer.toml
 name = "security-reviewer"
 description = "セキュリティ脆弱性の検出"
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-opus-4-6"
 output_schema = "scored_issues"
 system_prompt = """
 You are a security review specialist. Focus on:

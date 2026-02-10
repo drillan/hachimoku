@@ -234,7 +234,7 @@ def _valid_agent_data(**overrides: object) -> dict[str, object]:
     base: dict[str, object] = {
         "name": "test-agent",
         "description": "A test agent",
-        "model": "claude-sonnet-4-5-20250929",
+        "model": "claude-opus-4-6-20250929",
         "output_schema": "scored_issues",
         "system_prompt": "You are a test agent.",
     }
@@ -255,7 +255,7 @@ class TestAgentDefinitionValid:
         agent = AgentDefinition.model_validate(_valid_agent_data())
         assert agent.name == "test-agent"
         assert agent.description == "A test agent"
-        assert agent.model == "claude-sonnet-4-5-20250929"
+        assert agent.model == "claude-opus-4-6-20250929"
         assert agent.output_schema == "scored_issues"
         assert agent.system_prompt == "You are a test agent."
 
@@ -541,7 +541,7 @@ def _valid_selector_data(**overrides: object) -> dict[str, object]:
     base: dict[str, object] = {
         "name": "selector",
         "description": "Agent selector for code review",
-        "model": "claudecode:claude-sonnet-4-5",
+        "model": "claudecode:claude-opus-4-6",
         "system_prompt": "You are an agent selector.",
     }
     base.update(overrides)
@@ -561,7 +561,7 @@ class TestSelectorDefinitionValid:
         selector = SelectorDefinition.model_validate(_valid_selector_data())
         assert selector.name == "selector"
         assert selector.description == "Agent selector for code review"
-        assert selector.model == "claudecode:claude-sonnet-4-5"
+        assert selector.model == "claudecode:claude-opus-4-6"
         assert selector.system_prompt == "You are an agent selector."
 
     def test_default_allowed_tools(self) -> None:
@@ -712,9 +712,9 @@ class TestAggregatorDefinitionValid:
     def test_model_explicit(self) -> None:
         """model を明示指定できる。"""
         aggregator = AggregatorDefinition.model_validate(
-            _valid_aggregator_data(model="claudecode:claude-sonnet-4-5")
+            _valid_aggregator_data(model="claudecode:claude-opus-4-6")
         )
-        assert aggregator.model == "claudecode:claude-sonnet-4-5"
+        assert aggregator.model == "claudecode:claude-opus-4-6"
 
     def test_isinstance_hachimoku_base_model(self) -> None:
         """HachimokuBaseModel のインスタンスである。"""
