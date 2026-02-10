@@ -42,13 +42,13 @@ Review Context は 3 つのフィールドで構成されます。
 良い例:
 
 ```text
-# Issue #152 より -- spec のセクションと要件 ID を明示
-- specs/005-review-engine/spec.md -- FR-RE-002（パイプライン Step 1-9）、FR-RE-008（ReviewReport 集約）
-- specs/005-review-engine/data-model.md -- ReviewReport 構造
+# Issue #152 より — spec のセクションと要件 ID を明示
+- specs/005-review-engine/spec.md — FR-RE-002（パイプライン Step 1-9）、FR-RE-008（ReviewReport 集約）
+- specs/005-review-engine/data-model.md — ReviewReport 構造
 
-# Issue #150 より -- 憲法の Article と関連する原則を明示
-- 憲法 Art.4（シンプルさ）-- 不必要なラッパー・過剰抽象化禁止
-- specs/003-agent-definition/spec.md -- エージェント定義の TOML 構造
+# Issue #150 より — 憲法の Article と関連する原則を明示
+- 憲法 Art.4（シンプルさ）— 不必要なラッパー・過剰抽象化禁止
+- specs/003-agent-definition/spec.md — エージェント定義の TOML 構造
 ```
 
 不十分な例:
@@ -79,18 +79,18 @@ Review Context は 3 つのフィールドで構成されます。
 良い例:
 
 ```text
-# Issue #155 より -- テーブル形式で影響ファイル・現在の値・変更後の値を列挙
+# Issue #155 より — テーブル形式で影響ファイル・現在の値・変更後の値を列挙
 | ファイル | 現在の値 | 変更後 |
 |----------|----------|--------|
 | src/hachimoku/models/config.py:83 | claudecode:claude-sonnet-4-5 | claudecode:claude-opus-4-6 |
 | src/hachimoku/agents/_builtin/code-reviewer.toml:3 | anthropic:claude-sonnet-4-5 | anthropic:claude-opus-4-6 |
 
-# Issue #148 より -- ファイルパス + 変更内容の要約を箇条書き
-- src/hachimoku/engine/_selector.py -- SelectorOutput モデルに 4 フィールド追加
-- src/hachimoku/engine/_instruction.py -- build_selector_context_section() 新規関数追加
-- src/hachimoku/engine/_engine.py -- Step 5-6 間にメタデータ伝播ロジック追加
+# Issue #148 より — ファイルパス + 変更内容の要約を箇条書き
+- src/hachimoku/engine/_selector.py — SelectorOutput モデルに 4 フィールド追加
+- src/hachimoku/engine/_instruction.py — build_selector_context_section() 新規関数追加
+- src/hachimoku/engine/_engine.py — Step 5-6 間にメタデータ伝播ロジック追加
 
-# Issue #150 より -- 変更対象が限定的な場合は簡潔に
+# Issue #150 より — 変更対象が限定的な場合は簡潔に
 - src/hachimoku/agents/_builtin/type-design-analyzer.toml（唯一の変更対象）
 - Python コード変更なし
 ```
@@ -122,16 +122,16 @@ Review Context は 3 つのフィールドで構成されます。
 良い例:
 
 ```text
-# Issue #148 より -- 関数名と役割を明示
-- src/hachimoku/engine/_instruction.py の build_review_instruction() -- user_message 構築の既存パターン
-- src/hachimoku/engine/_engine.py Step 4-6 -- 現在の user_message からコンテキスト構築フロー
+# Issue #148 より — 関数名と役割を明示
+- src/hachimoku/engine/_instruction.py の build_review_instruction() — user_message 構築の既存パターン
+- src/hachimoku/engine/_engine.py Step 4-6 — 現在の user_message からコンテキスト構築フロー
 
-# Issue #152 より -- 同一アーキテクチャパターンの参照先を列挙
-- src/hachimoku/engine/_selector.py の SelectorOutput -- 構造化出力モデルのパターン
-- src/hachimoku/agents/models.py の SelectorDefinition -- TOML 定義モデルのパターン
-- src/hachimoku/agents/_builtin/selector.toml -- ビルトイン TOML 定義のパターン
+# Issue #152 より — 同一アーキテクチャパターンの参照先を列挙
+- src/hachimoku/engine/_selector.py の SelectorOutput — 構造化出力モデルのパターン
+- src/hachimoku/agents/models.py の SelectorDefinition — TOML 定義モデルのパターン
+- src/hachimoku/agents/_builtin/selector.toml — ビルトイン TOML 定義のパターン
 
-# Issue #155 より -- 処理ロジックのパターン
+# Issue #155 より — 処理ロジックのパターン
 - _model_resolver.py でプレフィックスに応じたモデル解決を実行
 ```
 
