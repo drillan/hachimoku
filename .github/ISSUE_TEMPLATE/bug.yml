@@ -1,0 +1,69 @@
+name: Bug Report
+description: バグの報告
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report
+
+  - type: textarea
+    id: description
+    attributes:
+      label: バグの概要
+      description: 何が起きているか
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 再現手順
+      description: バグを再現するための手順
+      placeholder: |
+        1. `8moku ...` を実行
+        2. ...
+        3. エラーが発生
+
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: 期待される動作 / 実際の動作
+      description: 何が期待され、実際に何が起きたか
+      placeholder: |
+        **期待**: ...
+        **実際**: ...
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Review Context
+        以下の情報はコードレビュー時にレビューエージェントが参照します。
+        分かる範囲で記入してください。
+
+  - type: textarea
+    id: related-specs
+    attributes:
+      label: 関連仕様
+      description: 関連する仕様書・ドキュメントへの参照
+      placeholder: |
+        - specs/NNN-xxx/spec.md
+        - 憲法 Art.N（項目名）
+        - docs/xxx.md
+
+  - type: textarea
+    id: impact-scope
+    attributes:
+      label: 影響範囲
+      description: 修正が影響する可能性のあるファイル・設定（diff 外を含む）
+      placeholder: |
+        - .hachimoku/config.toml（設定の互換性）
+        - src/hachimoku/xxx.py（同じパターンを使用している箇所）
+
+  - type: textarea
+    id: existing-patterns
+    attributes:
+      label: 既存パターン参照
+      description: 修正時に一貫性を保つべき既存の類似実装
+      placeholder: |
+        - src/hachimoku/xxx.py の YYY が同様のエラーハンドリングパターン
