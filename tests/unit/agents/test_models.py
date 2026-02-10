@@ -15,6 +15,7 @@ from hachimoku.agents.models import (
     AGENT_NAME_PATTERN,
     PHASE_ORDER,
     AgentDefinition,
+    AggregatorDefinition,
     ApplicabilityRule,
     LoadError,
     LoadResult,
@@ -669,4 +670,144 @@ class TestSelectorDefinitionConstraints:
         with pytest.raises(ValidationError, match="allowed_tools"):
             SelectorDefinition.model_validate(
                 _valid_selector_data(allowed_tools=["invalid_tool"])
+            )
+
+
+# =============================================================================
+# AggregatorDefinition ヘルパー
+# =============================================================================
+
+
+def _valid_aggregator_data(**overrides: object) -> dict[str, object]:
+    """AggregatorDefinition テスト用の最小限の有効データ。"""
+    base: dict[str, object] = {
+        "name": "aggregator",
+        "description": "Aggregate review results",
+        "system_prompt": "You are a review aggregator.",
+    }
+    base.update(overrides)
+    return base
+
+
+# =============================================================================
+# AggregatorDefinition — 正常系
+# =============================================================================
+
+
+class TestAggregatorDefinitionValid:
+    """AggregatorDefinition の正常系を検証。"""
+
+    def test_valid_aggregator_definition(self) -> None:
+        """全必須フィールド指定でインスタンス生成が成功する。"""
+        aggregator = AggregatorDefinition.model_validate(_valid_aggregator_data())
+        assert aggregator.name == "aggregator"
+        assert aggregator.description == "Aggregate review results"
+        assert aggregator.system_prompt == "You are a review aggregator."
+
+    def test_model_defaults_to_none(self) -> None:
+        """model 省略時は None になる。"""
+        aggregator = AggregatorDefinition.model_validate(_valid_aggregator_data())
+        assert aggregator.model is None
+
+    def test_model_explicit(self) -> None:
+        """model を明示指定できる。"""
+        aggregator = AggregatorDefinition.model_validate(
+            _valid_aggregator_data(model="claudecode:claude-sonnet-4-5")
+        )
+        assert aggregator.model == "claudecode:claude-sonnet-4-5"
+
+    def test_isinstance_hachimoku_base_model(self) -> None:
+        """HachimokuBaseModel のインスタンスである。"""
+        aggregator = AggregatorDefinition.model_validate(_valid_aggregator_data())
+        assert isinstance(aggregator, HachimokuBaseModel)
+
+    def test_name_accepts_lowercase_and_hyphens(self) -> None:
+        """小文字・数字・ハイフンの name が許可される。"""
+        aggregator = AggregatorDefinition.model_validate(
+            _valid_aggregator_data(name="my-aggregator-2")
+        )
+        assert aggregator.name == "my-aggregator-2"
+
+
+# =============================================================================
+# AggregatorDefinition — 制約
+# =============================================================================
+
+
+class TestAggregatorDefinitionConstraints:
+    """AggregatorDefinition の制約を検証。"""
+
+    def test_invalid_name_uppercase(self) -> None:
+        """大文字を含む name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            AggregatorDefinition.model_validate(
+                _valid_aggregator_data(name="Aggregator")
+            )
+
+    def test_invalid_name_empty(self) -> None:
+        """空文字列の name がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="name"):
+            AggregatorDefinition.model_validate(_valid_aggregator_data(name=""))
+
+    def test_missing_required_field_name(self) -> None:
+        """name 欠損で ValidationError。"""
+        data = _valid_aggregator_data()
+        del data["name"]
+        with pytest.raises(ValidationError, match="name"):
+            AggregatorDefinition.model_validate(data)
+
+    def test_missing_required_field_description(self) -> None:
+        """description 欠損で ValidationError。"""
+        data = _valid_aggregator_data()
+        del data["description"]
+        with pytest.raises(ValidationError, match="description"):
+            AggregatorDefinition.model_validate(data)
+
+    def test_missing_required_field_system_prompt(self) -> None:
+        """system_prompt 欠損で ValidationError。"""
+        data = _valid_aggregator_data()
+        del data["system_prompt"]
+        with pytest.raises(ValidationError, match="system_prompt"):
+            AggregatorDefinition.model_validate(data)
+
+    def test_empty_description_rejected(self) -> None:
+        """空文字列の description がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="description"):
+            AggregatorDefinition.model_validate(_valid_aggregator_data(description=""))
+
+    def test_empty_system_prompt_rejected(self) -> None:
+        """空文字列の system_prompt がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="system_prompt"):
+            AggregatorDefinition.model_validate(
+                _valid_aggregator_data(system_prompt="")
+            )
+
+    def test_empty_model_rejected(self) -> None:
+        """空文字列の model がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="model"):
+            AggregatorDefinition.model_validate(_valid_aggregator_data(model=""))
+
+    def test_frozen_assignment_rejected(self) -> None:
+        """frozen=True によりフィールド変更が拒否される。"""
+        aggregator = AggregatorDefinition.model_validate(_valid_aggregator_data())
+        with pytest.raises(ValidationError, match="frozen"):
+            aggregator.name = "changed"  # type: ignore[misc]
+
+    def test_extra_field_rejected(self) -> None:
+        """定義外フィールドがバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            AggregatorDefinition.model_validate(_valid_aggregator_data(unknown="x"))
+
+    def test_allowed_tools_field_rejected(self) -> None:
+        """集約エージェントは allowed_tools を持たない。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            AggregatorDefinition.model_validate(
+                _valid_aggregator_data(allowed_tools=["git_read"])
+            )
+
+    def test_output_schema_field_rejected(self) -> None:
+        """AgentDefinition 固有の output_schema が extra=forbid で拒否される。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            AggregatorDefinition.model_validate(
+                _valid_aggregator_data(output_schema="scored_issues")
             )

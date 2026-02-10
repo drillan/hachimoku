@@ -59,6 +59,20 @@ class AgentConfig(HachimokuBaseModel):
     max_turns: int | None = Field(default=None, gt=0)
 
 
+class AggregationConfig(HachimokuBaseModel):
+    """集約エージェント設定。FR-RE-019, Issue #152.
+
+    SelectorConfig と同パターン。enabled で集約の有効/無効を切り替え可能。
+    model, timeout, max_turns はオプショナル（None 可）で、
+    None の場合はグローバル設定値が適用される。
+    """
+
+    enabled: StrictBool = True
+    model: str | None = Field(default=None, min_length=1)
+    timeout: int | None = Field(default=None, gt=0)
+    max_turns: int | None = Field(default=None, gt=0)
+
+
 class HachimokuConfig(HachimokuBaseModel):
     """全設定項目を統合した不変モデル。FR-CF-002, FR-CF-009.
 
@@ -82,6 +96,9 @@ class HachimokuConfig(HachimokuBaseModel):
 
     # セレクターエージェント設定
     selector: SelectorConfig = Field(default_factory=SelectorConfig)
+
+    # 集約エージェント設定
+    aggregation: AggregationConfig = Field(default_factory=AggregationConfig)
 
     # エージェント個別設定
     agents: dict[str, AgentConfig] = Field(default_factory=dict)

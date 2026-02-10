@@ -8,15 +8,18 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tomllib
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from pathlib import Path
 from typing import Final
 
+from pydantic import ValidationError
+
 from hachimoku.models.exit_code import ExitCode
 
 from hachimoku.agents import load_agents
-from hachimoku.agents.loader import load_selector
+from hachimoku.agents.loader import load_aggregator, load_selector
 from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
@@ -33,6 +36,7 @@ from hachimoku.engine._progress import (
     report_selector_result,
     report_summary,
 )
+from hachimoku.engine._aggregator import AggregatorError, run_aggregator
 from hachimoku.engine._selector import SelectorError, run_selector
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
@@ -142,6 +146,7 @@ async def run_review(
         6. 実行コンテキスト構築（AgentExecutionContext）
         7. エージェント実行（Parallel or Sequential）
         8. 結果集約（ReviewReport）
+        9.5. LLM ベース集約（AggregatedReport, Issue #152）
 
     Args:
         target: レビュー対象（DiffTarget / PRTarget / FileTarget）。
@@ -249,17 +254,95 @@ async def run_review(
         results: list[AgentResult] = await _execute_with_shutdown_timeout(
             executor, contexts, shutdown_event
         )
+
+        # Step 8: 結果集約
+        report = _build_report(results, load_result.errors)
+
+        # Step 9.5: LLM ベース結果集約（Issue #152）
+        # シグナル受信後はスキップ（仕様: SIGINT/SIGTERM 中の集約キャンセル）
+        if not shutdown_event.is_set():
+            report = await _run_aggregation_step(
+                report=report,
+                results=results,
+                config=config,
+                custom_agents_dir=custom_agents_dir,
+            )
     finally:
         uninstall_signal_handlers(loop)
 
-    # Step 8: 結果集約
-    report = _build_report(results, load_result.errors)
     exit_code = _determine_exit_code(results, report.summary)
 
     # 進捗サマリー
     _report_execution_summary(results)
 
     return EngineResult(report=report, exit_code=exit_code)
+
+
+async def _run_aggregation_step(
+    report: ReviewReport,
+    results: list[AgentResult],
+    config: HachimokuConfig,
+    custom_agents_dir: Path | None,
+) -> ReviewReport:
+    """Step 9.5: LLM ベース結果集約を実行する。
+
+    集約条件を満たさない場合はレポートをそのまま返す。
+    集約失敗時は aggregation_error を設定したレポートを返す。
+    パイプライン自体は失敗させない。
+
+    Args:
+        report: Step 8 で構築されたレビューレポート。
+        results: 全エージェント実行結果。
+        config: 全体設定。
+        custom_agents_dir: カスタムエージェント定義ディレクトリ。
+
+    Returns:
+        集約結果を含む（または含まない）ReviewReport。
+    """
+    # 集約無効 → スキップ
+    if not config.aggregation.enabled:
+        return report
+
+    # 有効結果なし → スキップ
+    has_valid = any(isinstance(r, (AgentSuccess, AgentTruncated)) for r in results)
+    if not has_valid:
+        return report
+
+    # 集約エージェント定義読み込み
+    try:
+        aggregator_def = load_aggregator(custom_dir=custom_agents_dir)
+    except (
+        FileNotFoundError,
+        NotADirectoryError,
+        tomllib.TOMLDecodeError,
+        ValidationError,
+        OSError,
+    ) as exc:
+        print(
+            f"Warning: Failed to load aggregator definition: {exc}",
+            file=sys.stderr,
+        )
+        return report.model_copy(
+            update={"aggregation_error": f"Failed to load aggregator: {exc}"}
+        )
+
+    # 集約エージェント実行
+    try:
+        aggregated = await run_aggregator(
+            results=results,
+            aggregator_definition=aggregator_def,
+            aggregation_config=config.aggregation,
+            global_model=config.model,
+            global_timeout=config.timeout,
+            global_max_turns=config.max_turns,
+        )
+        return report.model_copy(update={"aggregated": aggregated})
+    except AggregatorError as exc:
+        print(
+            f"Warning: Aggregation failed: {exc}",
+            file=sys.stderr,
+        )
+        return report.model_copy(update={"aggregation_error": str(exc)})
 
 
 def _filter_disabled_agents(

@@ -167,6 +167,38 @@ assert isinstance(result, AgentSuccess)
 | `total_elapsed_time` | `float` | Yes | 0.0以上 |
 | `total_cost` | `CostInfo \| None` | No | デフォルト `None` |
 
+## Priority（推奨アクション優先度）
+
+推奨アクションの優先度を3段階で表現する列挙型です。
+Severity（問題重大度）とは別の概念で、RecommendedAction で使用されます。
+
+| 値 | 説明 |
+|----|------|
+| `HIGH` | 高優先度 |
+| `MEDIUM` | 中優先度 |
+| `LOW` | 低優先度 |
+
+## RecommendedAction（推奨アクション）
+
+集約エージェントが生成する推奨アクションです。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `description` | `str` | Yes | 空文字列不可 |
+| `priority` | `Priority` | Yes | - |
+
+## AggregatedReport（集約レポート）
+
+LLM ベース集約エージェントの構造化出力です。
+重複排除された指摘、ポジティブフィードバック、推奨アクション、失敗エージェント情報を含みます。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `issues` | `list[ReviewIssue]` | Yes | 空リスト許容。重複排除・統合済み |
+| `strengths` | `list[str]` | Yes | 空リスト許容 |
+| `recommended_actions` | `list[RecommendedAction]` | Yes | 空リスト許容 |
+| `agent_failures` | `list[str]` | Yes | 失敗エージェント名。空リスト許容 |
+
 ## ReviewReport（レビューレポート）
 
 全エージェントの結果を集約したレポートです。
@@ -176,9 +208,13 @@ assert isinstance(result, AgentSuccess)
 | `results` | `list[AgentResult]` | Yes | 空リスト許容 |
 | `summary` | `ReviewSummary` | Yes | - |
 | `load_errors` | `tuple[`[LoadError](load-error)`, ...]` | No | デフォルト空タプル |
+| `aggregated` | `AggregatedReport \| None` | No | デフォルト `None`。集約なし/無効/失敗 |
+| `aggregation_error` | `str \| None` | No | デフォルト `None`。集約失敗時のエラー情報 |
 
 `load_errors` はエージェント定義の読み込み時に発生したエラーを保持します。
 全エージェントが失敗した場合でも空の `results` でレポートを生成できます。
+
+`aggregated` は LLM ベース集約（Step 9.5）の結果です。集約が無効、または失敗した場合は `None` となり、失敗時は `aggregation_error` にエラー情報が設定されます。
 
 ```{code-block} python
 from hachimoku.models import ReviewReport, ReviewSummary

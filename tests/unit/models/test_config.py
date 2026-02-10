@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from hachimoku.models.config import (
     AgentConfig,
+    AggregationConfig,
     HachimokuConfig,
     OutputFormat,
     SelectorConfig,
@@ -399,3 +400,104 @@ class TestHachimokuConfigSelector:
         """辞書から selector を構築できること。"""
         config = HachimokuConfig(selector={"model": "haiku"})  # type: ignore[arg-type]
         assert config.selector.model == "haiku"
+
+
+# =============================================================================
+# AggregationConfig (Issue #152)
+# =============================================================================
+
+
+class TestAggregationConfigDefaults:
+    """AggregationConfig のデフォルト値テスト。"""
+
+    def test_default_enabled(self) -> None:
+        """enabled のデフォルトが True であること。"""
+        assert AggregationConfig().enabled is True
+
+    def test_default_model(self) -> None:
+        """model のデフォルトが None であること。"""
+        assert AggregationConfig().model is None
+
+    def test_default_timeout(self) -> None:
+        """timeout のデフォルトが None であること。"""
+        assert AggregationConfig().timeout is None
+
+    def test_default_max_turns(self) -> None:
+        """max_turns のデフォルトが None であること。"""
+        assert AggregationConfig().max_turns is None
+
+
+class TestAggregationConfigValidation:
+    """AggregationConfig のバリデーションテスト。"""
+
+    def test_enabled_true_accepted(self) -> None:
+        assert AggregationConfig(enabled=True).enabled is True
+
+    def test_enabled_false_accepted(self) -> None:
+        assert AggregationConfig(enabled=False).enabled is False
+
+    def test_enabled_non_bool_rejected(self) -> None:
+        """StrictBool のため文字列 "true" は拒否される。"""
+        with pytest.raises(ValidationError, match="enabled"):
+            AggregationConfig(enabled="true")  # type: ignore[arg-type]
+
+    def test_model_empty_string_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="model"):
+            AggregationConfig(model="")
+
+    def test_model_valid_string_accepted(self) -> None:
+        assert AggregationConfig(model="haiku").model == "haiku"
+
+    def test_timeout_zero_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="timeout"):
+            AggregationConfig(timeout=0)
+
+    def test_timeout_negative_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="timeout"):
+            AggregationConfig(timeout=-1)
+
+    def test_timeout_positive_accepted(self) -> None:
+        assert AggregationConfig(timeout=60).timeout == 60
+
+    def test_max_turns_zero_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="max_turns"):
+            AggregationConfig(max_turns=0)
+
+    def test_max_turns_negative_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="max_turns"):
+            AggregationConfig(max_turns=-1)
+
+    def test_max_turns_positive_accepted(self) -> None:
+        assert AggregationConfig(max_turns=5).max_turns == 5
+
+    def test_extra_field_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            AggregationConfig(unknown_key="value")  # type: ignore[call-arg]
+
+
+class TestAggregationConfigFrozen:
+    """AggregationConfig の frozen=True テスト。"""
+
+    def test_field_assignment_rejected(self) -> None:
+        config = AggregationConfig()
+        with pytest.raises(ValidationError, match="frozen"):
+            config.enabled = False  # type: ignore[misc]
+
+
+class TestHachimokuConfigAggregation:
+    """HachimokuConfig の aggregation フィールドテスト。"""
+
+    def test_default_aggregation(self) -> None:
+        """aggregation のデフォルトが AggregationConfig() であること。"""
+        config = HachimokuConfig()
+        assert config.aggregation == AggregationConfig()
+
+    def test_aggregation_from_dict(self) -> None:
+        """辞書から aggregation を構築できること。"""
+        config = HachimokuConfig(aggregation={"enabled": False})  # type: ignore[arg-type]
+        assert config.aggregation.enabled is False
+
+    def test_aggregation_with_model(self) -> None:
+        """aggregation.model を指定できること。"""
+        config = HachimokuConfig(aggregation={"model": "opus"})  # type: ignore[arg-type]
+        assert config.aggregation.model == "opus"

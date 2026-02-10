@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from hachimoku.agents.models import (
     AgentDefinition,
+    AggregatorDefinition,
     LoadError,
     LoadResult,
     SelectorDefinition,
@@ -22,6 +23,14 @@ from hachimoku.agents.models import (
 
 SELECTOR_FILENAME: Final[str] = "selector.toml"
 """セレクター定義ファイル名。レビューエージェントローダーから除外される。"""
+
+AGGREGATOR_FILENAME: Final[str] = "aggregator.toml"
+"""アグリゲーター定義ファイル名。レビューエージェントローダーから除外される。"""
+
+_EXCLUDED_FILENAMES: Final[frozenset[str]] = frozenset(
+    {SELECTOR_FILENAME, AGGREGATOR_FILENAME}
+)
+"""レビューエージェントローダーから除外されるファイル名集合。"""
 
 
 def _load_single_agent(path: Path) -> AgentDefinition:
@@ -62,6 +71,25 @@ def _load_single_selector(path: Path) -> SelectorDefinition:
     return SelectorDefinition.model_validate(data)
 
 
+def _load_single_aggregator(path: Path) -> AggregatorDefinition:
+    """単一の TOML ファイルからアグリゲーター定義を読み込む。
+
+    Args:
+        path: TOML ファイルのパス。
+
+    Returns:
+        構築された AggregatorDefinition。
+
+    Raises:
+        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
+        OSError: ファイルが存在しない場合やアクセスエラーの場合。
+    """
+    with path.open("rb") as f:
+        data = tomllib.load(f)
+    return AggregatorDefinition.model_validate(data)
+
+
 def load_builtin_agents() -> LoadResult:
     """ビルトインエージェント定義をパッケージリソースから読み込む。
 
@@ -81,7 +109,7 @@ def load_builtin_agents() -> LoadResult:
     for resource in sorted(builtin_package.iterdir(), key=lambda r: r.name):
         if not resource.name.endswith(".toml"):
             continue
-        if resource.name == SELECTOR_FILENAME:
+        if resource.name in _EXCLUDED_FILENAMES:
             continue
         try:
             with as_file(resource) as path:
@@ -127,7 +155,7 @@ def load_custom_agents(custom_dir: Path) -> LoadResult:
     for toml_path in sorted(custom_dir.iterdir()):
         if not toml_path.name.endswith(".toml"):
             continue
-        if toml_path.name == SELECTOR_FILENAME:
+        if toml_path.name in _EXCLUDED_FILENAMES:
             continue
         try:
             agent = _load_single_agent(toml_path)
@@ -225,3 +253,58 @@ def load_selector(custom_dir: Path | None = None) -> SelectorDefinition:
         return builtin
 
     return _load_single_selector(custom_path)
+
+
+def load_builtin_aggregator() -> AggregatorDefinition:
+    """ビルトインアグリゲーター定義をパッケージリソースから読み込む。
+
+    Returns:
+        ビルトインのアグリゲーター定義。
+
+    Raises:
+        FileNotFoundError: ビルトインアグリゲーター定義が見つからない場合。
+        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
+    """
+    builtin_package = files("hachimoku.agents._builtin")
+    for resource in builtin_package.iterdir():
+        if resource.name == AGGREGATOR_FILENAME:
+            with as_file(resource) as path:
+                return _load_single_aggregator(path)
+    raise FileNotFoundError(
+        f"Builtin aggregator definition not found: {AGGREGATOR_FILENAME}"
+    )
+
+
+def load_aggregator(custom_dir: Path | None = None) -> AggregatorDefinition:
+    """ビルトインとカスタムを統合してアグリゲーター定義を読み込む。
+
+    カスタムディレクトリに aggregator.toml が存在する場合、ビルトインを上書きする。
+    カスタムの読み込みに失敗した場合は例外を送出する。
+
+    Args:
+        custom_dir: カスタム定義ファイルのディレクトリパス。
+            None の場合はビルトインのみ読み込む。
+
+    Returns:
+        アグリゲーター定義。
+
+    Raises:
+        FileNotFoundError: ビルトインアグリゲーター定義が見つからない場合。
+        NotADirectoryError: custom_dir がファイルパスの場合。
+        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
+    """
+    builtin = load_builtin_aggregator()
+    if custom_dir is None:
+        return builtin
+    if custom_dir.exists() and not custom_dir.is_dir():
+        raise NotADirectoryError(
+            f"custom_dir はディレクトリではありません: {custom_dir}"
+        )
+
+    custom_path = custom_dir / AGGREGATOR_FILENAME
+    if not custom_path.exists():
+        return builtin
+
+    return _load_single_aggregator(custom_path)

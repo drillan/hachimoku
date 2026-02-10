@@ -52,6 +52,13 @@ model = "claudecode:claude-haiku-4-5"
 timeout = 600
 max_turns = 20
 
+# 集約エージェント設定
+[aggregation]
+enabled = true
+# model = "claudecode:claude-sonnet-4-5"
+# timeout = 300
+# max_turns = 10
+
 # エージェント個別設定
 [agents.code-reviewer]
 enabled = true
@@ -90,6 +97,7 @@ parallel = false
 | `show_cost` | `bool` | `false` | - | コスト情報の表示 |
 | `max_files_per_review` | `int` | `100` | 正の値 | file モードの最大ファイル数 |
 | `selector` | `SelectorConfig` | 後述 | - | セレクターエージェント設定 |
+| `aggregation` | `AggregationConfig` | 後述 | - | 集約エージェント設定 |
 | `agents` | `dict[str, AgentConfig]` | `{}` | - | エージェント個別設定 |
 
 ### SelectorConfig
@@ -102,6 +110,26 @@ parallel = false
 | `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き（プレフィックスでプロバイダー指定） |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
+
+### AggregationConfig
+
+集約エージェントの設定です。SelectorConfig と同パターンに加え、`enabled` で集約の有効/無効を切り替えます。
+`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+
+| 項目 | 型 | デフォルト | 制約 | 説明 |
+|-----|---|----------|------|------|
+| `enabled` | `bool` | `true` | - | 集約の有効/無効 |
+| `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き（プレフィックスでプロバイダー指定） |
+| `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
+| `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
+
+```{code-block} toml
+[aggregation]
+enabled = true
+model = "claudecode:claude-sonnet-4-5"
+timeout = 300
+max_turns = 10
+```
 
 ### AgentConfig
 

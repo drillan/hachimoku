@@ -15,8 +15,119 @@ from hachimoku.models.agent_result import (
     AgentTruncated,
     CostInfo,
 )
-from hachimoku.models.report import ReviewReport, ReviewSummary
+from hachimoku.models.report import (
+    AggregatedReport,
+    Priority,
+    RecommendedAction,
+    ReviewReport,
+    ReviewSummary,
+)
 from hachimoku.models.severity import Severity
+
+
+# =============================================================================
+# Priority (Issue #152)
+# =============================================================================
+
+
+class TestPriority:
+    """Priority enum の値を検証。"""
+
+    def test_values(self) -> None:
+        """high, medium, low の3値が存在する。"""
+        assert Priority.HIGH == "high"
+        assert Priority.MEDIUM == "medium"
+        assert Priority.LOW == "low"
+
+    def test_member_count(self) -> None:
+        """メンバーが3つであること。"""
+        assert len(Priority) == 3
+
+
+# =============================================================================
+# RecommendedAction (Issue #152)
+# =============================================================================
+
+
+class TestRecommendedActionValid:
+    """RecommendedAction の正常系を検証。"""
+
+    def test_valid_action(self) -> None:
+        """正常値でインスタンス生成が成功する。"""
+        action = RecommendedAction(
+            description="Fix critical SQL injection vulnerability",
+            priority=Priority.HIGH,
+        )
+        assert action.description == "Fix critical SQL injection vulnerability"
+        assert action.priority == Priority.HIGH
+
+    def test_all_priorities_accepted(self) -> None:
+        """全 Priority 値でインスタンス生成が成功する。"""
+        for p in Priority:
+            action = RecommendedAction(description="test action", priority=p)
+            assert action.priority == p
+
+    def test_priority_from_string(self) -> None:
+        """文字列値から Priority が正規化される。"""
+        action = RecommendedAction(description="test", priority="medium")  # type: ignore[arg-type]
+        assert action.priority == Priority.MEDIUM
+
+    @pytest.mark.parametrize(
+        ("input_val", "expected"),
+        [
+            ("High", Priority.HIGH),
+            ("HIGH", Priority.HIGH),
+            ("Medium", Priority.MEDIUM),
+            ("MEDIUM", Priority.MEDIUM),
+            ("Low", Priority.LOW),
+            ("LOW", Priority.LOW),
+        ],
+    )
+    def test_priority_case_insensitive(
+        self, input_val: str, expected: Priority
+    ) -> None:
+        """Priority は大文字小文字を区別せずに受け付ける。"""
+        action = RecommendedAction(description="test", priority=input_val)  # type: ignore[arg-type]
+        assert action.priority == expected
+
+
+class TestRecommendedActionConstraints:
+    """RecommendedAction の制約違反を検証。"""
+
+    def test_empty_description_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="description"):
+            RecommendedAction(description="", priority=Priority.HIGH)
+
+    def test_missing_description_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            RecommendedAction(priority=Priority.HIGH)  # type: ignore[call-arg]
+
+    def test_missing_priority_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            RecommendedAction(description="fix it")  # type: ignore[call-arg]
+
+    def test_invalid_priority_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="priority"):
+            RecommendedAction(description="fix it", priority="urgent")  # type: ignore[arg-type]
+
+    def test_extra_field_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            RecommendedAction(
+                description="fix it",
+                priority=Priority.HIGH,
+                category="security",  # type: ignore[call-arg]
+            )
+
+    def test_frozen(self) -> None:
+        """frozen=True のためフィールド変更が拒否される。"""
+        action = RecommendedAction(description="fix it", priority=Priority.HIGH)
+        with pytest.raises(ValidationError):
+            action.description = "changed"  # type: ignore[misc]
+
+
+# =============================================================================
+# ReviewSummary
+# =============================================================================
 
 
 class TestReviewSummaryValid:
@@ -347,3 +458,77 @@ class TestReviewReportLoadErrors:
         assert len(report.load_errors) == 2
         assert report.load_errors[0].source == "a.toml"
         assert report.load_errors[1].source == "b.toml"
+
+
+# =============================================================================
+# ReviewReport.aggregated / aggregation_error (Issue #152)
+# =============================================================================
+
+
+class TestReviewReportAggregation:
+    """ReviewReport の集約関連フィールドを検証。"""
+
+    def _make_summary(self) -> ReviewSummary:
+        return ReviewSummary(
+            total_issues=0,
+            max_severity=None,
+            total_elapsed_time=0.0,
+        )
+
+    def test_aggregated_default_none(self) -> None:
+        """aggregated 省略時に None となる。"""
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+        )
+        assert report.aggregated is None
+
+    def test_aggregation_error_default_none(self) -> None:
+        """aggregation_error 省略時に None となる。"""
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+        )
+        assert report.aggregation_error is None
+
+    def test_aggregated_accepts_aggregated_report(self) -> None:
+        """aggregated に AggregatedReport を渡せる。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=["Good code"],
+            recommended_actions=[],
+            agent_failures=[],
+        )
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+            aggregated=agg,
+        )
+        assert report.aggregated is not None
+        assert report.aggregated.strengths == ["Good code"]
+
+    def test_aggregation_error_accepts_string(self) -> None:
+        """aggregation_error に文字列を渡せる。"""
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+            aggregation_error="Aggregator timeout",
+        )
+        assert report.aggregation_error == "Aggregator timeout"
+
+    def test_aggregated_and_error_mutually_exclusive_in_practice(self) -> None:
+        """aggregated と aggregation_error を同時に設定しても型的には許容される。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+        )
+        report = ReviewReport(
+            results=[],
+            summary=self._make_summary(),
+            aggregated=agg,
+            aggregation_error="should not happen",
+        )
+        assert report.aggregated is not None
+        assert report.aggregation_error is not None
