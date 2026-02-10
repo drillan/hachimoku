@@ -129,7 +129,7 @@
   - **code-reviewer**: コード品質・バグ・ベストプラクティスのレビュー。出力スキーマ: `scored_issues`
   - **silent-failure-hunter**: サイレント障害・エラーハンドリング不備の検出。出力スキーマ: `severity_classified`
   - **pr-test-analyzer**: テストカバレッジの欠落・テスト品質の分析。出力スキーマ: `test_gap_assessment`
-  - **type-design-analyzer**: 型設計・インターフェース設計の分析。出力スキーマ: `multi_dimensional_analysis`
+  - **type-design-analyzer**: 型アノテーション・型安全性の実用分析。出力スキーマ: `multi_dimensional_analysis`
   - **comment-analyzer**: コードコメントの正確性・品質の分析。出力スキーマ: `category_classification`
   - **code-simplifier**: コードの簡潔化・改善提案。出力スキーマ: `improvement_suggestions`
 
