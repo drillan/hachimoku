@@ -104,8 +104,8 @@ class TestResolveModelUnknownPrefix:
 class TestResolveModelDisallowedTools:
     """ClaudeCodeModel の disallowed_tools 設定テスト。
 
-    CLI ビルトインツール（Bash, Read, Grep 等）をブロックし、
-    pydantic-ai 登録ツールのみを使用させる。
+    書き込み系・危険な CLI ビルトインツール（Bash, Write, Edit 等）をブロックし、
+    読み取り専用ツール（Read, Grep, Glob）はレビュー用に利用可能のまま残す。
     """
 
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
@@ -121,17 +121,21 @@ class TestResolveModelDisallowedTools:
         """ブロックリストに Bash が含まれる（権限拒否の主因）。"""
         assert "Bash" in _DISALLOWED_BUILTIN_TOOLS
 
-    def test_disallowed_tools_contains_read(self) -> None:
-        """ブロックリストに Read が含まれる（pydantic-ai read_file を使用）。"""
-        assert "Read" in _DISALLOWED_BUILTIN_TOOLS
+    def test_disallowed_tools_contains_write(self) -> None:
+        """ブロックリストに Write が含まれる（書き込み系ツール）。"""
+        assert "Write" in _DISALLOWED_BUILTIN_TOOLS
 
-    def test_disallowed_tools_contains_glob(self) -> None:
-        """ブロックリストに Glob が含まれる（pydantic-ai list_directory を使用）。"""
-        assert "Glob" in _DISALLOWED_BUILTIN_TOOLS
+    def test_disallowed_tools_excludes_read(self) -> None:
+        """Read はレビューエージェントのコード解析に必要なためブロックしない。"""
+        assert "Read" not in _DISALLOWED_BUILTIN_TOOLS
 
-    def test_disallowed_tools_contains_grep(self) -> None:
-        """ブロックリストに Grep が含まれる。"""
-        assert "Grep" in _DISALLOWED_BUILTIN_TOOLS
+    def test_disallowed_tools_excludes_glob(self) -> None:
+        """Glob はレビューエージェントのファイル探索に必要なためブロックしない。"""
+        assert "Glob" not in _DISALLOWED_BUILTIN_TOOLS
+
+    def test_disallowed_tools_excludes_grep(self) -> None:
+        """Grep はレビューエージェントのコード検索に必要なためブロックしない。"""
+        assert "Grep" not in _DISALLOWED_BUILTIN_TOOLS
 
     def test_disallowed_tools_is_nonempty(self) -> None:
         """ブロックリストが空でないこと。"""

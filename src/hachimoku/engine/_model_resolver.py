@@ -16,18 +16,17 @@ from pydantic_ai.models import Model
 _ANTHROPIC_PREFIX: str = "anthropic:"
 _CLAUDECODE_PREFIX: str = "claudecode:"
 
-# Claude CLI ビルトインツールのブロックリスト。
-# pydantic-ai 登録ツール（run_git, run_gh, read_file, list_directory）のみを
-# 使用させるため、CLI ビルトインツールを無効化する。
+# 書き込み系・危険な CLI ビルトインツールのブロックリスト。
+# 読み取り専用ツール（Read, Grep, Glob）はレビューエージェントの
+# コード解析に不可欠なため除外する。
+# pydantic-ai ツール（run_git, run_gh）は subprocess.run() を直接使用するため
+# Bash ブロックの影響を受けない。
 # Issue #161: ビルトインツール使用による権限拒否・ターン浪費の防止。
 _DISALLOWED_BUILTIN_TOOLS: Final[tuple[str, ...]] = (
     "Bash",
-    "Read",
     "Write",
     "Edit",
     "MultiEdit",
-    "Glob",
-    "Grep",
     "WebSearch",
     "WebFetch",
     "NotebookEdit",
