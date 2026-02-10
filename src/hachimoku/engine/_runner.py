@@ -11,9 +11,11 @@ R-011: result.usage() からトークン数を CostInfo に変換。
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
+from claudecode_model.exceptions import CLIExecutionError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
@@ -28,6 +30,8 @@ from hachimoku.models.agent_result import (
     AgentTruncated,
     CostInfo,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def run_agent(context: AgentExecutionContext) -> AgentResult:
@@ -74,7 +78,10 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             result = await agent.run(
                 context.user_message,
                 usage_limits=UsageLimits(request_limit=context.max_turns),
-                model_settings=ClaudeCodeModelSettings(max_turns=context.max_turns),
+                model_settings=ClaudeCodeModelSettings(
+                    max_turns=context.max_turns,
+                    timeout=context.timeout_seconds,
+                ),
             )
 
         elapsed = time.monotonic() - start_time
@@ -106,7 +113,27 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
         )
 
     except Exception as exc:
+        logger.warning(
+            "Agent '%s' failed with %s: %s",
+            context.agent_name,
+            type(exc).__name__,
+            exc,
+            exc_info=True,
+        )
+
+        exit_code: int | None = None
+        error_type: str | None = None
+        stderr: str | None = None
+
+        if isinstance(exc, CLIExecutionError):
+            exit_code = exc.exit_code
+            error_type = exc.error_type
+            stderr = exc.stderr
+
         return AgentError(
             agent_name=context.agent_name,
             error_message=str(exc),
+            exit_code=exit_code,
+            error_type=error_type,
+            stderr=stderr,
         )

@@ -208,6 +208,41 @@ class TestAgentErrorValid:
         err = AgentError(agent_name="test", error_message="fail")
         assert err.status == "error"
 
+    def test_optional_fields_default_none(self) -> None:
+        """exit_code, error_type, stderr のデフォルト値が None である。"""
+        err = AgentError(agent_name="test", error_message="fail")
+        assert err.exit_code is None
+        assert err.error_type is None
+        assert err.stderr is None
+
+    def test_with_exit_code(self) -> None:
+        """exit_code を指定してインスタンス生成が成功する。"""
+        err = AgentError(agent_name="test", error_message="fail", exit_code=1)
+        assert err.exit_code == 1
+
+    def test_with_error_type(self) -> None:
+        """error_type を指定してインスタンス生成が成功する。"""
+        err = AgentError(agent_name="test", error_message="fail", error_type="timeout")
+        assert err.error_type == "timeout"
+
+    def test_with_stderr(self) -> None:
+        """stderr を指定してインスタンス生成が成功する。"""
+        err = AgentError(agent_name="test", error_message="fail", stderr="error output")
+        assert err.stderr == "error output"
+
+    def test_with_all_optional_fields(self) -> None:
+        """全オプションフィールドを指定してインスタンス生成が成功する。"""
+        err = AgentError(
+            agent_name="test",
+            error_message="CLI failed",
+            exit_code=1,
+            error_type="timeout",
+            stderr="timed out",
+        )
+        assert err.exit_code == 1
+        assert err.error_type == "timeout"
+        assert err.stderr == "timed out"
+
 
 class TestAgentErrorConstraints:
     """AgentError の制約違反を検証。"""
@@ -223,6 +258,16 @@ class TestAgentErrorConstraints:
     def test_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):
             AgentError(agent_name="test", error_message="fail", code=500)  # type: ignore[call-arg]
+
+    def test_empty_error_type_rejected(self) -> None:
+        """空文字列の error_type は拒否される（min_length=1）。"""
+        with pytest.raises(ValidationError, match="error_type"):
+            AgentError(agent_name="test", error_message="fail", error_type="")
+
+    def test_empty_stderr_accepted(self) -> None:
+        """空文字列の stderr も受け入れる。"""
+        err = AgentError(agent_name="test", error_message="fail", stderr="")
+        assert err.stderr == ""
 
 
 class TestAgentTimeoutValid:
@@ -546,3 +591,50 @@ class TestAgentResultDiscriminatedUnion:
         restored = self.adapter.validate_python(data)
         assert isinstance(restored, AgentTruncated)
         assert restored.turns_consumed == original.turns_consumed
+
+    def test_deserialize_error_with_optional_fields(self) -> None:
+        """status="error" にオプションフィールドを含むデータがデシリアライズできる。"""
+        result = self.adapter.validate_python(
+            {
+                "status": "error",
+                "agent_name": "test",
+                "error_message": "CLI failed",
+                "exit_code": 1,
+                "error_type": "timeout",
+                "stderr": "timed out",
+            }
+        )
+        assert isinstance(result, AgentError)
+        assert result.exit_code == 1
+        assert result.error_type == "timeout"
+        assert result.stderr == "timed out"
+
+    def test_deserialize_error_without_optional_fields(self) -> None:
+        """オプションフィールドなしの旧フォーマットがデシリアライズできる（後方互換）。"""
+        result = self.adapter.validate_python(
+            {
+                "status": "error",
+                "agent_name": "test",
+                "error_message": "fail",
+            }
+        )
+        assert isinstance(result, AgentError)
+        assert result.exit_code is None
+        assert result.error_type is None
+        assert result.stderr is None
+
+    def test_round_trip_error_with_optional_fields(self) -> None:
+        """オプションフィールド付き AgentError のラウンドトリップ。"""
+        original = AgentError(
+            agent_name="test",
+            error_message="CLI failed",
+            exit_code=1,
+            error_type="timeout",
+            stderr="timed out",
+        )
+        data = original.model_dump()
+        restored = self.adapter.validate_python(data)
+        assert isinstance(restored, AgentError)
+        assert restored.exit_code == original.exit_code
+        assert restored.error_type == original.error_type
+        assert restored.stderr == original.stderr

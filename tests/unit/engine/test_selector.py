@@ -477,7 +477,7 @@ class TestRunSelectorModelSettings:
     async def test_model_settings_max_turns_passed(
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
-        """agent.run() に model_settings={"max_turns": N} が渡される。"""
+        """agent.run() に model_settings={"max_turns": N, "timeout": T} が渡される。"""
         mock_instance = MagicMock()
         mock_instance.run = _make_mock_agent_run()
         mock_agent_cls.return_value = mock_instance
@@ -498,7 +498,7 @@ class TestRunSelectorModelSettings:
         )
 
         call_kwargs = mock_instance.run.call_args.kwargs
-        assert call_kwargs["model_settings"] == {"max_turns": 10}
+        assert call_kwargs["model_settings"] == {"max_turns": 10, "timeout": 300}
         assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
@@ -527,7 +527,63 @@ class TestRunSelectorModelSettings:
         )
 
         call_kwargs = mock_instance.run.call_args.kwargs
-        assert call_kwargs["model_settings"] == {"max_turns": 5}
+        assert call_kwargs["model_settings"] == {"max_turns": 5, "timeout": 300}
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_model_settings_timeout_passed(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """global_timeout が model_settings["timeout"] に渡される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_definition=_make_selector_definition(),
+            selector_config=config,
+            global_model="test",
+            global_timeout=600,
+            global_max_turns=10,
+            resolved_content="test diff content",
+        )
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        assert call_kwargs["model_settings"]["timeout"] == 600
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_selector_config_timeout_override(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """SelectorConfig.timeout が model_settings["timeout"] に反映される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config(timeout=120)
+
+        await run_selector(
+            target=target,
+            available_agents=agents,
+            selector_definition=_make_selector_definition(),
+            selector_config=config,
+            global_model="test",
+            global_timeout=600,
+            global_max_turns=10,
+            resolved_content="test diff content",
+        )
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        assert call_kwargs["model_settings"]["timeout"] == 120
 
 
 # =============================================================================

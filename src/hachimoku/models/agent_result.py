@@ -53,11 +53,17 @@ class AgentError(HachimokuBaseModel):
         status: 判別キー。固定値 "error"。
         agent_name: エージェント名。
         error_message: エラーメッセージ。
+        exit_code: CLI プロセス終了コード（CLIExecutionError 由来、オプション）。
+        error_type: 構造化エラー種別（CLIExecutionError 由来、オプション）。
+        stderr: 標準エラー出力（CLIExecutionError 由来、オプション）。
     """
 
     status: Literal["error"] = "error"
     agent_name: str = Field(min_length=1)
     error_message: str = Field(min_length=1)
+    exit_code: int | None = None
+    error_type: str | None = Field(default=None, min_length=1)
+    stderr: str | None = None
 
 
 class AgentTimeout(HachimokuBaseModel):
