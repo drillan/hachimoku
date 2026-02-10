@@ -117,26 +117,16 @@ class TestResolveModelDisallowedTools:
             disallowed_tools=list(_DISALLOWED_BUILTIN_TOOLS),
         )
 
-    def test_disallowed_tools_contains_bash(self) -> None:
-        """ブロックリストに Bash が含まれる（権限拒否の主因）。"""
-        assert "Bash" in _DISALLOWED_BUILTIN_TOOLS
+    @pytest.mark.parametrize("tool", ["Bash", "Write"])
+    def test_disallowed_tools_contains_dangerous_tool(self, tool: str) -> None:
+        """書き込み系・危険ツールがブロックリストに含まれる。"""
+        assert tool in _DISALLOWED_BUILTIN_TOOLS
 
-    def test_disallowed_tools_contains_write(self) -> None:
-        """ブロックリストに Write が含まれる（書き込み系ツール）。"""
-        assert "Write" in _DISALLOWED_BUILTIN_TOOLS
-
-    def test_disallowed_tools_excludes_read(self) -> None:
-        """Read はレビューエージェントのコード解析に必要なためブロックしない。"""
-        assert "Read" not in _DISALLOWED_BUILTIN_TOOLS
-
-    def test_disallowed_tools_excludes_glob(self) -> None:
-        """Glob はレビューエージェントのファイル探索に必要なためブロックしない。"""
-        assert "Glob" not in _DISALLOWED_BUILTIN_TOOLS
-
-    def test_disallowed_tools_excludes_grep(self) -> None:
-        """Grep はレビューエージェントのコード検索に必要なためブロックしない。"""
-        assert "Grep" not in _DISALLOWED_BUILTIN_TOOLS
+    @pytest.mark.parametrize("tool", ["Read", "Glob", "Grep"])
+    def test_disallowed_tools_excludes_readonly_tool(self, tool: str) -> None:
+        """読み取り専用ツールはレビューに必要なためブロックしない。"""
+        assert tool not in _DISALLOWED_BUILTIN_TOOLS
 
     def test_disallowed_tools_is_nonempty(self) -> None:
         """ブロックリストが空でないこと。"""
-        assert len(_DISALLOWED_BUILTIN_TOOLS) > 0
+        assert _DISALLOWED_BUILTIN_TOOLS

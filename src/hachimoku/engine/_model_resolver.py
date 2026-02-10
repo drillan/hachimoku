@@ -22,16 +22,18 @@ _CLAUDECODE_PREFIX: str = "claudecode:"
 # pydantic-ai ツール（run_git, run_gh）は subprocess.run() を直接使用するため
 # Bash ブロックの影響を受けない。
 # Issue #161: ビルトインツール使用による権限拒否・ターン浪費の防止。
-_DISALLOWED_BUILTIN_TOOLS: Final[tuple[str, ...]] = (
-    "Bash",
-    "Write",
-    "Edit",
-    "MultiEdit",
-    "WebSearch",
-    "WebFetch",
-    "NotebookEdit",
-    "TodoRead",
-    "TodoWrite",
+_DISALLOWED_BUILTIN_TOOLS: Final[frozenset[str]] = frozenset(
+    {
+        "Bash",
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "WebSearch",
+        "WebFetch",
+        "NotebookEdit",
+        "TodoRead",
+        "TodoWrite",
+    }
 )
 
 
@@ -44,7 +46,8 @@ def resolve_model(model: str) -> str | Model:
 
     Returns:
         claudecode の場合: ``claudecode:`` プレフィックスを除去し
-            ClaudeCodeModel インスタンスを返す。
+            ClaudeCodeModel インスタンスを返す。書き込み系・危険な
+            CLI ビルトインツールは ``disallowed_tools`` でブロックされる。
         anthropic の場合: モデル文字列をそのまま返す。
 
     Raises:
