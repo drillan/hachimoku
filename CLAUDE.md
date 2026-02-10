@@ -96,7 +96,12 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - Issue 作成時は `.github/ISSUE_TEMPLATE/` のテンプレートに従うこと
   - バグ報告: `bug.yml`（概要・再現手順・期待/実際の動作・Review Context）
   - 機能要望: `feature.yml`（概要・受け入れ基準・Review Context）
-- Review Context（関連仕様・影響範囲・既存パターン参照）は分かる範囲で必ず記入する
+- Review Context は分かる範囲で記入する。各フィールドの記入指針:
+  - 関連仕様: spec ファイルパス + セクション/要件番号、関連 Issue/PR
+  - 影響範囲: diff 外で影響を受けるファイルパス（ファイル単位）+ 影響の種類
+  - 既存パターン参照: 参照先ファイルパス + 具体的なパターン名
+- 空欄は許容される。不正確な情報よりも空欄の方が望ましい
+- 詳細ガイドライン: `docs/review-context.md`
 - `gh issue create` 使用時は `--body` でテンプレートの全セクションを含める
 
 ### プランモード必須チェック（憲法 Art.2 準拠）

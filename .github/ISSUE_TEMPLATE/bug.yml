@@ -39,7 +39,7 @@ body:
       value: |
         ## Review Context
         以下の情報はコードレビュー時にレビューエージェントが参照します。
-        分かる範囲で記入してください。
+        分かる範囲で記入してください（[記入ガイドライン](https://github.com/drillan/hachimoku/blob/main/docs/review-context.md)）。
 
   - type: textarea
     id: related-specs
