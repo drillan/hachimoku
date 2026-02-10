@@ -27,6 +27,18 @@ gh issue view <number> --json number,title,body,labels,state
 
 Verify the issue exists and is open. If not open, warn the user.
 
+#### Review Context の抽出
+
+Issue body から `## Review Context` セクションを抽出し、以下のフィールドを識別する:
+
+| フィールド | 用途 |
+|-----------|------|
+| 関連仕様 | Phase 1 で仕様ファイルを読み込む入力 |
+| 影響範囲 | Phase 2 の影響範囲分析の起点 |
+| 既存パターン参照 | 全フェーズで一貫性確保の指針 |
+
+フィールドが未記入の場合は、各 Phase で自動検出する。
+
 ### Step 2: Determine Branch Type
 
 Based on the issue labels and content, determine the appropriate branch prefix:
@@ -75,11 +87,15 @@ Check `documentation.ddd.enabled` to determine if DDD workflow is active.
 1. Extract requirements from issue body
 2. Identify acceptance criteria
 3. Clarify any ambiguous requirements with user
+4. `関連仕様` に記載された specs/ ファイル・憲法 Article を読み込み、要件の背景を理解する
+5. `既存パターン参照` に記載された既存実装を読み込み、一貫性の基準を把握する
 
 #### Phase 2: Identify Impact Scope
 
 1. Identify affected code files
-2. Identify affected documentation using **doc-updater skill** detection patterns:
+2. `影響範囲` に記載されたファイル・設定を影響分析の起点として使用する
+3. 自動検出の結果と統合し、issue に記載がない影響も補完する
+4. Identify affected documentation using **doc-updater skill** detection patterns:
 
 | Change Type | Documentation Impact |
 |-------------|---------------------|
@@ -169,6 +185,11 @@ Post the plan as a comment on the issue using issue-reporter skill:
 1. [Step 1]
 2. [Step 2]
 ...
+
+### Review Context
+- **関連仕様**: [参照した仕様の一覧]
+- **影響範囲**: [issue 記載 + 自動検出の統合結果]
+- **既存パターン**: [一貫性を保つべき実装の参照]
 
 ### Verification
 [Verification steps]

@@ -1,0 +1,60 @@
+name: Feature Request
+description: 新機能の追加・既存機能の拡張
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 概要
+      description: 何を実現したいか、なぜ必要か
+      placeholder: ユーザーとして〜したい。なぜなら〜
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 受け入れ基準
+      description: この機能が完成したと判断する条件
+      placeholder: |
+        - [ ] 基準1
+        - [ ] 基準2
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Review Context
+        以下の情報はコードレビュー時にレビューエージェントが参照します。
+        分かる範囲で記入してください。
+
+  - type: textarea
+    id: related-specs
+    attributes:
+      label: 関連仕様
+      description: 関連する仕様書・ドキュメントへの参照
+      placeholder: |
+        - specs/NNN-xxx/spec.md
+        - 憲法 Art.N（項目名）
+        - docs/xxx.md
+
+  - type: textarea
+    id: impact-scope
+    attributes:
+      label: 影響範囲
+      description: 直接変更するファイル以外に影響を受ける可能性のあるファイル・設定
+      placeholder: |
+        - .hachimoku/config.toml（新しい設定項目の追加）
+        - src/hachimoku/xxx.py（インターフェース変更の影響）
+
+  - type: textarea
+    id: existing-patterns
+    attributes:
+      label: 既存パターン参照
+      description: 一貫性を保つべき既存の類似実装
+      placeholder: |
+        - src/hachimoku/xxx.py の YYY クラスと同様のパターンで実装する
