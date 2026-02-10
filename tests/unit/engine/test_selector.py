@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from claudecode_model import ClaudeCodeModel
 from claudecode_model.exceptions import CLIExecutionError
@@ -244,12 +245,39 @@ class TestReferencedContentModel:
 
     def test_extra_forbidden(self) -> None:
         """extra="forbid" で未知フィールドを拒否する。"""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             ReferencedContent(
                 reference_type="issue",
                 reference_id="#1",
                 content="text",
                 unknown_field="bad",  # type: ignore[call-arg]
+            )
+
+    def test_empty_reference_type_rejected(self) -> None:
+        """空文字列の reference_type は拒否される。"""
+        with pytest.raises(ValidationError, match="reference_type"):
+            ReferencedContent(
+                reference_type="",
+                reference_id="#1",
+                content="text",
+            )
+
+    def test_empty_reference_id_rejected(self) -> None:
+        """空文字列の reference_id は拒否される。"""
+        with pytest.raises(ValidationError, match="reference_id"):
+            ReferencedContent(
+                reference_type="issue",
+                reference_id="",
+                content="text",
+            )
+
+    def test_empty_content_rejected(self) -> None:
+        """空文字列の content は拒否される。"""
+        with pytest.raises(ValidationError, match="content"):
+            ReferencedContent(
+                reference_type="issue",
+                reference_id="#1",
+                content="",
             )
 
 

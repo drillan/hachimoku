@@ -207,7 +207,7 @@ ReviewEngine
   │
   ├── SelectorAgent ─────────── (エージェント選択)
   │     ├── input: instructions + agent_definitions + SelectorDefinition
-  │     └── output: SelectorOutput(selected_agents, reasoning)
+  │     └── output: SelectorOutput(selected_agents, reasoning, change_intent, affected_files, relevant_conventions, issue_context, referenced_content)
   │
   ├── AgentExecutionContext ──── (per agent)
   │     ├── model, system_prompt, user_message

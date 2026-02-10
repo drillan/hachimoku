@@ -9,24 +9,13 @@ Issue #129: エンジンが事前解決したコンテンツをインストラ�
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING
 
 from hachimoku.agents.models import AgentDefinition
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 
-
-class _HasReferenceFields(Protocol):
-    """参照先データの構造プロトコル。
-
-    ReferencedContent モデルとの循環インポートを回避するための duck typing。
-    """
-
-    @property
-    def reference_type(self) -> str: ...
-    @property
-    def reference_id(self) -> str: ...
-    @property
-    def content(self) -> str: ...
+if TYPE_CHECKING:
+    from hachimoku.engine._selector import ReferencedContent
 
 
 def build_review_instruction(
@@ -98,7 +87,7 @@ def build_selector_context_section(
     affected_files: Sequence[str],
     relevant_conventions: Sequence[str],
     issue_context: str,
-    referenced_content: Sequence[_HasReferenceFields] = (),
+    referenced_content: Sequence[ReferencedContent] = (),
 ) -> str:
     """セレクターの分析結果をレビューエージェント向けマークダウンセクションに変換する。
 
@@ -135,9 +124,12 @@ def build_selector_context_section(
     if referenced_content:
         ref_parts: list[str] = []
         for ref in referenced_content:
+            fence = "```"
+            while fence in ref.content:
+                fence += "`"
             ref_parts.append(
                 f"#### [{ref.reference_type}] {ref.reference_id}\n"
-                f"```\n{ref.content}\n```"
+                f"{fence}\n{ref.content}\n{fence}"
             )
         subsections.append("### Referenced Content\n" + "\n\n".join(ref_parts))
 

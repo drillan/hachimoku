@@ -402,8 +402,8 @@ class TestBuildSelectorContextSectionReferencedContent:
         assert "## Selector Analysis Context" in result
         assert "### Referenced Content" in result
 
-    def test_referenced_content_type_and_id_in_output(self) -> None:
-        """reference_type と reference_id がレンダリングに含まれる。"""
+    def test_referenced_content_type_and_id_in_heading(self) -> None:
+        """reference_type と reference_id が見出しフォーマットでレンダリングされる。"""
         ref = ReferencedContent(
             reference_type="issue",
             reference_id="#152",
@@ -416,8 +416,7 @@ class TestBuildSelectorContextSectionReferencedContent:
             issue_context="",
             referenced_content=[ref],
         )
-        assert "issue" in result
-        assert "#152" in result
+        assert "#### [issue] #152" in result
 
     def test_referenced_content_body_in_code_block(self) -> None:
         """content がコードブロック内に含まれる。"""
@@ -461,6 +460,23 @@ class TestBuildSelectorContextSectionReferencedContent:
         assert "src/foo.py" in result
         assert "Issue body" in result
         assert "file content" in result
+
+    def test_content_with_triple_backticks_uses_longer_fence(self) -> None:
+        """content に ``` が含まれる場合、より長いフェンスが使用される。"""
+        ref = ReferencedContent(
+            reference_type="file",
+            reference_id="README.md",
+            content="Example:\n```python\nprint('hello')\n```",
+        )
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+            referenced_content=[ref],
+        )
+        assert "````" in result
+        assert "```python" in result
 
     def test_empty_referenced_content_excluded(self) -> None:
         """空リストの場合 Referenced Content セクションが含まれない。"""

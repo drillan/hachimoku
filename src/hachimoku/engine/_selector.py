@@ -35,14 +35,14 @@ class ReferencedContent(HachimokuBaseModel):
     検出し、取得した内容をレビューエージェントに伝播するためのモデル。
 
     Attributes:
-        reference_type: 参照の種類（"issue", "file", "spec" 等）。
+        reference_type: 参照の種類（"issue", "file", "spec", "other"）。
         reference_id: 参照識別子（例: "#152", "src/foo.py"）。
         content: 取得した参照先の内容テキスト。
     """
 
-    reference_type: str
-    reference_id: str
-    content: str
+    reference_type: str = Field(min_length=1)
+    reference_id: str = Field(min_length=1)
+    content: str = Field(min_length=1)
 
 
 class SelectorOutput(HachimokuBaseModel):

@@ -22,7 +22,7 @@
 
 - SelectorOutput に `referenced_content: list[ReferencedContent]`（default=[]）を追加。diff 内で参照されている外部リソース（Issue body、ファイル内容、仕様書等）の取得結果を保持する
 - `ReferencedContent` モデルを `_selector.py` に定義: `reference_type`（str）、`reference_id`（str）、`content`（str）
-- `build_selector_context_section()` に `referenced_content` パラメータを追加。循環インポート回避のため `Protocol`（`_HasReferenceFields`）を使用し、`ReferencedContent` の直接 import を回避する
+- `build_selector_context_section()` に `referenced_content` パラメータを追加。循環インポート回避のため `TYPE_CHECKING` ガードで `ReferencedContent` を型チェック時のみ import する
 - 非空時に `### Referenced Content` サブセクションをレンダリング。各参照は `#### [type] id` + コードブロックで構造化
 - セレクターの system_prompt に `### referenced_content` セクションを追加し、diff 内の参照検出・取得を指示する
 
@@ -227,7 +227,7 @@
   4. **レビュー指示構築**: 事前解決されたコンテンツを含むレビュー指示情報を構築する
   5. **セレクター定義読み込み**: ビルトインの `selector.toml` から SelectorDefinition を読み込む。カスタムの `selector.toml`（`.hachimoku/agents/selector.toml`）が存在する場合はビルトインを上書きする
   6. **エージェント選択（セレクターエージェント）**: SelectorDefinition と SelectorConfig に基づいてセレクターエージェント（pydantic-ai エージェント）を構築・実行し、レビュー指示情報と利用可能なエージェント定義一覧を渡す。セレクターエージェントは SelectorDefinition.allowed_tools で許可されたツールでレビュー対象を調査し、実行すべきエージェントリストを構造化出力で返す。エージェント定義の `file_patterns` / `content_patterns` / `phase` はセレクターの判断ガイダンスとして提供される
-  6.5. **セレクターメタデータ伝播**: セレクターエージェントの分析結果（変更意図・影響ファイル・関連規約・Issue コンテキスト）をレビューエージェント向けのユーザーメッセージに追記する。SelectorOutput の `change_intent`・`affected_files`・`relevant_conventions`・`issue_context` フィールドをマークダウンセクション化し、レビュー指示情報に結合する。メタデータが全て空の場合はユーザーメッセージを変更しない（Issue #148）
+  6.5. **セレクターメタデータ伝播**: セレクターエージェントの分析結果（変更意図・影響ファイル・関連規約・Issue コンテキスト・参照先コンテンツ）をレビューエージェント向けのユーザーメッセージに追記する。SelectorOutput の `change_intent`・`affected_files`・`relevant_conventions`・`issue_context`・`referenced_content` フィールドをマークダウンセクション化し、レビュー指示情報に結合する。`referenced_content` は diff 内で参照されている外部リソース（Issue body、ファイル内容等）の取得結果で、参照元と参照先の横断整合性チェックを可能にする（Issue #148, #159）。メタデータが全て空の場合はユーザーメッセージを変更しない
   7. **実行コンテキスト構築**: 選択された各エージェントに対して実行コンテキスト（モデル・ツール・プロンプト・タイムアウト・最大ターン数）を構築する
   8. **エージェント実行**: 逐次または並列でエージェントを実行する
   9. **結果集約**: 各エージェントの結果（AgentResult）を ReviewReport に集約する
