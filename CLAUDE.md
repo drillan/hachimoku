@@ -91,6 +91,14 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - ビルド: `make -C docs html`
 - ルール: `.claude/docs.md`
 
+### GitHub Issue 作成ルール
+
+- Issue 作成時は `.github/ISSUE_TEMPLATE/` のテンプレートに従うこと
+  - バグ報告: `bug.yml`（概要・再現手順・期待/実際の動作・Review Context）
+  - 機能要望: `feature.yml`（概要・受け入れ基準・Review Context）
+- Review Context（関連仕様・影響範囲・既存パターン参照）は分かる範囲で必ず記入する
+- `gh issue create` 使用時は `--body` でテンプレートの全セクションを含める
+
 ### プランモード必須チェック（憲法 Art.2 準拠）
 
 Plan モード（EnterPlanMode / `/speckit.plan` / `/start-issue`）で計画を作成する際、
