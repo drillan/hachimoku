@@ -13,7 +13,7 @@
 ### Session 2026-02-10 (Issue #148)
 
 - SelectorOutput に 4 つのメタデータフィールドを追加する: `change_intent`（str, default=""）、`affected_files`（list[str], default=[]）、`relevant_conventions`（list[str], default=[]）、`issue_context`（str, default=""）。全フィールドにデフォルト値を設定し後方互換性を確保する
-- FR-RE-002 に Step 6.5（セレクターメタデータ伝播）を追加: セレクターの分析結果をレビューエージェントの user_message にマークダウンセクションとして追記する。メタデータが全て空の場合は user_message を変更しない
+- FR-RE-002 に Step 5.5（セレクターメタデータ伝播）を追加: セレクターの分析結果をレビューエージェントの user_message にマークダウンセクションとして追記する。メタデータが全て空の場合は user_message を変更しない
 - FR-RE-007 のユーザーメッセージにセレクターメタデータを含むことを明記
 - `_instruction.py` に `build_selector_context_section()` を追加。`_selector.py` → `_instruction.py` の循環インポートを回避するため、SelectorOutput を受け取らず keyword-only パラメータで個別フィールドを受け取る
 - セレクターの system_prompt を更新し、メタデータフィールド（変更意図・影響ファイル・関連規約・Issue コンテキスト）の出力を指示する
@@ -217,7 +217,7 @@
   - **ツール**: エージェント定義の `allowed_tools` のカテゴリ名を ToolCatalog 経由で pydantic-ai ツールに解決（FR-RE-016）
   - **出力スキーマ**: エージェント定義の `output_schema` から SCHEMA_REGISTRY 経由で解決（002-domain-models）。pydantic-ai の `output_type` に設定する
   - **システムプロンプト**: エージェント定義の `system_prompt`
-  - **ユーザーメッセージ**: レビュー指示情報（入力モード・base_branch/PR番号/ファイルパス等）+ オプションコンテキスト（`--issue` 番号）+ セレクターメタデータ（FR-RE-002 Step 6.5、Issue #148）。差分・ファイル内容・PR メタデータの実際の取得はエージェントが `allowed_tools` で自律的に行う
+  - **ユーザーメッセージ**: レビュー指示情報（入力モード・base_branch/PR番号/ファイルパス等）+ オプションコンテキスト（`--issue` 番号）+ セレクターメタデータ（FR-RE-002 Step 5.5、Issue #148）。差分・ファイル内容・PR メタデータの実際の取得はエージェントが `allowed_tools` で自律的に行う
   - **タイムアウト**: FR-RE-004 の優先順で解決
   - **最大ターン数**: FR-RE-004 の優先順で解決
 

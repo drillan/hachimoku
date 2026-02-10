@@ -13,6 +13,7 @@ from collections.abc import Sequence
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
+from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
@@ -21,8 +22,6 @@ from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
-from pydantic import Field
-
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 
