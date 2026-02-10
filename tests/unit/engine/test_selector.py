@@ -140,6 +140,67 @@ class TestSelectorOutputValid:
 
 
 # =============================================================================
+# SelectorOutput モデル — メタデータフィールド（Issue #148）
+# =============================================================================
+
+
+class TestSelectorOutputMetadataFields:
+    """SelectorOutput メタデータフィールドのテスト。
+
+    Issue #148: セレクタ → レビューエージェントのメタデータ伝播。
+    """
+
+    def test_default_values_when_fields_omitted(self) -> None:
+        """新フィールドが省略された場合、デフォルト値が適用される。"""
+        output = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="test",
+        )
+        assert output.change_intent == ""
+        assert output.affected_files == []
+        assert output.relevant_conventions == []
+        assert output.issue_context == ""
+
+    def test_explicit_values_preserved(self) -> None:
+        """明示的に渡した値が保持される。"""
+        output = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="test",
+            change_intent="Fix authentication bug",
+            affected_files=["src/auth.py", "tests/test_auth.py"],
+            relevant_conventions=["TDD strict", "Art.4 simplicity"],
+            issue_context="Issue #42: Login fails for OAuth users",
+        )
+        assert output.change_intent == "Fix authentication bug"
+        assert output.affected_files == ["src/auth.py", "tests/test_auth.py"]
+        assert output.relevant_conventions == ["TDD strict", "Art.4 simplicity"]
+        assert output.issue_context == "Issue #42: Login fails for OAuth users"
+
+    def test_frozen_metadata_fields(self) -> None:
+        """メタデータフィールドも frozen=True で不変。"""
+        output = SelectorOutput(
+            selected_agents=["a"],
+            reasoning="r",
+            change_intent="intent",
+        )
+        with pytest.raises(Exception):
+            output.change_intent = "changed"  # type: ignore[misc]
+
+    def test_partial_metadata(self) -> None:
+        """一部のメタデータのみ設定できる。"""
+        output = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="test",
+            change_intent="Refactor engine",
+            # affected_files, relevant_conventions, issue_context はデフォルト
+        )
+        assert output.change_intent == "Refactor engine"
+        assert output.affected_files == []
+        assert output.relevant_conventions == []
+        assert output.issue_context == ""
+
+
+# =============================================================================
 # SelectorError 型
 # =============================================================================
 

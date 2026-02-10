@@ -21,6 +21,8 @@ from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from pydantic import Field
+
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 
@@ -33,10 +35,18 @@ class SelectorOutput(HachimokuBaseModel):
     Attributes:
         selected_agents: 実行すべきエージェント名リスト。
         reasoning: 選択理由（デバッグ・監査用）。
+        change_intent: 変更の意図・目的の要約（レビューエージェントへの伝播用）。
+        affected_files: diff 外で影響を受ける可能性のあるファイルパス。
+        relevant_conventions: 当該変更に関連するプロジェクト規約。
+        issue_context: Issue 関連情報の要約。
     """
 
     selected_agents: list[str]
     reasoning: str
+    change_intent: str = ""
+    affected_files: list[str] = Field(default_factory=list)
+    relevant_conventions: list[str] = Field(default_factory=list)
+    issue_context: str = ""
 
 
 class SelectorError(Exception):
