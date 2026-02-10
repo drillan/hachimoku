@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from claudecode_model import ClaudeCodeModel
+from claudecode_model.exceptions import CLIExecutionError
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import (
@@ -154,6 +155,29 @@ class TestSelectorError:
         """エラーメッセージが保持される。"""
         err = SelectorError("Selector failed: timeout")
         assert "timeout" in str(err)
+
+    def test_default_fields_are_none(self) -> None:
+        """引数なしで構築した場合、診断フィールドは全て None。"""
+        err = SelectorError("simple error")
+        assert err.exit_code is None
+        assert err.error_type is None
+        assert err.stderr is None
+        assert err.recoverable is None
+
+    def test_fields_preserved(self) -> None:
+        """明示的に渡した診断フィールドが保持される。"""
+        err = SelectorError(
+            "CLI failed",
+            exit_code=1,
+            error_type="permission",
+            stderr="Permission denied",
+            recoverable=False,
+        )
+        assert err.exit_code == 1
+        assert err.error_type == "permission"
+        assert err.stderr == "Permission denied"
+        assert err.recoverable is False
+        assert "CLI failed" in str(err)
 
 
 # =============================================================================
@@ -367,6 +391,116 @@ class TestRunSelectorError:
                 global_max_turns=10,
                 resolved_content="test diff content",
             )
+
+
+# =============================================================================
+# run_selector — CLIExecutionError 診断情報伝播
+# =============================================================================
+
+
+class TestRunSelectorErrorDiagnostics:
+    """run_selector が CLIExecutionError の構造化属性を SelectorError に伝播するテスト。"""
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_cli_execution_error_attributes_propagated(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """CLIExecutionError の exit_code, error_type, stderr が SelectorError に伝播される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = AsyncMock(
+            side_effect=CLIExecutionError(
+                "CLI failed", exit_code=1, stderr="fatal error", error_type="timeout"
+            )
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        with pytest.raises(SelectorError) as exc_info:
+            await run_selector(
+                target=target,
+                available_agents=agents,
+                selector_definition=_make_selector_definition(),
+                selector_config=config,
+                global_model="test",
+                global_timeout=300,
+                global_max_turns=10,
+                resolved_content="test diff content",
+            )
+
+        err = exc_info.value
+        assert err.exit_code == 1
+        assert err.error_type == "timeout"
+        assert err.stderr == "fatal error"
+        assert err.recoverable is False
+        assert isinstance(err.__cause__, CLIExecutionError)
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_cli_execution_error_empty_stderr_preserved(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """CLIExecutionError の空 stderr は空文字列として保存される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = AsyncMock(
+            side_effect=CLIExecutionError(
+                "CLI failed", exit_code=1, stderr="", error_type="unknown"
+            )
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        with pytest.raises(SelectorError) as exc_info:
+            await run_selector(
+                target=target,
+                available_agents=agents,
+                selector_definition=_make_selector_definition(),
+                selector_config=config,
+                global_model="test",
+                global_timeout=300,
+                global_max_turns=10,
+                resolved_content="test diff content",
+            )
+
+        assert exc_info.value.stderr == ""
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_non_cli_error_fields_remain_none(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """CLIExecutionError 以外の例外では診断フィールドが None のまま。"""
+        mock_instance = MagicMock()
+        mock_instance.run = AsyncMock(side_effect=RuntimeError("unexpected"))
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        with pytest.raises(SelectorError) as exc_info:
+            await run_selector(
+                target=target,
+                available_agents=agents,
+                selector_definition=_make_selector_definition(),
+                selector_config=config,
+                global_model="test",
+                global_timeout=300,
+                global_max_turns=10,
+                resolved_content="test diff content",
+            )
+
+        err = exc_info.value
+        assert err.exit_code is None
+        assert err.error_type is None
+        assert err.stderr is None
+        assert err.recoverable is None
 
 
 # =============================================================================
