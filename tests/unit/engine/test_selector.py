@@ -23,7 +23,13 @@ from hachimoku.agents.models import (
     Phase,
     SelectorDefinition,
 )
-from hachimoku.engine._selector import SelectorError, SelectorOutput, run_selector
+from hachimoku.engine._selector import (
+    ReferencedContent,
+    SelectorError,
+    SelectorOutput,
+    run_selector,
+)
+
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
@@ -198,6 +204,126 @@ class TestSelectorOutputMetadataFields:
         assert output.affected_files == []
         assert output.relevant_conventions == []
         assert output.issue_context == ""
+
+
+# =============================================================================
+# ReferencedContent モデル（Issue #159）
+# =============================================================================
+
+
+class TestReferencedContentModel:
+    """ReferencedContent モデルのテスト。
+
+    Issue #159: diff 内で参照されている外部リソースの取得結果。
+    """
+
+    def test_valid_construction(self) -> None:
+        """正常なデータで構築できる。"""
+        ref = ReferencedContent(
+            reference_type="issue",
+            reference_id="#152",
+            content="Issue body text here",
+        )
+        assert ref.reference_type == "issue"
+        assert ref.reference_id == "#152"
+        assert ref.content == "Issue body text here"
+
+    def test_inherits_base_model(self) -> None:
+        """HachimokuBaseModel を継承している。"""
+        assert issubclass(ReferencedContent, HachimokuBaseModel)
+
+    def test_frozen(self) -> None:
+        """frozen=True で不変である。"""
+        ref = ReferencedContent(
+            reference_type="file",
+            reference_id="src/foo.py",
+            content="file content",
+        )
+        with pytest.raises(Exception):
+            ref.content = "changed"  # type: ignore[misc]
+
+    def test_extra_forbidden(self) -> None:
+        """extra="forbid" で未知フィールドを拒否する。"""
+        with pytest.raises(Exception):
+            ReferencedContent(
+                reference_type="issue",
+                reference_id="#1",
+                content="text",
+                unknown_field="bad",  # type: ignore[call-arg]
+            )
+
+
+# =============================================================================
+# SelectorOutput — referenced_content フィールド（Issue #159）
+# =============================================================================
+
+
+class TestSelectorOutputReferencedContent:
+    """SelectorOutput の referenced_content フィールドのテスト。
+
+    Issue #159: セレクターメタデータによる参照先データ伝播。
+    """
+
+    def test_default_empty_list(self) -> None:
+        """referenced_content 省略時は空リスト。"""
+        output = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="test",
+        )
+        assert output.referenced_content == []
+
+    def test_explicit_referenced_content_preserved(self) -> None:
+        """明示的に渡した ReferencedContent リストが保持される。"""
+        ref = ReferencedContent(
+            reference_type="issue",
+            reference_id="#152",
+            content="Issue #152 body text",
+        )
+        output = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="test",
+            referenced_content=[ref],
+        )
+        assert len(output.referenced_content) == 1
+        assert output.referenced_content[0].reference_type == "issue"
+        assert output.referenced_content[0].reference_id == "#152"
+        assert output.referenced_content[0].content == "Issue #152 body text"
+
+    def test_multiple_references(self) -> None:
+        """複数の参照を持てる。"""
+        refs = [
+            ReferencedContent(
+                reference_type="issue",
+                reference_id="#152",
+                content="Issue body",
+            ),
+            ReferencedContent(
+                reference_type="file",
+                reference_id="src/foo.py",
+                content="def foo(): pass",
+            ),
+            ReferencedContent(
+                reference_type="spec",
+                reference_id="specs/005/spec.md",
+                content="FR-RE-002: Pipeline spec",
+            ),
+        ]
+        output = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="test",
+            referenced_content=refs,
+        )
+        assert len(output.referenced_content) == 3
+
+    def test_frozen_referenced_content(self) -> None:
+        """referenced_content フィールドも frozen=True で不変。"""
+        output = SelectorOutput(
+            selected_agents=["a"],
+            reasoning="r",
+            referenced_content=[],
+        )
+        with pytest.raises(Exception):
+            output.referenced_content = []  # type: ignore[misc]
 
 
 # =============================================================================

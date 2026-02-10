@@ -28,4 +28,14 @@ List project conventions relevant to this review. Check CLAUDE.md, .hachimoku/co
 
 ### issue_context
 If an issue number is provided, use gh tools to fetch the issue details and summarize the relevant requirements, acceptance criteria, and discussion points that help review agents understand the broader context.
+
+### referenced_content
+When the diff or associated context mentions external references (Issue numbers like "#152", file paths like "src/foo.py", spec paths like "specs/005/spec.md", or quoted passages attributed to a source), fetch the referenced content and include it in this field. For each reference:
+- Set reference_type to the kind of reference: "issue", "file", "spec", or "other".
+- Set reference_id to the identifier (e.g., "#152", "src/hachimoku/models/_base.py").
+- Set content to the relevant text from the referenced source.
+
+Use gh tools to fetch issue bodies, file_read tools to read files and specs. Only include references you successfully fetched. If a reference cannot be resolved, omit it.
+
+This data enables review agents to verify consistency between the diff text and its referenced sources (e.g., correct quoting, accurate paraphrasing, matching terminology).
 """

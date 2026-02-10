@@ -18,6 +18,14 @@
 - Q: recommended_actions のデータ構造は？ → A: `RecommendedAction(description: str, priority: Priority)` のリスト。Priority enum（high/medium/low）を使用し、優先度順でソート表示可能にする
 - Q: 集約エージェントへの入力範囲は？ → A: AgentSuccess と AgentTruncated の結果のみを渡す。AggregatedReport に `agent_failures: list[str]` を追加し、失敗エージェント名を記録する。集約結果のみを参照する消費者にもレビューの不完全性が伝わるようにする
 
+### Session 2026-02-10 (Issue #159)
+
+- SelectorOutput に `referenced_content: list[ReferencedContent]`（default=[]）を追加。diff 内で参照されている外部リソース（Issue body、ファイル内容、仕様書等）の取得結果を保持する
+- `ReferencedContent` モデルを `_selector.py` に定義: `reference_type`（str）、`reference_id`（str）、`content`（str）
+- `build_selector_context_section()` に `referenced_content` パラメータを追加。循環インポート回避のため `Protocol`（`_HasReferenceFields`）を使用し、`ReferencedContent` の直接 import を回避する
+- 非空時に `### Referenced Content` サブセクションをレンダリング。各参照は `#### [type] id` + コードブロックで構造化
+- セレクターの system_prompt に `### referenced_content` セクションを追加し、diff 内の参照検出・取得を指示する
+
 ### Session 2026-02-10 (Issue #148)
 
 - SelectorOutput に 4 つのメタデータフィールドを追加する: `change_intent`（str, default=""）、`affected_files`（list[str], default=[]）、`relevant_conventions`（list[str], default=[]）、`issue_context`（str, default=""）。全フィールドにデフォルト値を設定し後方互換性を確保する

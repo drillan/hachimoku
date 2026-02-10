@@ -9,9 +9,24 @@ Issue #129: エンジンが事前解決したコンテンツをインストラ�
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Protocol
 
 from hachimoku.agents.models import AgentDefinition
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+
+
+class _HasReferenceFields(Protocol):
+    """参照先データの構造プロトコル。
+
+    ReferencedContent モデルとの循環インポートを回避するための duck typing。
+    """
+
+    @property
+    def reference_type(self) -> str: ...
+    @property
+    def reference_id(self) -> str: ...
+    @property
+    def content(self) -> str: ...
 
 
 def build_review_instruction(
@@ -83,6 +98,7 @@ def build_selector_context_section(
     affected_files: Sequence[str],
     relevant_conventions: Sequence[str],
     issue_context: str,
+    referenced_content: Sequence[_HasReferenceFields] = (),
 ) -> str:
     """セレクターの分析結果をレビューエージェント向けマークダウンセクションに変換する。
 
@@ -95,6 +111,7 @@ def build_selector_context_section(
         affected_files: diff 外で影響を受ける可能性のあるファイルパス。
         relevant_conventions: 当該変更に関連するプロジェクト規約。
         issue_context: Issue 関連情報の要約。
+        referenced_content: diff 内で参照されている外部リソースの取得結果。
 
     Returns:
         マークダウンセクション文字列。全て空の場合は空文字列。
@@ -114,6 +131,15 @@ def build_selector_context_section(
 
     if issue_context:
         subsections.append(f"### Issue Context\n{issue_context}")
+
+    if referenced_content:
+        ref_parts: list[str] = []
+        for ref in referenced_content:
+            ref_parts.append(
+                f"#### [{ref.reference_type}] {ref.reference_id}\n"
+                f"```\n{ref.content}\n```"
+            )
+        subsections.append("### Referenced Content\n" + "\n\n".join(ref_parts))
 
     if not subsections:
         return ""

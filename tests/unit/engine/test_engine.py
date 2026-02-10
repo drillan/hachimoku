@@ -37,7 +37,11 @@ from hachimoku.engine._engine import (
     run_review,
 )
 from hachimoku.engine._resolver import ContentResolveError
-from hachimoku.engine._selector import SelectorError, SelectorOutput
+from hachimoku.engine._selector import (
+    ReferencedContent,
+    SelectorError,
+    SelectorOutput,
+)
 from hachimoku.models.config import AggregationConfig
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
@@ -740,6 +744,90 @@ class TestRunReviewSelectorMetadata:
         contexts = mock_execute.call_args[0][0]
         user_msg = contexts[0].user_message
         assert "Selector Analysis Context" not in user_msg
+
+
+# =============================================================================
+# run_review — referenced_content 伝播（Issue #159）
+# =============================================================================
+
+
+class TestRunReviewReferencedContentPropagation:
+    """run_review が referenced_content を user_message に伝播するテスト。
+
+    Issue #159: セレクターメタデータによる参照先データ伝播。
+    """
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_referenced_content_propagated_to_user_message(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """セレクターの referenced_content が user_message に追記される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+            referenced_content=[
+                ReferencedContent(
+                    reference_type="issue",
+                    reference_id="#152",
+                    content="Issue body with em dash \u2014",
+                ),
+            ],
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        contexts = mock_execute.call_args[0][0]
+        user_msg = contexts[0].user_message
+        assert "Referenced Content" in user_msg
+        assert "#152" in user_msg
+        assert "Issue body with em dash \u2014" in user_msg
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_empty_referenced_content_not_in_user_message(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """referenced_content が空リストの場合、user_message に Referenced Content が含まれない。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+            referenced_content=[],
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        contexts = mock_execute.call_args[0][0]
+        user_msg = contexts[0].user_message
+        assert "Referenced Content" not in user_msg
 
 
 # =============================================================================
