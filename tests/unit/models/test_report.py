@@ -72,6 +72,24 @@ class TestRecommendedActionValid:
         action = RecommendedAction(description="test", priority="medium")  # type: ignore[arg-type]
         assert action.priority == Priority.MEDIUM
 
+    @pytest.mark.parametrize(
+        ("input_val", "expected"),
+        [
+            ("High", Priority.HIGH),
+            ("HIGH", Priority.HIGH),
+            ("Medium", Priority.MEDIUM),
+            ("MEDIUM", Priority.MEDIUM),
+            ("Low", Priority.LOW),
+            ("LOW", Priority.LOW),
+        ],
+    )
+    def test_priority_case_insensitive(
+        self, input_val: str, expected: Priority
+    ) -> None:
+        """Priority は大文字小文字を区別せずに受け付ける。"""
+        action = RecommendedAction(description="test", priority=input_val)  # type: ignore[arg-type]
+        assert action.priority == expected
+
 
 class TestRecommendedActionConstraints:
     """RecommendedAction の制約違反を検証。"""

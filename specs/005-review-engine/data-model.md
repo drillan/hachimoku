@@ -114,7 +114,7 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 |-------|------|-------------|
 | name | `str` | 集約エージェント名（`"aggregator"` 固定） |
 | description | `str` | 集約エージェントの説明 |
-| model | `str` | 使用する LLM モデル名 |
+| model | `str \| None` | 使用する LLM モデル名（None の場合はグローバル設定を使用） |
 | system_prompt | `str` | 集約エージェントのシステムプロンプト |
 
 - `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
@@ -123,7 +123,7 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 
 ### AggregatedReport（集約レポート）
 
-**ファイル**: `src/hachimoku/engine/_aggregator.py`
+**ファイル**: `src/hachimoku/models/report.py`
 
 集約エージェントの構造化出力。（Issue #152）
 
@@ -136,14 +136,14 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 
 ### RecommendedAction（推奨アクション）
 
-**ファイル**: `src/hachimoku/engine/_aggregator.py`
+**ファイル**: `src/hachimoku/models/report.py`
 
 集約エージェントが生成する対応推奨。（Issue #152）
 
 | Field | Type | Description |
 |-------|------|-------------|
 | description | `str` | 推奨アクションの内容 |
-| priority | `Priority` | 優先度（high/medium/low）。既存の Priority enum を再利用 |
+| priority | `Priority` | 優先度（high/medium/low）。Priority enum を使用 |
 
 - `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
 
@@ -223,13 +223,13 @@ ReviewEngine
 AgentDefinition.model ──┐
 AgentConfig.model ──────┤  ← 個別設定が最優先
 HachimokuConfig.model ──┤  ← グローバル設定
-(default: "anthropic:claude-sonnet-4-5") ────┘  ← HachimokuConfig のデフォルト値
+(default: "claudecode:claude-sonnet-4-5") ────┘  ← HachimokuConfig のデフォルト値
 
 同様に timeout, max_turns も解決:
   AgentConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
 
 セレクターのモデル解決:
-  SelectorConfig.model > SelectorDefinition.model > HachimokuConfig.model > default("anthropic:claude-sonnet-4-5")
+  SelectorConfig.model > SelectorDefinition.model > HachimokuConfig.model > default("claudecode:claude-sonnet-4-5")
 
 セレクターの allowed_tools:
   SelectorDefinition.allowed_tools のみ（SelectorConfig からは削除済み）
@@ -238,7 +238,7 @@ HachimokuConfig.model ──┤  ← グローバル設定
   SelectorConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
 
 集約エージェントのモデル解決 (Issue #152):
-  AggregationConfig.model > AggregatorDefinition.model > HachimokuConfig.model > default("anthropic:claude-sonnet-4-5")
+  AggregationConfig.model > AggregatorDefinition.model > HachimokuConfig.model > default("claudecode:claude-sonnet-4-5")
 
 集約の timeout, max_turns (Issue #152):
   AggregationConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値

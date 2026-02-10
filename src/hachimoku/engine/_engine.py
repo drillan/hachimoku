@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tomllib
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from pathlib import Path
 from typing import Final
+
+from pydantic import ValidationError
 
 from hachimoku.models.exit_code import ExitCode
 
@@ -143,6 +146,7 @@ async def run_review(
         6. 実行コンテキスト構築（AgentExecutionContext）
         7. エージェント実行（Parallel or Sequential）
         8. 結果集約（ReviewReport）
+        9.5. LLM ベース集約（AggregatedReport, Issue #152）
 
     Args:
         target: レビュー対象（DiffTarget / PRTarget / FileTarget）。
@@ -250,19 +254,21 @@ async def run_review(
         results: list[AgentResult] = await _execute_with_shutdown_timeout(
             executor, contexts, shutdown_event
         )
+
+        # Step 8: 結果集約
+        report = _build_report(results, load_result.errors)
+
+        # Step 9.5: LLM ベース結果集約（Issue #152）
+        # シグナル受信後はスキップ（仕様: SIGINT/SIGTERM 中の集約キャンセル）
+        if not shutdown_event.is_set():
+            report = await _run_aggregation_step(
+                report=report,
+                results=results,
+                config=config,
+                custom_agents_dir=custom_agents_dir,
+            )
     finally:
         uninstall_signal_handlers(loop)
-
-    # Step 8: 結果集約
-    report = _build_report(results, load_result.errors)
-
-    # Step 9.5: LLM ベース結果集約（Issue #152）
-    report = await _run_aggregation_step(
-        report=report,
-        results=results,
-        config=config,
-        custom_agents_dir=custom_agents_dir,
-    )
 
     exit_code = _determine_exit_code(results, report.summary)
 
@@ -305,7 +311,13 @@ async def _run_aggregation_step(
     # 集約エージェント定義読み込み
     try:
         aggregator_def = load_aggregator(custom_dir=custom_agents_dir)
-    except Exception as exc:
+    except (
+        FileNotFoundError,
+        NotADirectoryError,
+        tomllib.TOMLDecodeError,
+        ValidationError,
+        OSError,
+    ) as exc:
         print(
             f"Warning: Failed to load aggregator definition: {exc}",
             file=sys.stderr,

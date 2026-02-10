@@ -15,7 +15,7 @@
 - Q: 集約エージェント失敗時の挙動は？（フォールバック禁止原則との整合） → A: 集約失敗時は `ReviewReport.aggregated = None` のまま返し、エラー情報を ReviewReport に明示的に記録する。これはフォールバック（デフォルト値での処理続行）ではなく、オプショナルな enrichment ステップの結果が利用不可であることの明示的表現。エラーは隠蔽しない
 - Q: AggregatedReport の統合 issues の型は？ → A: 既存の `ReviewIssue` を再利用する。集約エージェントは重複排除後の issues を同じ型で返す。新規型は導入しない
 - Q: strengths（良い実装へのフィードバック）のデータ構造は？ → A: `list[str]` のシンプルな文字列リスト。各要素が1つのポジティブフィードバック。構造化モデルは導入しない
-- Q: recommended_actions のデータ構造は？ → A: `RecommendedAction(description: str, priority: Priority)` のリスト。既存の Priority enum（high/medium/low）を再利用し、優先度順でソート表示可能にする
+- Q: recommended_actions のデータ構造は？ → A: `RecommendedAction(description: str, priority: Priority)` のリスト。Priority enum（high/medium/low）を使用し、優先度順でソート表示可能にする
 - Q: 集約エージェントへの入力範囲は？ → A: AgentSuccess と AgentTruncated の結果のみを渡す。AggregatedReport に `agent_failures: list[str]` を追加し、失敗エージェント名を記録する。集約結果のみを参照する消費者にもレビューの不完全性が伝わるようにする
 
 ### Session 2026-02-10 (Issue #148)
@@ -292,7 +292,7 @@
 - **FR-RE-017**: システムは AggregatorDefinition モデルを提供しなければならない（Issue #152）。AggregatorDefinition は SelectorDefinition と同じアーキテクチャパターン（TOML 定義 → pydantic-ai エージェント構築 → 構造化出力）に従う:
   - `name: str`（`"aggregator"` 固定）
   - `description: str`（集約エージェントの説明）
-  - `model: str`（使用する LLM モデル名）
+  - `model: str | None`（使用する LLM モデル名。None の場合はグローバル設定を使用）
   - `system_prompt: str`（集約エージェントのシステムプロンプト）
   - ビルトインの `aggregator.toml` から読み込まれ、カスタムの `aggregator.toml`（`.hachimoku/agents/aggregator.toml`）で上書き可能
   - AggregatorDefinition は `allowed_tools` を持たない（集約エージェントはツールを使用せず、入力データのみから統合結果を生成する）
@@ -300,7 +300,7 @@
 - **FR-RE-018**: システムは AggregatedReport モデルを提供しなければならない（Issue #152）。AggregatedReport は集約エージェントの構造化出力であり、以下のフィールドを持つ:
   - `issues: list[ReviewIssue]`（重複排除・統合された指摘リスト。既存の ReviewIssue を再利用）
   - `strengths: list[str]`（良い実装に対するポジティブフィードバック。各要素が1つのフィードバック）
-  - `recommended_actions: list[RecommendedAction]`（優先度付き対応推奨。RecommendedAction は `description: str` と `priority: Priority` を持つ。既存の Priority enum を再利用）
+  - `recommended_actions: list[RecommendedAction]`（優先度付き対応推奨。RecommendedAction は `description: str` と `priority: Priority` を持つ。Priority enum を使用）
   - `agent_failures: list[str]`（失敗したエージェント名のリスト。集約結果のみを参照する消費者にレビューの不完全性を通知する）
 
 - **FR-RE-019**: システムは設定で LLM ベース集約の有効/無効を切替可能にしなければならない（Issue #152）。デフォルトは有効（`aggregation.enabled = true`）。無効の場合、FR-RE-002 Step 9.5 をスキップし `ReviewReport.aggregated = None` となる

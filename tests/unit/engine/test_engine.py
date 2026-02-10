@@ -43,6 +43,7 @@ from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import (
     AgentError,
+    AgentResult,
     AgentSuccess,
     AgentTimeout,
     AgentTruncated,
@@ -1006,7 +1007,6 @@ class TestExecuteWithShutdownTimeout:
 
     async def test_normal_completion_no_shutdown(self) -> None:
         """シャットダウンなしで正常完了 → 全結果返却。"""
-        from hachimoku.models.agent_result import AgentResult
 
         async def mock_executor(
             contexts: list[object],
@@ -1027,7 +1027,6 @@ class TestExecuteWithShutdownTimeout:
 
     async def test_shutdown_executor_finishes_within_deadline(self) -> None:
         """シャットダウン後、executor が期限内に完了 → 正常結果。"""
-        from hachimoku.models.agent_result import AgentResult
 
         async def mock_executor(
             contexts: list[object],
@@ -1050,7 +1049,6 @@ class TestExecuteWithShutdownTimeout:
     @patch("hachimoku.engine._engine.SHUTDOWN_TIMEOUT_SECONDS", 0.1)
     async def test_shutdown_timeout_returns_partial_results(self) -> None:
         """3秒タイムアウト → 完了済み結果のみ返却。"""
-        from hachimoku.models.agent_result import AgentResult
 
         async def mock_executor(
             contexts: list[object],
@@ -1075,7 +1073,6 @@ class TestExecuteWithShutdownTimeout:
     @patch("hachimoku.engine._engine.SHUTDOWN_TIMEOUT_SECONDS", 0.1)
     async def test_shutdown_timeout_cancels_executor(self) -> None:
         """タイムアウトで executor タスクがキャンセルされる。"""
-        from hachimoku.models.agent_result import AgentResult
 
         cancelled = False
 
@@ -1103,7 +1100,6 @@ class TestExecuteWithShutdownTimeout:
 
     async def test_shutdown_before_any_agent_starts(self) -> None:
         """executor が即座に空リストを返す → 空結果。"""
-        from hachimoku.models.agent_result import AgentResult
 
         async def mock_executor(
             contexts: list[object],
@@ -1129,7 +1125,6 @@ class TestExecuteWithShutdownTimeout:
 
     async def test_executor_exception_propagates(self) -> None:
         """executor が例外を送出した場合、そのまま伝播する。"""
-        from hachimoku.models.agent_result import AgentResult
 
         async def mock_executor(
             contexts: list[object],
@@ -1145,7 +1140,6 @@ class TestExecuteWithShutdownTimeout:
     @patch("hachimoku.engine._engine.SHUTDOWN_TIMEOUT_SECONDS", 0.1)
     async def test_shutdown_timeout_prints_stderr_warning(self) -> None:
         """タイムアウト時に stderr に警告が出力される。"""
-        from hachimoku.models.agent_result import AgentResult
 
         async def mock_executor(
             contexts: list[object],
@@ -1369,4 +1363,48 @@ class TestRunReviewAggregation:
         assert result.report.aggregated is None
         assert result.report.aggregation_error is not None
         assert "aggregator.toml" in result.report.aggregation_error
+        mock_run_aggregator.assert_not_called()
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine._execute_with_shutdown_timeout")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_skipped_on_shutdown_signal(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute_with_timeout: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """SIGINT/SIGTERM 受信後は集約がスキップされる。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+
+        async def _set_shutdown_and_return(
+            executor_fn: object,
+            contexts: object,
+            shutdown_event: asyncio.Event,
+        ) -> list[AgentResult]:
+            shutdown_event.set()
+            return [_make_success("agent-a")]
+
+        mock_execute_with_timeout.side_effect = _set_shutdown_and_return
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is None
+        mock_load_aggregator.assert_not_called()
         mock_run_aggregator.assert_not_called()

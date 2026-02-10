@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import AgentResult, CostInfo
@@ -42,6 +42,20 @@ class RecommendedAction(HachimokuBaseModel):
 
     description: str = Field(min_length=1)
     priority: Priority
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def normalize_priority(cls, v: object) -> object:
+        """Priority 入力を lowercase に正規化する。
+
+        LLM が "High" や "HIGH" を出力する場合に対応する。
+        """
+        if isinstance(v, str):
+            lower = v.lower()
+            for member in Priority:
+                if lower == member.value:
+                    return member.value
+        return v
 
 
 class AggregatedReport(HachimokuBaseModel):

@@ -61,13 +61,18 @@ def _build_aggregator_message(
                 for issue in r.issues:
                     location_str = ""
                     if issue.location is not None:
-                        location_str = f" ({issue.location.file_path}"
-                        if issue.location.line_number is not None:
-                            location_str += f":{issue.location.line_number}"
-                        location_str += ")"
-                    sections.append(
+                        location_str = (
+                            f" ({issue.location.file_path}"
+                            f":{issue.location.line_number})"
+                        )
+                    line = (
                         f"- [{issue.severity.value}]{location_str} {issue.description}"
                     )
+                    if issue.suggestion:
+                        line += f"\n  Suggestion: {issue.suggestion}"
+                    if issue.category:
+                        line += f"\n  Category: {issue.category}"
+                    sections.append(line)
             else:
                 sections.append("- No issues found.")
             sections.append("")

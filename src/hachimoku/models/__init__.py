@@ -16,7 +16,13 @@ from hachimoku.models.history import (
     PRReviewRecord,
     ReviewHistoryRecord,
 )
-from hachimoku.models.report import ReviewReport, ReviewSummary
+from hachimoku.models.report import (
+    AggregatedReport,
+    Priority,
+    RecommendedAction,
+    ReviewReport,
+    ReviewSummary,
+)
 from hachimoku.models.review import FileLocation, ReviewIssue
 from hachimoku.models.schemas import (
     SCHEMA_REGISTRY,
@@ -45,6 +51,7 @@ from hachimoku.models.severity import (
 
 
 __all__ = [
+    "AggregatedReport",
     "AgentError",
     "AgentResult",
     "AgentSuccess",
@@ -66,8 +73,10 @@ __all__ = [
     "ImprovementSuggestions",
     "MultiDimensionalAnalysis",
     "PRReviewRecord",
+    "Priority",
     "ReviewHistoryRecord",
     "ReviewIssue",
+    "RecommendedAction",
     "ReviewReport",
     "ReviewSummary",
     "SCHEMA_REGISTRY",
