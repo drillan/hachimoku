@@ -49,6 +49,11 @@ Set overall_score on a 0.0-10.0 scale:
 - Write a concrete suggestion for each issue explaining how to fix it.
 - Use category to classify: "bug", "security", "performance", "error-handling", "style".
 
+## Self-Filtering Rules
+- Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
+- Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.
+- If you investigate a potential concern but determine it is acceptable in context, omit it entirely from your output.
+
 ## Quality Principles
 - Only report issues you are confident about. Omit uncertain findings.
 - Be language-agnostic. Do not assume a specific programming language.

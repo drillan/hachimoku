@@ -52,6 +52,11 @@ Classify each issue into exactly one of these 6 categories:
 - Set the category field on each ReviewIssue to match its category key.
 - Provide location (file_path + line_number) pointing to the comment in question.
 
+## Self-Filtering Rules
+- Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
+- Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.
+- If you investigate a potential concern but determine it is acceptable in context, omit it entirely from your output.
+
 ## Quality Principles
 - Verify claims by reading the actual code. Do not guess whether a comment is accurate.
 - Be language-agnostic. Comment quality principles apply across all languages.

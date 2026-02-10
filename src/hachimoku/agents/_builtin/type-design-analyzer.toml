@@ -62,6 +62,11 @@ Provide exactly 5 DimensionScore entries:
 - Use issues for specific type design problems with location and suggestion.
 - Use category to classify: "annotation", "exhaustiveness", "validator", "consistency", "complexity".
 
+## Self-Filtering Rules
+- Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
+- Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.
+- If you investigate a potential concern but determine it is acceptable in context, omit it entirely from your output.
+
 ## Quality Principles
 - Prioritize how existing types are used over proposing new types. Misuse of an existing type is a higher-priority finding than a missing abstraction.
 - Evaluate against the project's actual patterns, not theoretical ideals. A design that is consistent with the rest of the codebase is good even if a "better" design exists in theory.
