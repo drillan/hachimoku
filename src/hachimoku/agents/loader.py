@@ -1,15 +1,16 @@
 """エージェント定義ローダー。
 
 TOML 形式のエージェント定義ファイルを読み込み、AgentDefinition モデルとして構築する。
-セレクター定義（selector.toml）は専用のローダーで読み込む。
+セレクター定義（selector.toml）・アグリゲーター定義（aggregator.toml）は専用のローダーで読み込む。
 """
 
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Callable
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import Final
+from typing import Final, TypeVar
 
 from pydantic import ValidationError
 
@@ -20,6 +21,7 @@ from hachimoku.agents.models import (
     LoadResult,
     SelectorDefinition,
 )
+from hachimoku.models._base import HachimokuBaseModel
 
 SELECTOR_FILENAME: Final[str] = "selector.toml"
 """セレクター定義ファイル名。レビューエージェントローダーから除外される。"""
@@ -31,6 +33,103 @@ _EXCLUDED_FILENAMES: Final[frozenset[str]] = frozenset(
     {SELECTOR_FILENAME, AGGREGATOR_FILENAME}
 )
 """レビューエージェントローダーから除外されるファイル名集合。"""
+
+_T = TypeVar("_T", bound=HachimokuBaseModel)
+
+
+# =============================================================================
+# ジェネリック内部関数
+# =============================================================================
+
+
+def _load_single_definition(path: Path, model_type: type[_T]) -> _T:
+    """単一の TOML ファイルから定義を読み込む。
+
+    Args:
+        path: TOML ファイルのパス。
+        model_type: バリデーションに使用する pydantic モデルクラス。
+
+    Returns:
+        構築された定義モデル。
+
+    Raises:
+        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
+        OSError: ファイルが存在しない場合やアクセスエラーの場合。
+    """
+    with path.open("rb") as f:
+        data = tomllib.load(f)
+    return model_type.model_validate(data)
+
+
+def _load_builtin_definition(filename: str, model_type: type[_T]) -> _T:
+    """ビルトイン定義をパッケージリソースから読み込む。
+
+    Args:
+        filename: ビルトイン定義ファイル名。
+        model_type: バリデーションに使用する pydantic モデルクラス。
+
+    Returns:
+        構築された定義モデル。
+
+    Raises:
+        FileNotFoundError: ビルトイン定義が見つからない場合。
+        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
+    """
+    builtin_package = files("hachimoku.agents._builtin")
+    for resource in builtin_package.iterdir():
+        if resource.name == filename:
+            with as_file(resource) as path:
+                return _load_single_definition(path, model_type)
+    raise FileNotFoundError(f"Builtin definition not found: {filename}")
+
+
+def _load_definition_with_override(
+    custom_dir: Path | None,
+    filename: str,
+    builtin_loader: Callable[[], _T],
+    model_type: type[_T],
+) -> _T:
+    """ビルトインとカスタムを統合して定義を読み込む。
+
+    カスタムディレクトリに該当ファイルが存在する場合、ビルトインを上書きする。
+    カスタムの読み込みに失敗した場合は例外を送出する。
+
+    Args:
+        custom_dir: カスタム定義ファイルのディレクトリパス。
+            None の場合はビルトインのみ読み込む。
+        filename: 定義ファイル名。
+        builtin_loader: ビルトイン定義を読み込む関数。
+        model_type: バリデーションに使用する pydantic モデルクラス。
+
+    Returns:
+        定義モデル。
+
+    Raises:
+        FileNotFoundError: ビルトイン定義が見つからない場合。
+        NotADirectoryError: custom_dir がファイルパスの場合。
+        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
+        pydantic.ValidationError: バリデーションエラーの場合。
+    """
+    builtin = builtin_loader()
+    if custom_dir is None:
+        return builtin
+    if custom_dir.exists() and not custom_dir.is_dir():
+        raise NotADirectoryError(
+            f"custom_dir はディレクトリではありません: {custom_dir}"
+        )
+
+    custom_path = custom_dir / filename
+    if not custom_path.exists():
+        return builtin
+
+    return _load_single_definition(custom_path, model_type)
+
+
+# =============================================================================
+# エージェント定義ローダー
+# =============================================================================
 
 
 def _load_single_agent(path: Path) -> AgentDefinition:
@@ -47,47 +146,7 @@ def _load_single_agent(path: Path) -> AgentDefinition:
         pydantic.ValidationError: バリデーションエラーの場合。
         OSError: ファイルが存在しない場合やアクセスエラーの場合。
     """
-    with path.open("rb") as f:
-        data = tomllib.load(f)
-    return AgentDefinition.model_validate(data)
-
-
-def _load_single_selector(path: Path) -> SelectorDefinition:
-    """単一の TOML ファイルからセレクター定義を読み込む。
-
-    Args:
-        path: TOML ファイルのパス。
-
-    Returns:
-        構築された SelectorDefinition。
-
-    Raises:
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-        OSError: ファイルが存在しない場合やアクセスエラーの場合。
-    """
-    with path.open("rb") as f:
-        data = tomllib.load(f)
-    return SelectorDefinition.model_validate(data)
-
-
-def _load_single_aggregator(path: Path) -> AggregatorDefinition:
-    """単一の TOML ファイルからアグリゲーター定義を読み込む。
-
-    Args:
-        path: TOML ファイルのパス。
-
-    Returns:
-        構築された AggregatorDefinition。
-
-    Raises:
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-        OSError: ファイルが存在しない場合やアクセスエラーの場合。
-    """
-    with path.open("rb") as f:
-        data = tomllib.load(f)
-    return AggregatorDefinition.model_validate(data)
+    return _load_single_definition(path, AgentDefinition)
 
 
 def load_builtin_agents() -> LoadResult:
@@ -200,6 +259,11 @@ def load_agents(custom_dir: Path | None = None) -> LoadResult:
     return LoadResult(agents=tuple(merged_agents), errors=tuple(merged_errors))
 
 
+# =============================================================================
+# セレクター定義ローダー
+# =============================================================================
+
+
 def load_builtin_selector() -> SelectorDefinition:
     """ビルトインセレクター定義をパッケージリソースから読み込む。
 
@@ -211,14 +275,7 @@ def load_builtin_selector() -> SelectorDefinition:
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
     """
-    builtin_package = files("hachimoku.agents._builtin")
-    for resource in builtin_package.iterdir():
-        if resource.name == SELECTOR_FILENAME:
-            with as_file(resource) as path:
-                return _load_single_selector(path)
-    raise FileNotFoundError(
-        f"Builtin selector definition not found: {SELECTOR_FILENAME}"
-    )
+    return _load_builtin_definition(SELECTOR_FILENAME, SelectorDefinition)
 
 
 def load_selector(custom_dir: Path | None = None) -> SelectorDefinition:
@@ -240,19 +297,14 @@ def load_selector(custom_dir: Path | None = None) -> SelectorDefinition:
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
     """
-    builtin = load_builtin_selector()
-    if custom_dir is None:
-        return builtin
-    if custom_dir.exists() and not custom_dir.is_dir():
-        raise NotADirectoryError(
-            f"custom_dir はディレクトリではありません: {custom_dir}"
-        )
+    return _load_definition_with_override(
+        custom_dir, SELECTOR_FILENAME, load_builtin_selector, SelectorDefinition
+    )
 
-    custom_path = custom_dir / SELECTOR_FILENAME
-    if not custom_path.exists():
-        return builtin
 
-    return _load_single_selector(custom_path)
+# =============================================================================
+# アグリゲーター定義ローダー
+# =============================================================================
 
 
 def load_builtin_aggregator() -> AggregatorDefinition:
@@ -266,14 +318,7 @@ def load_builtin_aggregator() -> AggregatorDefinition:
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
     """
-    builtin_package = files("hachimoku.agents._builtin")
-    for resource in builtin_package.iterdir():
-        if resource.name == AGGREGATOR_FILENAME:
-            with as_file(resource) as path:
-                return _load_single_aggregator(path)
-    raise FileNotFoundError(
-        f"Builtin aggregator definition not found: {AGGREGATOR_FILENAME}"
-    )
+    return _load_builtin_definition(AGGREGATOR_FILENAME, AggregatorDefinition)
 
 
 def load_aggregator(custom_dir: Path | None = None) -> AggregatorDefinition:
@@ -295,16 +340,6 @@ def load_aggregator(custom_dir: Path | None = None) -> AggregatorDefinition:
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
     """
-    builtin = load_builtin_aggregator()
-    if custom_dir is None:
-        return builtin
-    if custom_dir.exists() and not custom_dir.is_dir():
-        raise NotADirectoryError(
-            f"custom_dir はディレクトリではありません: {custom_dir}"
-        )
-
-    custom_path = custom_dir / AGGREGATOR_FILENAME
-    if not custom_path.exists():
-        return builtin
-
-    return _load_single_aggregator(custom_path)
+    return _load_definition_with_override(
+        custom_dir, AGGREGATOR_FILENAME, load_builtin_aggregator, AggregatorDefinition
+    )
