@@ -1,6 +1,6 @@
 name = "comment-analyzer"
 description = "コードコメントの正確性・品質の分析"
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-opus-4-6"
 output_schema = "category_classification"
 phase = "final"
 allowed_tools = ["git_read", "gh_read", "file_read"]

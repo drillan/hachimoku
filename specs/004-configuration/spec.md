@@ -47,7 +47,7 @@
 2. **Given** `.hachimoku/config.toml` に `base_branch = "develop"` が設定されている, **When** 設定を解決する, **Then** `base_branch` の値が `"develop"` に解決され、他の項目はデフォルト値が適用される
 3. **Given** `.hachimoku/config.toml` と `pyproject.toml [tool.hachimoku]` の両方に `base_branch` が設定されている, **When** 設定を解決する, **Then** `.hachimoku/config.toml` の値が優先される
 4. **Given** `~/.config/hachimoku/config.toml` にのみ設定がある状態, **When** 設定を解決する, **Then** ユーザーグローバル設定の値が適用される
-5. **Given** CLI オプションで `--model anthropic:claude-sonnet-4-5` が指定され、`.hachimoku/config.toml` に `model = "anthropic:claude-opus-4-6"` が設定されている, **When** 設定を解決する, **Then** CLI オプションの `"anthropic:claude-sonnet-4-5"` が優先される
+5. **Given** CLI オプションで `--model anthropic:claude-opus-4-6` が指定され、`.hachimoku/config.toml` に `model = "anthropic:claude-opus-4-6"` が設定されている, **When** 設定を解決する, **Then** CLI オプションの `"anthropic:claude-opus-4-6"` が優先される
 6. **Given** `pyproject.toml` に `[tool.hachimoku]` セクションが存在しない, **When** 設定を解決する, **Then** `pyproject.toml` の設定ソースはスキップされ、他のソースから解決される
 
 ---
@@ -149,7 +149,7 @@
 
   | 設定キー | CLI オプション | デフォルト | 型・制約 |
   |---------|--------------|----------|---------|
-  | `model` | `--model` | `"claudecode:claude-sonnet-4-5"` | 文字列（`claudecode:` or `anthropic:` プレフィックス必須） |
+  | `model` | `--model` | `"claudecode:claude-opus-4-6"` | 文字列（`claudecode:` or `anthropic:` プレフィックス必須） |
   | `timeout` | `--timeout` | `600` | 正の整数 |
   | `max_turns` | `--max-turns` | `20` | 正の整数 |
   | `parallel` | `--parallel` | `true` | boolean |

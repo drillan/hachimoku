@@ -40,7 +40,7 @@ _CONFIG_TEMPLATE: str = """\
 # --- Execution Settings ---
 
 # LLM model name (prefix: "claudecode:" or "anthropic:")
-# model = "claudecode:claude-sonnet-4-5"
+# model = "claudecode:claude-opus-4-6"
 
 # Timeout in seconds
 # timeout = 600
@@ -73,7 +73,7 @@ _CONFIG_TEMPLATE: str = """\
 # --- Selector Agent Settings ---
 
 # [selector]
-# model = "claudecode:claude-sonnet-4-5"
+# model = "claudecode:claude-opus-4-6"
 # timeout = 600
 # max_turns = 20
 
@@ -83,7 +83,7 @@ _CONFIG_TEMPLATE: str = """\
 #
 # [agents.code-reviewer]
 # enabled = true
-# model = "claudecode:claude-sonnet-4-5"
+# model = "claudecode:claude-opus-4-6"
 # timeout = 600
 # max_turns = 20
 """

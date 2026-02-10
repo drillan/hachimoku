@@ -15,7 +15,7 @@ from hachimoku.config import resolve_config
 
 # 全項目がデフォルト値で構成される
 config = resolve_config()
-assert config.model == "anthropic:claude-sonnet-4-5"
+assert config.model == "anthropic:claude-opus-4-6"
 assert config.timeout == 300
 assert config.parallel is True
 ```

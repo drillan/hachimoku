@@ -636,7 +636,7 @@ class TestBuildExecutionContextPhaseVariants:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.model == "claudecode:claude-sonnet-4-5"
+        assert ctx.model == "claudecode:claude-opus-4-6"
         assert ctx.timeout_seconds == 600
         assert ctx.max_turns == 20
 

@@ -19,19 +19,19 @@ class TestResolveModelClaudeCodePrefix:
 
     def test_returns_claude_code_model_instance(self) -> None:
         """claudecode: プレフィックスで ClaudeCodeModel が返される。"""
-        result = resolve_model("claudecode:claude-sonnet-4-5")
+        result = resolve_model("claudecode:claude-opus-4-6")
         assert isinstance(result, ClaudeCodeModel)
 
     def test_returns_model_subclass(self) -> None:
         """ClaudeCodeModel は pydantic-ai Model のサブクラス。"""
-        result = resolve_model("claudecode:claude-sonnet-4-5")
+        result = resolve_model("claudecode:claude-opus-4-6")
         assert isinstance(result, Model)
 
     def test_strips_prefix(self) -> None:
         """'claudecode:' プレフィックスが除去されて model_name に渡される。"""
-        result = resolve_model("claudecode:claude-sonnet-4-5")
+        result = resolve_model("claudecode:claude-opus-4-6")
         assert isinstance(result, ClaudeCodeModel)
-        assert result.model_name == "claude-sonnet-4-5"
+        assert result.model_name == "claude-opus-4-6"
 
     def test_prefix_stripped_once(self) -> None:
         """'claudecode:' が1回だけ除去される。"""
@@ -51,32 +51,32 @@ class TestResolveModelAnthropicPrefix:
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_returns_string_as_is(self) -> None:
         """anthropic: プレフィックスではモデル文字列がそのまま返される。"""
-        result = resolve_model("anthropic:claude-sonnet-4-5")
-        assert result == "anthropic:claude-sonnet-4-5"
+        result = resolve_model("anthropic:claude-opus-4-6")
+        assert result == "anthropic:claude-opus-4-6"
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_returns_str_type(self) -> None:
         """戻り値が str 型であること。"""
-        result = resolve_model("anthropic:claude-sonnet-4-5")
+        result = resolve_model("anthropic:claude-opus-4-6")
         assert isinstance(result, str)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_api_key_raises_error(self) -> None:
         """ANTHROPIC_API_KEY 未設定時に ValueError が発生する。"""
         with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-            resolve_model("anthropic:claude-sonnet-4-5")
+            resolve_model("anthropic:claude-opus-4-6")
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_api_key_present_succeeds(self) -> None:
         """ANTHROPIC_API_KEY が設定されている場合は正常に処理される。"""
-        result = resolve_model("anthropic:claude-sonnet-4-5")
-        assert result == "anthropic:claude-sonnet-4-5"
+        result = resolve_model("anthropic:claude-opus-4-6")
+        assert result == "anthropic:claude-opus-4-6"
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""})
     def test_empty_api_key_raises_error(self) -> None:
         """ANTHROPIC_API_KEY が空文字列の場合も ValueError が発生する。"""
         with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-            resolve_model("anthropic:claude-sonnet-4-5")
+            resolve_model("anthropic:claude-opus-4-6")
 
     def test_empty_model_name_raises_error(self) -> None:
         """'anthropic:' のみ（モデル名なし）で ValueError が発生する。"""
@@ -95,4 +95,4 @@ class TestResolveModelUnknownPrefix:
     def test_no_prefix_raises_error(self) -> None:
         """プレフィックスなしのモデル名で ValueError が発生する。"""
         with pytest.raises(ValueError, match="Unknown model prefix"):
-            resolve_model("claude-sonnet-4-5")
+            resolve_model("claude-opus-4-6")

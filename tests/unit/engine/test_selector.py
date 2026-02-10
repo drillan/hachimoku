@@ -64,7 +64,7 @@ def _make_selector_config(
 
 
 def _make_selector_definition(
-    model: str | None = "anthropic:claude-sonnet-4-5",
+    model: str | None = "anthropic:claude-opus-4-6",
     system_prompt: str = "You are an agent selector.",
     allowed_tools: tuple[str, ...] = ("git_read", "gh_read", "file_read"),
 ) -> SelectorDefinition:
@@ -598,7 +598,7 @@ class TestRunSelectorResolveModel:
             resolved_content="test diff content",
         )
 
-        mock_resolve.assert_called_once_with("anthropic:claude-sonnet-4-5")
+        mock_resolve.assert_called_once_with("anthropic:claude-opus-4-6")
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
 
     @patch("hachimoku.engine._selector.resolve_model")

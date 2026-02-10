@@ -32,7 +32,7 @@ hachimoku は TOML ベースの階層的な設定システムを提供します�
 
 ```{code-block} toml
 # 実行設定
-model = "claudecode:claude-sonnet-4-5"  # プレフィックスでプロバイダーを指定
+model = "claudecode:claude-opus-4-6"  # プレフィックスでプロバイダーを指定
 timeout = 600
 max_turns = 20
 parallel = true
@@ -55,14 +55,14 @@ max_turns = 20
 # 集約エージェント設定
 [aggregation]
 enabled = true
-# model = "claudecode:claude-sonnet-4-5"
+# model = "claudecode:claude-opus-4-6"
 # timeout = 300
 # max_turns = 10
 
 # エージェント個別設定
 [agents.code-reviewer]
 enabled = true
-model = "anthropic:claude-sonnet-4-5"  # anthropic: プレフィックスで API 直接呼び出し
+model = "anthropic:claude-opus-4-6"  # anthropic: プレフィックスで API 直接呼び出し
 timeout = 600
 max_turns = 15
 
@@ -74,7 +74,7 @@ enabled = false
 
 ```{code-block} toml
 [tool.hachimoku]
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-opus-4-6"
 timeout = 300
 parallel = false
 ```
@@ -87,7 +87,7 @@ parallel = false
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
-| `model` | `str` | `"claudecode:claude-sonnet-4-5"` | 空文字不可、プレフィックス必須 | 使用する LLM モデル名（`claudecode:` or `anthropic:` プレフィックスでプロバイダーを指定） |
+| `model` | `str` | `"claudecode:claude-opus-4-6"` | 空文字不可、プレフィックス必須 | 使用する LLM モデル名（`claudecode:` or `anthropic:` プレフィックスでプロバイダーを指定） |
 | `timeout` | `int` | `600` | 正の値 | エージェントのタイムアウト（秒） |
 | `max_turns` | `int` | `20` | 正の値 | エージェントの最大ターン数 |
 | `parallel` | `bool` | `true` | - | 並列実行の有効化 |
@@ -126,7 +126,7 @@ parallel = false
 ```{code-block} toml
 [aggregation]
 enabled = true
-model = "claudecode:claude-sonnet-4-5"
+model = "claudecode:claude-opus-4-6"
 timeout = 300
 max_turns = 10
 ```
@@ -205,7 +205,7 @@ config = resolve_config(
     cli_overrides={"timeout": 600, "parallel": False},
 )
 
-print(config.model)      # "claudecode:claude-sonnet-4-5"
+print(config.model)      # "claudecode:claude-opus-4-6"
 print(config.timeout)    # 600（CLI オーバーライドが適用）
 print(config.parallel)   # False（CLI オーバーライドが適用）
 ```

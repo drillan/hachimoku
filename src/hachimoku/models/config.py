@@ -80,7 +80,7 @@ class HachimokuConfig(HachimokuBaseModel):
     """
 
     # 実行設定
-    model: str = Field(default="claudecode:claude-sonnet-4-5", min_length=1)
+    model: str = Field(default="claudecode:claude-opus-4-6", min_length=1)
     timeout: int = Field(default=DEFAULT_TIMEOUT_SECONDS, gt=0)
     max_turns: int = Field(default=DEFAULT_MAX_TURNS, gt=0)
     parallel: StrictBool = True

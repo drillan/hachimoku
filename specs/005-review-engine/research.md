@@ -184,11 +184,11 @@ class ReviewReport(HachimokuBaseModel):
 
 ## R-010: モデル名の解決戦略
 
-**背景**: HachimokuConfig の `model` フィールドには "sonnet" のような短縮名が使われる。pydantic-ai は "anthropic:claude-sonnet-4-5" 形式を期待する。Clarifications に「エージェント定義の `model` フィールドの値解決は本仕様の責務」と明記されている。
+**背景**: HachimokuConfig の `model` フィールドには "sonnet" のような短縮名が使われる。pydantic-ai は "anthropic:claude-opus-4-6" 形式を期待する。Clarifications に「エージェント定義の `model` フィールドの値解決は本仕様の責務」と明記されている。
 
 **Decision**: 本仕様は「値の受け渡し」（設定優先順に基づくモデル名の決定と pydantic-ai への引き渡し）を担当する。エイリアス変換（短縮名→完全修飾名）は本仕様のスコープに含めない
 
-**Rationale**: Clarifications の「値解決」は、エージェント個別設定 > グローバル設定 > デフォルト値の優先順でモデル名を決定し、AgentExecutionContext に設定する責務を指す（FR-RE-004, FR-RE-007 に対応）。一方、文字列レベルの変換（"sonnet" → "anthropic:claude-sonnet-4-5"）はモデル名体系の設計に依存し、pydantic-ai や claudecode-model のモデル名解決機構に委ねる。pydantic-ai は `Agent(model=...)` にモデル名文字列を直接受け付け、不正な名前は実行時エラーとなる。
+**Rationale**: Clarifications の「値解決」は、エージェント個別設定 > グローバル設定 > デフォルト値の優先順でモデル名を決定し、AgentExecutionContext に設定する責務を指す（FR-RE-004, FR-RE-007 に対応）。一方、文字列レベルの変換（"sonnet" → "anthropic:claude-opus-4-6"）はモデル名体系の設計に依存し、pydantic-ai や claudecode-model のモデル名解決機構に委ねる。pydantic-ai は `Agent(model=...)` にモデル名文字列を直接受け付け、不正な名前は実行時エラーとなる。
 
 **本仕様が担当する「値解決」**:
 1. エージェント個別設定のモデル名があればそれを使用
@@ -196,7 +196,7 @@ class ReviewReport(HachimokuBaseModel):
 3. 決定されたモデル名をそのまま pydantic-ai Agent に渡す
 
 **本仕様が担当しない部分**:
-- エイリアスマッピング（"sonnet" → "anthropic:claude-sonnet-4-5"）
+- エイリアスマッピング（"sonnet" → "anthropic:claude-opus-4-6"）
 - モデル名のバリデーション（pydantic-ai 側で実行時に行われる）
 
 **Alternatives considered**:

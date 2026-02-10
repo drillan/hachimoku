@@ -84,13 +84,13 @@ hachimoku はモデル名のプレフィックスでプロバイダーを決定�
 
 | プレフィックス | 説明 | API キー | 例 |
 |--------------|------|---------|-----|
-| `claudecode:` | Claude Code 内蔵モデル（デフォルト） | 不要 | `claudecode:claude-sonnet-4-5` |
-| `anthropic:` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 | `anthropic:claude-sonnet-4-5` |
+| `claudecode:` | Claude Code 内蔵モデル（デフォルト） | 不要 | `claudecode:claude-opus-4-6` |
+| `anthropic:` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 | `anthropic:claude-opus-4-6` |
 
 ```bash
 # Anthropic API を使用する場合
 export ANTHROPIC_API_KEY="your-api-key"
-8moku --model "anthropic:claude-sonnet-4-5"
+8moku --model "anthropic:claude-opus-4-6"
 ```
 
 ## 設定

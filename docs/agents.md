@@ -49,7 +49,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 
 1. `[selector]` 設定の `model`（[設定](configuration.md) 参照）
 2. セレクター定義の `model`
-3. グローバル設定の `model`（デフォルト: `"anthropic:claude-sonnet-4-5"`）
+3. グローバル設定の `model`（デフォルト: `"anthropic:claude-opus-4-6"`）
 
 ### ビルトインセレクター定義
 
@@ -117,7 +117,7 @@ print(definition.name)  # "selector"
 ```{code-block} toml
 name = "code-reviewer"
 description = "コード品質・バグ・ベストプラクティスの総合レビュー"
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-opus-4-6"
 output_schema = "scored_issues"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]
@@ -280,7 +280,7 @@ for error in result.errors:
 
 name = "security-checker"
 description = "セキュリティ脆弱性の検出"
-model = "anthropic:claude-sonnet-4-5"
+model = "anthropic:claude-opus-4-6"
 output_schema = "scored_issues"
 allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """

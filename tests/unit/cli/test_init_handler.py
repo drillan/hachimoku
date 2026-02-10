@@ -156,7 +156,7 @@ class TestGenerateConfigTemplate:
     def test_contains_default_values(self) -> None:
         """デフォルト値が含まれている。"""
         template = _generate_config_template()
-        assert '"claudecode:claude-sonnet-4-5"' in template
+        assert '"claudecode:claude-opus-4-6"' in template
         assert "600" in template
         assert "20" in template
         assert "true" in template
