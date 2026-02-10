@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from claudecode_model import ClaudeCodeModel
+from claudecode_model.exceptions import CLIExecutionError
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import (
@@ -161,6 +162,7 @@ class TestSelectorError:
         assert err.exit_code is None
         assert err.error_type is None
         assert err.stderr is None
+        assert err.recoverable is None
 
     def test_fields_preserved(self) -> None:
         """明示的に渡した診断フィールドが保持される。"""
@@ -169,10 +171,12 @@ class TestSelectorError:
             exit_code=1,
             error_type="permission",
             stderr="Permission denied",
+            recoverable=False,
         )
         assert err.exit_code == 1
         assert err.error_type == "permission"
         assert err.stderr == "Permission denied"
+        assert err.recoverable is False
         assert "CLI failed" in str(err)
 
 
@@ -403,8 +407,6 @@ class TestRunSelectorErrorDiagnostics:
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
         """CLIExecutionError の exit_code, error_type, stderr が SelectorError に伝播される。"""
-        from claudecode_model.exceptions import CLIExecutionError
-
         mock_instance = MagicMock()
         mock_instance.run = AsyncMock(
             side_effect=CLIExecutionError(
@@ -433,6 +435,40 @@ class TestRunSelectorErrorDiagnostics:
         assert err.exit_code == 1
         assert err.error_type == "timeout"
         assert err.stderr == "fatal error"
+        assert err.recoverable is False
+        assert isinstance(err.__cause__, CLIExecutionError)
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_cli_execution_error_empty_stderr_preserved(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """CLIExecutionError の空 stderr は空文字列として保存される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = AsyncMock(
+            side_effect=CLIExecutionError(
+                "CLI failed", exit_code=1, stderr="", error_type="unknown"
+            )
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        target = _make_target()
+        agents: Sequence[AgentDefinition] = [_make_agent()]
+        config = _make_selector_config()
+
+        with pytest.raises(SelectorError) as exc_info:
+            await run_selector(
+                target=target,
+                available_agents=agents,
+                selector_definition=_make_selector_definition(),
+                selector_config=config,
+                global_model="test",
+                global_timeout=300,
+                global_max_turns=10,
+                resolved_content="test diff content",
+            )
+
+        assert exc_info.value.stderr == ""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
@@ -464,6 +500,7 @@ class TestRunSelectorErrorDiagnostics:
         assert err.exit_code is None
         assert err.error_type is None
         assert err.stderr is None
+        assert err.recoverable is None
 
 
 # =============================================================================

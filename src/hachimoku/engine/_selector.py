@@ -49,6 +49,7 @@ class SelectorError(Exception):
         exit_code: CLI プロセス終了コード（CLIExecutionError 由来、オプション）。
         error_type: 構造化エラー種別（CLIExecutionError 由来、オプション）。
         stderr: 標準エラー出力（CLIExecutionError 由来、オプション）。
+        recoverable: リトライにより回復可能か（CLIExecutionError 由来、オプション）。
     """
 
     def __init__(
@@ -58,11 +59,13 @@ class SelectorError(Exception):
         exit_code: int | None = None,
         error_type: str | None = None,
         stderr: str | None = None,
+        recoverable: bool | None = None,
     ) -> None:
         super().__init__(message)
         self.exit_code = exit_code
         self.error_type = error_type
         self.stderr = stderr
+        self.recoverable = recoverable
 
 
 async def run_selector(
@@ -164,15 +167,18 @@ async def run_selector(
         exit_code: int | None = None
         error_type: str | None = None
         stderr: str | None = None
+        recoverable: bool | None = None
 
         if isinstance(exc, CLIExecutionError):
             exit_code = exc.exit_code
             error_type = exc.error_type
             stderr = exc.stderr
+            recoverable = exc.recoverable
 
         raise SelectorError(
             f"Selector agent failed: {exc}",
             exit_code=exit_code,
             error_type=error_type,
             stderr=stderr,
+            recoverable=recoverable,
         ) from exc
