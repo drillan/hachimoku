@@ -43,7 +43,9 @@ Create prioritized action items based on the consolidated issues:
 Include the names of any agents that failed during execution in the agent_failures list. This helps consumers understand that the aggregation may be incomplete.
 
 ## Output Rules
-- Return ALL non-duplicate issues, not just a summary
+- Exclude any issue whose description or suggestion concludes that no change is needed, no action is required, or the code is acceptable as-is. These are noise, not actionable findings.
+- Every issue in the output must require concrete developer action.
+- Return ALL non-duplicate, actionable issues, not just a summary
 - Maintain the original severity levels unless merging duplicates
 - Do not invent issues that were not in the input
 - If no issues exist, return empty lists (this is valid)
