@@ -22,7 +22,10 @@ from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import AgentExecutionContext, build_execution_context
 from hachimoku.engine._executor import execute_parallel, execute_sequential
-from hachimoku.engine._instruction import build_review_instruction
+from hachimoku.engine._instruction import (
+    build_review_instruction,
+    build_selector_context_section,
+)
 from hachimoku.engine._resolver import ContentResolveError, resolve_content
 from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
 from hachimoku.engine._progress import (
@@ -210,6 +213,16 @@ async def run_review(
         return _build_empty_engine_result(
             load_result.errors, exit_code=ExitCode.SUCCESS
         )
+
+    # Step 5.5: セレクターメタデータを user_message に追記（Issue #148）
+    selector_context = build_selector_context_section(
+        change_intent=selector_output.change_intent,
+        affected_files=selector_output.affected_files,
+        relevant_conventions=selector_output.relevant_conventions,
+        issue_context=selector_output.issue_context,
+    )
+    if selector_context:
+        user_message = f"{user_message}\n\n{selector_context}"
 
     # Step 6: 実行コンテキスト構築
     selected_agents = _resolve_selected_agents(

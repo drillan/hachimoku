@@ -8,6 +8,7 @@ Issue #129: resolved_content のインストラクション埋め込み。
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
 from hachimoku.engine._instruction import (
     build_review_instruction,
+    build_selector_context_section,
     build_selector_instruction,
 )
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
@@ -246,3 +247,127 @@ class TestBuildSelectorInstruction:
         instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
         assert isinstance(instruction, str)
         assert len(instruction) > 0
+
+
+# =============================================================================
+# build_selector_context_section（Issue #148）
+# =============================================================================
+
+
+class TestBuildSelectorContextSectionEmpty:
+    """build_selector_context_section の空メタデータテスト。"""
+
+    def test_all_empty_returns_empty_string(self) -> None:
+        """全メタデータが空の場合、空文字列を返す。"""
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+        )
+        assert result == ""
+
+
+class TestBuildSelectorContextSectionChangeIntent:
+    """build_selector_context_section の change_intent テスト。"""
+
+    def test_change_intent_included(self) -> None:
+        """change_intent が設定されている場合、セクションに含まれる。"""
+        result = build_selector_context_section(
+            change_intent="Fix authentication bug",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+        )
+        assert "## Selector Analysis Context" in result
+        assert "### Change Intent" in result
+        assert "Fix authentication bug" in result
+
+    def test_other_sections_excluded_when_only_intent(self) -> None:
+        """change_intent のみ設定時、他セクションは含まれない。"""
+        result = build_selector_context_section(
+            change_intent="Fix bug",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="",
+        )
+        assert "### Affected Files" not in result
+        assert "### Relevant Project Conventions" not in result
+        assert "### Issue Context" not in result
+
+
+class TestBuildSelectorContextSectionAffectedFiles:
+    """build_selector_context_section の affected_files テスト。"""
+
+    def test_affected_files_listed(self) -> None:
+        """affected_files がリスト形式で含まれる。"""
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=["src/auth.py", "src/config.py"],
+            relevant_conventions=[],
+            issue_context="",
+        )
+        assert "### Affected Files (Outside Diff)" in result
+        assert "- src/auth.py" in result
+        assert "- src/config.py" in result
+
+
+class TestBuildSelectorContextSectionConventions:
+    """build_selector_context_section の relevant_conventions テスト。"""
+
+    def test_conventions_listed(self) -> None:
+        """relevant_conventions がリスト形式で含まれる。"""
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=["Art.4: Simplicity", "TDD strict"],
+            issue_context="",
+        )
+        assert "### Relevant Project Conventions" in result
+        assert "- Art.4: Simplicity" in result
+        assert "- TDD strict" in result
+
+
+class TestBuildSelectorContextSectionIssueContext:
+    """build_selector_context_section の issue_context テスト。"""
+
+    def test_issue_context_included(self) -> None:
+        """issue_context が設定されている場合、セクションに含まれる。"""
+        result = build_selector_context_section(
+            change_intent="",
+            affected_files=[],
+            relevant_conventions=[],
+            issue_context="Issue #42: Login fails for OAuth users",
+        )
+        assert "### Issue Context" in result
+        assert "Issue #42: Login fails for OAuth users" in result
+
+
+class TestBuildSelectorContextSectionCombinations:
+    """build_selector_context_section の組み合わせテスト。"""
+
+    def test_all_metadata_populated(self) -> None:
+        """全メタデータが設定されている場合、全セクションが含まれる。"""
+        result = build_selector_context_section(
+            change_intent="Refactor auth module",
+            affected_files=["src/auth.py"],
+            relevant_conventions=["TDD strict"],
+            issue_context="Issue #42",
+        )
+        assert "### Change Intent" in result
+        assert "### Affected Files (Outside Diff)" in result
+        assert "### Relevant Project Conventions" in result
+        assert "### Issue Context" in result
+
+    def test_partial_metadata_only_includes_populated(self) -> None:
+        """一部のみ設定時、設定されたセクションのみ含まれる。"""
+        result = build_selector_context_section(
+            change_intent="Fix bug",
+            affected_files=["src/auth.py"],
+            relevant_conventions=[],
+            issue_context="",
+        )
+        assert "### Change Intent" in result
+        assert "### Affected Files (Outside Diff)" in result
+        assert "### Relevant Project Conventions" not in result
+        assert "### Issue Context" not in result

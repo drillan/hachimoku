@@ -10,6 +10,14 @@
 
 ## Clarifications
 
+### Session 2026-02-10 (Issue #148)
+
+- SelectorOutput に 4 つのメタデータフィールドを追加する: `change_intent`（str, default=""）、`affected_files`（list[str], default=[]）、`relevant_conventions`（list[str], default=[]）、`issue_context`（str, default=""）。全フィールドにデフォルト値を設定し後方互換性を確保する
+- FR-RE-002 に Step 5.5（セレクターメタデータ伝播）を追加: セレクターの分析結果をレビューエージェントの user_message にマークダウンセクションとして追記する。メタデータが全て空の場合は user_message を変更しない
+- FR-RE-007 のユーザーメッセージにセレクターメタデータを含むことを明記
+- `_instruction.py` に `build_selector_context_section()` を追加。`_selector.py` → `_instruction.py` の循環インポートを回避するため、SelectorOutput を受け取らず keyword-only パラメータで個別フィールドを受け取る
+- セレクターの system_prompt を更新し、メタデータフィールド（変更意図・影響ファイル・関連規約・Issue コンテキスト）の出力を指示する
+
 ### Session 2026-02-07
 
 - 親仕様 FR-001, FR-002, FR-004, FR-005, FR-006, FR-007, FR-013, FR-018, FR-022, FR-024 および US1, US2, US9 を本仕様で実現する
@@ -179,6 +187,7 @@
   4. **レビュー指示構築**: 事前解決されたコンテンツを含むレビュー指示情報を構築する
   5. **セレクター定義読み込み**: ビルトインの `selector.toml` から SelectorDefinition を読み込む。カスタムの `selector.toml`（`.hachimoku/agents/selector.toml`）が存在する場合はビルトインを上書きする
   6. **エージェント選択（セレクターエージェント）**: SelectorDefinition と SelectorConfig に基づいてセレクターエージェント（pydantic-ai エージェント）を構築・実行し、レビュー指示情報と利用可能なエージェント定義一覧を渡す。セレクターエージェントは SelectorDefinition.allowed_tools で許可されたツールでレビュー対象を調査し、実行すべきエージェントリストを構造化出力で返す。エージェント定義の `file_patterns` / `content_patterns` / `phase` はセレクターの判断ガイダンスとして提供される
+  6.5. **セレクターメタデータ伝播**: セレクターエージェントの分析結果（変更意図・影響ファイル・関連規約・Issue コンテキスト）をレビューエージェント向けのユーザーメッセージに追記する。SelectorOutput の `change_intent`・`affected_files`・`relevant_conventions`・`issue_context` フィールドをマークダウンセクション化し、レビュー指示情報に結合する。メタデータが全て空の場合はユーザーメッセージを変更しない（Issue #148）
   7. **実行コンテキスト構築**: 選択された各エージェントに対して実行コンテキスト（モデル・ツール・プロンプト・タイムアウト・最大ターン数）を構築する
   8. **エージェント実行**: 逐次または並列でエージェントを実行する
   9. **結果集約**: 各エージェントの結果（AgentResult）を ReviewReport に集約する
@@ -208,7 +217,7 @@
   - **ツール**: エージェント定義の `allowed_tools` のカテゴリ名を ToolCatalog 経由で pydantic-ai ツールに解決（FR-RE-016）
   - **出力スキーマ**: エージェント定義の `output_schema` から SCHEMA_REGISTRY 経由で解決（002-domain-models）。pydantic-ai の `output_type` に設定する
   - **システムプロンプト**: エージェント定義の `system_prompt`
-  - **ユーザーメッセージ**: レビュー指示情報（入力モード・base_branch/PR番号/ファイルパス等）+ オプションコンテキスト（`--issue` 番号）。差分・ファイル内容・PR メタデータの実際の取得はエージェントが `allowed_tools` で自律的に行う
+  - **ユーザーメッセージ**: レビュー指示情報（入力モード・base_branch/PR番号/ファイルパス等）+ オプションコンテキスト（`--issue` 番号）+ セレクターメタデータ（FR-RE-002 Step 5.5、Issue #148）。差分・ファイル内容・PR メタデータの実際の取得はエージェントが `allowed_tools` で自律的に行う
   - **タイムアウト**: FR-RE-004 の優先順で解決
   - **最大ターン数**: FR-RE-004 の優先順で解決
 

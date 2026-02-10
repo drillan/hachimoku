@@ -77,6 +77,50 @@ def build_selector_instruction(
     )
 
 
+def build_selector_context_section(
+    *,
+    change_intent: str,
+    affected_files: Sequence[str],
+    relevant_conventions: Sequence[str],
+    issue_context: str,
+) -> str:
+    """セレクターの分析結果をレビューエージェント向けマークダウンセクションに変換する。
+
+    FR-RE-002 Step 5.5: セレクターメタデータのユーザーメッセージ拡張。
+    メタデータが全て空（空文字列・空リスト）の場合は空文字列を返す。
+    非空のフィールドのみ対応するサブセクションを出力する。
+
+    Args:
+        change_intent: 変更の意図・目的の要約。
+        affected_files: diff 外で影響を受ける可能性のあるファイルパス。
+        relevant_conventions: 当該変更に関連するプロジェクト規約。
+        issue_context: Issue 関連情報の要約。
+
+    Returns:
+        マークダウンセクション文字列。全て空の場合は空文字列。
+    """
+    subsections: list[str] = []
+
+    if change_intent:
+        subsections.append(f"### Change Intent\n{change_intent}")
+
+    if affected_files:
+        files_list = "\n".join(f"- {f}" for f in affected_files)
+        subsections.append(f"### Affected Files (Outside Diff)\n{files_list}")
+
+    if relevant_conventions:
+        conventions_list = "\n".join(f"- {c}" for c in relevant_conventions)
+        subsections.append(f"### Relevant Project Conventions\n{conventions_list}")
+
+    if issue_context:
+        subsections.append(f"### Issue Context\n{issue_context}")
+
+    if not subsections:
+        return ""
+
+    return "## Selector Analysis Context\n\n" + "\n\n".join(subsections)
+
+
 def _build_mode_section(
     target: DiffTarget | PRTarget | FileTarget,
     resolved_content: str,

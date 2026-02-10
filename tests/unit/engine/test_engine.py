@@ -658,6 +658,88 @@ class TestRunReviewPipeline:
 
 
 # =============================================================================
+# run_review — セレクターメタデータ伝播（Issue #148）
+# =============================================================================
+
+
+class TestRunReviewSelectorMetadata:
+    """run_review がセレクターメタデータを user_message に伝播するテスト。
+
+    Issue #148: FR-RE-002 Step 6.5 セレクターメタデータ伝播。
+    """
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_metadata_enriches_user_message(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """セレクターのメタデータが user_message に追記される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+            change_intent="Fix authentication bug",
+            affected_files=["src/config.py"],
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        # build_execution_context に渡される user_message を検証
+        mock_execute.assert_called_once()
+        contexts = mock_execute.call_args[0][0]
+        assert len(contexts) == 1
+        user_msg = contexts[0].user_message
+        assert "Selector Analysis Context" in user_msg
+        assert "Fix authentication bug" in user_msg
+        assert "src/config.py" in user_msg
+
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_empty_metadata_does_not_modify_user_message(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+    ) -> None:
+        """メタデータが空の場合、user_message は変更されない。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"],
+            reasoning="Selected",
+            # メタデータフィールドは全てデフォルト（空）
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        await run_review(target=_make_target())
+
+        contexts = mock_execute.call_args[0][0]
+        user_msg = contexts[0].user_message
+        assert "Selector Analysis Context" not in user_msg
+
+
+# =============================================================================
 # run_review — parallel 設定による実行モード切り替え
 # =============================================================================
 
