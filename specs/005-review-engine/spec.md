@@ -10,6 +10,14 @@
 
 ## Clarifications
 
+### Session 2026-02-10 (Issue #152)
+
+- Q: 集約エージェント失敗時の挙動は？（フォールバック禁止原則との整合） → A: 集約失敗時は `ReviewReport.aggregated = None` のまま返し、エラー情報を ReviewReport に明示的に記録する。これはフォールバック（デフォルト値での処理続行）ではなく、オプショナルな enrichment ステップの結果が利用不可であることの明示的表現。エラーは隠蔽しない
+- Q: AggregatedReport の統合 issues の型は？ → A: 既存の `ReviewIssue` を再利用する。集約エージェントは重複排除後の issues を同じ型で返す。新規型は導入しない
+- Q: strengths（良い実装へのフィードバック）のデータ構造は？ → A: `list[str]` のシンプルな文字列リスト。各要素が1つのポジティブフィードバック。構造化モデルは導入しない
+- Q: recommended_actions のデータ構造は？ → A: `RecommendedAction(description: str, priority: Priority)` のリスト。既存の Priority enum（high/medium/low）を再利用し、優先度順でソート表示可能にする
+- Q: 集約エージェントへの入力範囲は？ → A: AgentSuccess と AgentTruncated の結果のみを渡す。AggregatedReport に `agent_failures: list[str]` を追加し、失敗エージェント名を記録する。集約結果のみを参照する消費者にもレビューの不完全性が伝わるようにする
+
 ### Session 2026-02-10 (Issue #148)
 
 - SelectorOutput に 4 つのメタデータフィールドを追加する: `change_intent`（str, default=""）、`affected_files`（list[str], default=[]）、`relevant_conventions`（list[str], default=[]）、`issue_context`（str, default=""）。全フィールドにデフォルト値を設定し後方互換性を確保する
@@ -151,6 +159,26 @@
 
 ---
 
+### User Story 7 - LLM ベースの結果集約 (Priority: P2, Issue #152)
+
+レビューエンジンが全エージェントの実行結果を LLM ベースの集約エージェントに入力し、重複排除・統合された AggregatedReport を生成する。AggregatedReport には統合 issues、strengths（良い実装へのフィードバック）、recommended_actions（優先度付き対応推奨）が含まれる。
+
+**Why this priority**: 基本的なレビュー実行（P1）が動作した後の品質向上機能。レビュー結果の実用性を大幅に向上させるが、集約なしでもレビュー自体は成立する。
+
+**Independent Test**: 複数エージェントの結果（重複する指摘を含む）を集約エージェントに渡し、AggregatedReport が生成されることで検証可能。
+
+**Acceptance Scenarios**:
+
+1. **Given** 3つのエージェントが同一の問題を異なる表現で報告している状態, **When** 集約を実行する, **Then** 重複が排除され統合された issues リスト（`ReviewIssue`）が AggregatedReport に含まれる
+2. **Given** レビュー対象に良い実装が含まれている状態, **When** 集約を実行する, **Then** strengths（`list[str]`）にポジティブフィードバックが含まれる
+3. **Given** 複数の指摘が存在する状態, **When** 集約を実行する, **Then** recommended_actions に優先度付き（`Priority`）の対応推奨が含まれる
+4. **Given** 一部のエージェントが失敗した状態, **When** 集約を実行する, **Then** AggregatedReport の `agent_failures` に失敗エージェント名が記録される
+5. **Given** 集約エージェントがタイムアウトまたはエラーで失敗した状態, **When** 集約に失敗する, **Then** `ReviewReport.aggregated = None` のまま、エラー情報が ReviewReport に記録され、Step 9 までの通常レポートが返される
+6. **Given** 設定で集約が無効化されている状態（`aggregation.enabled = false`）, **When** レビューを実行する, **Then** Step 9.5 がスキップされ `ReviewReport.aggregated = None` となる
+7. **Given** 全エージェントが失敗し有効な結果が0件の状態, **When** 結果集約を行う, **Then** 集約ステップをスキップし `ReviewReport.aggregated = None` となる
+
+---
+
 ### Edge Cases
 
 - diff モードで Git リポジトリ外から実行した場合、明確なエラーメッセージとともに終了コード 4（入力エラー）で終了する
@@ -168,6 +196,10 @@
 - セレクターエージェントが空のエージェントリストを返した場合、適用可能なエージェントが0件の場合と同様に扱う（空の ReviewReport で正常終了、終了コード 0）
 - エージェント定義（TOML）の `allowed_tools` にツールカタログに存在しないカテゴリ名が指定されている場合、FR-RE-016 のガードレールによりバリデーションエラーとなり、当該エージェントはレビュー実行から除外される
 - SelectorDefinition の `allowed_tools` にツールカタログに存在しないカテゴリ名が指定されている場合、FR-RE-016 のガードレールにより例外が送出され、レビュー実行は中断される（終了コード 3）
+- 集約エージェントが失敗した場合（タイムアウト・実行エラー・出力スキーマ違反）、`ReviewReport.aggregated = None` のまま、エラー情報を ReviewReport に記録する。終了コードには影響しない（Issue #152）
+- 全エージェントが失敗し集約への入力（AgentSuccess / AgentTruncated）が0件の場合、集約ステップをスキップする。`ReviewReport.aggregated = None`（Issue #152）
+- 設定で集約が無効化されている場合（`aggregation.enabled = false`）、Step 9.5 をスキップし `ReviewReport.aggregated = None`（Issue #152）
+- SIGINT/SIGTERM 受信時に集約ステップが実行中の場合、集約をキャンセルし Step 9 までの結果で部分レポートを生成する（`aggregated = None`）（Issue #152）
 
 ## Requirements *(mandatory)*
 
@@ -191,6 +223,7 @@
   7. **実行コンテキスト構築**: 選択された各エージェントに対して実行コンテキスト（モデル・ツール・プロンプト・タイムアウト・最大ターン数）を構築する
   8. **エージェント実行**: 逐次または並列でエージェントを実行する
   9. **結果集約**: 各エージェントの結果（AgentResult）を ReviewReport に集約する
+  9.5. **LLM ベース集約（オプショナル）**: 設定で集約が有効（デフォルト: 有効）の場合、AggregatorDefinition（TOML 定義）に基づいて集約エージェント（pydantic-ai エージェント）を構築・実行する。AgentSuccess と AgentTruncated の結果のみを入力とし、重複排除・統合した AggregatedReport を生成する。集約エージェント失敗時は `ReviewReport.aggregated = None` のまま、エラー情報を ReviewReport に記録する（Issue #152）
 
 - **FR-RE-003**: システムは個別エージェントの失敗（タイムアウト・実行エラー・出力スキーマ違反）を許容し、成功したエージェントの結果のみで ReviewReport を生成できなければならない（親仕様 FR-006）。失敗したエージェントは AgentError または AgentTimeout として ReviewReport に記録される。AgentTruncated（最大ターン数到達）は失敗ではなく、部分的な結果を持つ有効な状態として扱う
 
@@ -225,6 +258,7 @@
   - AgentResult のリスト（AgentSuccess / AgentTruncated / AgentError / AgentTimeout）
   - ReviewSummary（総問題数・最大重大度・総実行時間・総コスト情報）
   - 最大重大度は AgentSuccess および AgentTruncated の結果から決定する（AgentError・AgentTimeout は除外）
+  - `aggregated: AggregatedReport | None`（LLM ベース集約の結果。集約が無効、スキップ、または失敗の場合は `None`）（Issue #152）
 
 - **FR-RE-009**: システムは全エージェントが失敗した場合（ReviewReport 内に AgentSuccess と AgentTruncated がともに0件）、終了コード 3（実行エラー）を返さなければならない。1つ以上のエージェントが成功または切り詰め完了した場合は、002-domain-models の Severity マッピングに基づいて終了コード（0/1/2）を返す
 
@@ -255,6 +289,26 @@
   - カタログに存在しないツール名が指定された場合、レビューエージェント定義はバリデーションエラーとし LoadResult のエラー情報に記録する（FR-RE-014 と同様の伝達方法）。SelectorDefinition の場合は例外を送出する
   - カテゴリ名からそのカテゴリに属する個別の pydantic-ai ツールへのマッピングはエンジンが担当する
 
+- **FR-RE-017**: システムは AggregatorDefinition モデルを提供しなければならない（Issue #152）。AggregatorDefinition は SelectorDefinition と同じアーキテクチャパターン（TOML 定義 → pydantic-ai エージェント構築 → 構造化出力）に従う:
+  - `name: str`（`"aggregator"` 固定）
+  - `description: str`（集約エージェントの説明）
+  - `model: str`（使用する LLM モデル名）
+  - `system_prompt: str`（集約エージェントのシステムプロンプト）
+  - ビルトインの `aggregator.toml` から読み込まれ、カスタムの `aggregator.toml`（`.hachimoku/agents/aggregator.toml`）で上書き可能
+  - AggregatorDefinition は `allowed_tools` を持たない（集約エージェントはツールを使用せず、入力データのみから統合結果を生成する）
+
+- **FR-RE-018**: システムは AggregatedReport モデルを提供しなければならない（Issue #152）。AggregatedReport は集約エージェントの構造化出力であり、以下のフィールドを持つ:
+  - `issues: list[ReviewIssue]`（重複排除・統合された指摘リスト。既存の ReviewIssue を再利用）
+  - `strengths: list[str]`（良い実装に対するポジティブフィードバック。各要素が1つのフィードバック）
+  - `recommended_actions: list[RecommendedAction]`（優先度付き対応推奨。RecommendedAction は `description: str` と `priority: Priority` を持つ。既存の Priority enum を再利用）
+  - `agent_failures: list[str]`（失敗したエージェント名のリスト。集約結果のみを参照する消費者にレビューの不完全性を通知する）
+
+- **FR-RE-019**: システムは設定で LLM ベース集約の有効/無効を切替可能にしなければならない（Issue #152）。デフォルトは有効（`aggregation.enabled = true`）。無効の場合、FR-RE-002 Step 9.5 をスキップし `ReviewReport.aggregated = None` となる
+
+- **FR-RE-020**: システムはビルトインの `aggregator.toml` を同梱しなければならない（Issue #152）。`aggregator.toml` は重複排除・strengths 抽出・recommended_actions 生成を指示するシステムプロンプトを含む。セレクターと同様にカスタム TOML で上書き可能
+
+- **FR-RE-021**: 集約エージェント失敗時（タイムアウト・実行エラー・出力スキーマ違反）、システムは `ReviewReport.aggregated = None` のまま、エラー情報を ReviewReport に明示的に記録しなければならない（Issue #152）。レビューパイプライン全体はエラー終了せず、Step 9 までの通常の ReviewReport を返す。これはフォールバック（デフォルト値での処理続行）ではなく、オプショナルな enrichment ステップの結果が利用不可であることの明示的表現である
+
 ### Key Entities
 
 - **ReviewEngine（レビューエンジン）**: レビュー実行パイプライン全体を統括する処理。設定解決・エージェント読み込み・選択・実行・結果集約の全工程を調整する。入力モード・設定・エージェント定義を受け取り、ReviewReport を返す
@@ -267,6 +321,9 @@
 - **SelectorDefinition（セレクター定義）**: セレクターエージェントの TOML 定義情報。名前（`"selector"` 固定）、説明、モデル名、システムプロンプト、許可ツールカテゴリリストを保持する。ビルトインの `selector.toml` から読み込まれ、カスタムの `selector.toml` で上書き可能。AgentDefinition と同様のデータ駆動型アーキテクチャに従い、コード変更なしでセレクターのプロンプトやツール設定を変更可能（Issue #118）
 - **SelectorAgent（セレクターエージェント）**: pydantic-ai エージェントとして実行されるエージェント選択処理。SelectorDefinition（TOML 定義）からシステムプロンプト・モデル・許可ツールを取得し、SelectorConfig（設定）によるオーバーライド（モデル・タイムアウト・ターン数）を適用する。レビュー指示情報と利用可能なエージェント定義一覧（名前・説明・適用ルール・フェーズ）をプロンプトで受け取り、SelectorDefinition.allowed_tools で許可されたツールでレビュー対象を調査した上で、実行すべきエージェント名のリストをフェーズ順で構造化出力として返す。003-agent-definition の `file_patterns` / `content_patterns` は判断ガイダンスとして機能する
 - **ToolCatalog（ツールカタログ）**: エージェントに許可されるツールのカテゴリ定義と、カテゴリ名から pydantic-ai ツールオブジェクトへのマッピングを管理する処理。読み取り専用の3カテゴリ（`git_read`, `gh_read`, `file_read`）のみを登録する。エージェント定義の `allowed_tools` バリデーション（ガードレール）と、実行時のツール解決を担当する
+- **AggregatorDefinition（集約エージェント定義）**: 集約エージェントの TOML 定義情報。SelectorDefinition と同じアーキテクチャパターンに従う。名前（`"aggregator"` 固定）、説明、モデル名、システムプロンプトを保持する。ビルトインの `aggregator.toml` から読み込まれ、カスタムの `aggregator.toml` で上書き可能。`allowed_tools` は持たない（Issue #152）
+- **AggregatedReport（集約レポート）**: 集約エージェントの構造化出力。重複排除された `issues`（`ReviewIssue`）、`strengths`（`list[str]`）、優先度付き `recommended_actions`（`list[RecommendedAction]`）、`agent_failures`（`list[str]`）を含む（Issue #152）
+- **RecommendedAction（推奨アクション）**: 集約エージェントが生成する対応推奨。`description: str`（推奨内容）と `priority: Priority`（high/medium/low）を持つ（Issue #152）
 
 ## Success Criteria *(mandatory)*
 

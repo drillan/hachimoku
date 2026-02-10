@@ -197,6 +197,31 @@ class SelectorDefinition(HachimokuBaseModel):
 
 
 # =============================================================================
+# AggregatorDefinition（集約エージェント定義）
+# =============================================================================
+
+
+class AggregatorDefinition(HachimokuBaseModel):
+    """集約エージェントの定義。aggregator.toml から構築される。
+
+    SelectorDefinition と同じアーキテクチャパターンに従う。
+    セレクターとは異なり、allowed_tools を持たない（ツール不使用）。
+    出力は AggregatedReport に固定。
+
+    Attributes:
+        name: 集約エージェント名。
+        description: 集約エージェントの説明。
+        model: 使用する LLM モデル名（None の場合はグローバル設定を使用）。
+        system_prompt: 集約エージェントのシステムプロンプト。
+    """
+
+    name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
+    description: str = Field(min_length=1)
+    model: str | None = Field(default=None, min_length=1)
+    system_prompt: str = Field(min_length=1)
+
+
+# =============================================================================
 # LoadResult（読み込み結果）
 # =============================================================================
 

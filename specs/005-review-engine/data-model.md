@@ -13,8 +13,10 @@
 | results | `list[AgentResult]` | — | エージェント実行結果リスト |
 | summary | `ReviewSummary` | — | レビューサマリー |
 | **load_errors** | `tuple[LoadError, ...]` | `()` | エージェント読み込みエラー（FR-RE-014） |
+| **aggregated** | `AggregatedReport \| None` | `None` | LLM ベース集約の結果（FR-RE-008, Issue #152） |
+| **aggregation_error** | `str \| None` | `None` | 集約エージェント失敗時のエラー情報（FR-RE-021, Issue #152） |
 
-**変更理由**: FR-RE-014 により、LoadResult のスキップ情報を ReviewReport にも記録する。
+**変更理由**: FR-RE-014 により、LoadResult のスキップ情報を ReviewReport にも記録する。Issue #152 により、LLM ベース集約結果とエラー情報のフィールドを追加。
 
 ## 新規モデル
 
@@ -101,6 +103,50 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 | selected_agents | `list[str]` | 実行すべきエージェント名リスト |
 | reasoning | `str` | 選択理由（デバッグ用） |
 
+### AggregatorDefinition（集約エージェント定義）
+
+**ファイル**: `src/hachimoku/agents/models.py`
+
+集約エージェントの TOML 定義。SelectorDefinition と同じアーキテクチャパターンに従う。
+ビルトインの `aggregator.toml` から読み込まれる。（Issue #152）
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | `str` | 集約エージェント名（`"aggregator"` 固定） |
+| description | `str` | 集約エージェントの説明 |
+| model | `str` | 使用する LLM モデル名 |
+| system_prompt | `str` | 集約エージェントのシステムプロンプト |
+
+- `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
+- SelectorDefinition と異なり、`allowed_tools` を持たない（集約エージェントはツール不使用）
+- 出力は `AggregatedReport` に固定
+
+### AggregatedReport（集約レポート）
+
+**ファイル**: `src/hachimoku/engine/_aggregator.py`
+
+集約エージェントの構造化出力。（Issue #152）
+
+| Field | Type | Description |
+|-------|------|-------------|
+| issues | `list[ReviewIssue]` | 重複排除・統合された指摘リスト |
+| strengths | `list[str]` | 良い実装に対するポジティブフィードバック |
+| recommended_actions | `list[RecommendedAction]` | 優先度付き対応推奨 |
+| agent_failures | `list[str]` | 失敗したエージェント名リスト（不完全性の通知用） |
+
+### RecommendedAction（推奨アクション）
+
+**ファイル**: `src/hachimoku/engine/_aggregator.py`
+
+集約エージェントが生成する対応推奨。（Issue #152）
+
+| Field | Type | Description |
+|-------|------|-------------|
+| description | `str` | 推奨アクションの内容 |
+| priority | `Priority` | 優先度（high/medium/low）。既存の Priority enum を再利用 |
+
+- `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
+
 ### EngineResult（エンジン実行結果）
 
 **ファイル**: `src/hachimoku/engine/_engine.py`
@@ -157,8 +203,17 @@ ReviewEngine
   │     ├── input: AgentExecutionContext
   │     └── output: AgentResult
   │
+  ├── AggregatorDefinition ──── (TOML 定義から読み込み, Issue #152)
+  │     └── name, description, model, system_prompt
+  │
+  ├── AggregatedReport ─────── (集約エージェント出力, Issue #152)
+  │     ├── issues: list[ReviewIssue]
+  │     ├── strengths: list[str]
+  │     ├── recommended_actions: list[RecommendedAction]
+  │     └── agent_failures: list[str]
+  │
   └── EngineResult
-        ├── report: ReviewReport
+        ├── report: ReviewReport (aggregated: AggregatedReport | None)
         └── exit_code: int
 ```
 
@@ -181,6 +236,15 @@ HachimokuConfig.model ──┤  ← グローバル設定
 
 セレクターの timeout, max_turns:
   SelectorConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
+
+集約エージェントのモデル解決 (Issue #152):
+  AggregationConfig.model > AggregatorDefinition.model > HachimokuConfig.model > default("anthropic:claude-sonnet-4-5")
+
+集約の timeout, max_turns (Issue #152):
+  AggregationConfig.X > HachimokuConfig.X > HachimokuConfig デフォルト値
+
+集約の有効/無効 (Issue #152):
+  aggregation.enabled (default: true)
 ```
 
 ## 状態遷移
@@ -219,6 +283,12 @@ Start
   ├── エージェント実行 ──── (Sequential or Parallel)
   │     └── SIGINT/SIGTERM → グレースフルシャットダウン
   ├── 結果集約 ──── (ReviewReport)
+  ├── LLM ベース集約 ──── (Step 9.5, Issue #152)
+  │     ├── 集約有効 + 有効結果あり → AggregatedReport
+  │     ├── 集約有効 + 有効結果0件 → スキップ (aggregated=None)
+  │     ├── 集約有効 + 失敗 → aggregated=None, エラー記録
+  │     ├── 集約無効 → スキップ (aggregated=None)
+  │     └── SIGINT/SIGTERM → キャンセル (aggregated=None)
   └── 終了コード判定
         ├── 全失敗 → exit_code=3
         └── 1つ以上成功 → determine_exit_code(max_severity)

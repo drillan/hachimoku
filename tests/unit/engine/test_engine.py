@@ -28,6 +28,7 @@ from hachimoku.agents.models import (
     Phase,
 )
 from hachimoku.models.exit_code import ExitCode
+from hachimoku.engine._aggregator import AggregatorError
 from hachimoku.engine._engine import (
     SHUTDOWN_TIMEOUT_SECONDS,
     EngineResult,
@@ -37,6 +38,7 @@ from hachimoku.engine._engine import (
 )
 from hachimoku.engine._resolver import ContentResolveError
 from hachimoku.engine._selector import SelectorError, SelectorOutput
+from hachimoku.models.config import AggregationConfig
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import (
@@ -46,7 +48,7 @@ from hachimoku.models.agent_result import (
     AgentTruncated,
 )
 from hachimoku.models.config import HachimokuConfig
-from hachimoku.models.report import ReviewReport
+from hachimoku.models.report import AggregatedReport, ReviewReport
 from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity
 
@@ -1168,3 +1170,203 @@ class TestExecuteWithShutdownTimeout:
 
         assert "Shutdown timeout" in captured.getvalue()
         assert "1 partial result(s)" in captured.getvalue()
+
+
+# =============================================================================
+# run_review — Step 9.5: 集約エージェント統合 (Issue #152)
+# =============================================================================
+
+
+class TestRunReviewAggregation:
+    """run_review の Step 9.5 集約エージェント統合テスト。
+
+    Issue #152: LLM ベース結果集約。
+    """
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_success_populates_aggregated(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """集約成功時に report.aggregated が設定される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        agg_report = AggregatedReport(
+            issues=[],
+            strengths=["Good code"],
+            recommended_actions=[],
+            agent_failures=[],
+        )
+        mock_run_aggregator.return_value = agg_report
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is not None
+        assert result.report.aggregated.strengths == ["Good code"]
+        assert result.report.aggregation_error is None
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_disabled_skips(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """aggregation.enabled=False の場合、集約がスキップされる。"""
+        mock_config.return_value = HachimokuConfig(
+            aggregation=AggregationConfig(enabled=False),
+        )
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is None
+        mock_load_aggregator.assert_not_called()
+        mock_run_aggregator.assert_not_called()
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_skipped_when_no_valid_results(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """有効結果なし（全エージェント失敗）の場合、集約がスキップされる。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_error("agent-a")]
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        mock_load_aggregator.assert_not_called()
+        mock_run_aggregator.assert_not_called()
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_failure_sets_error(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """集約エージェント失敗時に aggregation_error が設定される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+        mock_run_aggregator.side_effect = AggregatorError("Aggregator timeout")
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is not None
+        assert "Aggregator timeout" in result.report.aggregation_error
+        # パイプライン自体は失敗しない（exit_code は集約前と同じ）
+        assert result.exit_code == ExitCode.SUCCESS
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_load_aggregator_failure_sets_error(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """load_aggregator 失敗時に aggregation_error が設定される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+        mock_load_aggregator.side_effect = FileNotFoundError(
+            "aggregator.toml not found"
+        )
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is not None
+        assert "aggregator.toml" in result.report.aggregation_error
+        mock_run_aggregator.assert_not_called()

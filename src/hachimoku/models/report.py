@@ -2,20 +2,64 @@
 
 FR-DM-004: ReviewReport による結果集約。
 FR-RE-014: load_errors フィールド。
+FR-RE-018: AggregatedReport / RecommendedAction / Priority（Issue #152）。
 """
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import AgentResult, CostInfo
+from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity
 
 if TYPE_CHECKING:
     from hachimoku.agents.models import LoadError
+
+
+class Priority(StrEnum):
+    """推奨アクションの優先度。
+
+    RecommendedAction で使用される。Severity（問題重大度）とは別の概念。
+    """
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class RecommendedAction(HachimokuBaseModel):
+    """集約エージェントが生成する推奨アクション。
+
+    Attributes:
+        description: 推奨アクションの内容。
+        priority: 優先度（high/medium/low）。
+    """
+
+    description: str = Field(min_length=1)
+    priority: Priority
+
+
+class AggregatedReport(HachimokuBaseModel):
+    """集約エージェントの構造化出力。
+
+    FR-RE-018: 重複排除された issues、strengths、推奨アクション、失敗エージェント情報。
+
+    Attributes:
+        issues: 重複排除・統合された指摘リスト。
+        strengths: 良い実装に対するポジティブフィードバック。
+        recommended_actions: 優先度付き推奨アクション。
+        agent_failures: 失敗したエージェント名リスト（不完全性の通知用）。
+    """
+
+    issues: list[ReviewIssue]
+    strengths: list[str]
+    recommended_actions: list[RecommendedAction]
+    agent_failures: list[str]
 
 
 class ReviewSummary(HachimokuBaseModel):
@@ -58,8 +102,12 @@ class ReviewReport(HachimokuBaseModel):
         results: エージェント結果のリスト。
         summary: レビュー結果の全体サマリー。
         load_errors: エージェント読み込みエラーのタプル（FR-RE-014）。
+        aggregated: LLM ベース集約結果（Issue #152）。None は集約なし/無効/失敗。
+        aggregation_error: 集約エージェント失敗時のエラー情報（Issue #152）。
     """
 
     results: list[AgentResult]
     summary: ReviewSummary
     load_errors: tuple[LoadError, ...] = ()
+    aggregated: AggregatedReport | None = None
+    aggregation_error: str | None = None

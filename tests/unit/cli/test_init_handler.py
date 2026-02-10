@@ -24,6 +24,7 @@ from hachimoku.cli._init_handler import (
 # --- ビルトインエージェント定義ファイル名（ソート済み） ---
 
 BUILTIN_AGENT_NAMES: tuple[str, ...] = (
+    "aggregator.toml",
     "code-reviewer.toml",
     "code-simplifier.toml",
     "comment-analyzer.toml",
@@ -349,8 +350,8 @@ class TestRunInit:
         (agents_dir / "code-reviewer.toml").write_text("custom")
 
         result = run_init(tmp_path)
-        # config.toml + 6 agents (selector.toml 含む) = 7 created
-        assert len(result.created) == 7
+        # config.toml + 7 agents (selector.toml, aggregator.toml 含む) = 8 created
+        assert len(result.created) == 8
         # code-reviewer.toml は skipped
         assert len(result.skipped) == 1
 
