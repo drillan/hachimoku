@@ -476,10 +476,10 @@ class TestRunAgentErrorDiagnostics:
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._runner.Agent")
-    async def test_cli_execution_error_empty_stderr_stored_as_none(
+    async def test_cli_execution_error_empty_stderr_preserved(
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
-        """CLIExecutionError の空 stderr は None として保存される。"""
+        """CLIExecutionError の空 stderr は空文字列として保存される。"""
         mock_instance = mock_agent_cls.return_value
         mock_instance.run = AsyncMock(
             side_effect=CLIExecutionError(
@@ -490,7 +490,7 @@ class TestRunAgentErrorDiagnostics:
         result = await run_agent(ctx)
 
         assert isinstance(result, AgentError)
-        assert result.stderr is None
+        assert result.stderr == ""
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._runner.Agent")

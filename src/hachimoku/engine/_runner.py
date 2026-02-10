@@ -128,7 +128,7 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
         if isinstance(exc, CLIExecutionError):
             exit_code = exc.exit_code
             error_type = exc.error_type
-            stderr = exc.stderr if exc.stderr else None
+            stderr = exc.stderr
 
         return AgentError(
             agent_name=context.agent_name,

@@ -8,6 +8,7 @@ R-006: SelectorOutput モデル定義。
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Sequence
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
@@ -21,6 +22,8 @@ from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
+
+logger = logging.getLogger(__name__)
 
 
 class SelectorOutput(HachimokuBaseModel):
@@ -132,4 +135,10 @@ async def run_selector(
         return result.output
 
     except Exception as exc:
+        logger.warning(
+            "Selector agent failed with %s: %s",
+            type(exc).__name__,
+            exc,
+            exc_info=True,
+        )
         raise SelectorError(f"Selector agent failed: {exc}") from exc

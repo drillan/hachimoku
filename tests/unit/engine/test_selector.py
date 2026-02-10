@@ -477,7 +477,7 @@ class TestRunSelectorModelSettings:
     async def test_model_settings_max_turns_passed(
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
-        """agent.run() に model_settings={"max_turns": N} が渡される。"""
+        """agent.run() に model_settings={"max_turns": N, "timeout": T} が渡される。"""
         mock_instance = MagicMock()
         mock_instance.run = _make_mock_agent_run()
         mock_agent_cls.return_value = mock_instance
