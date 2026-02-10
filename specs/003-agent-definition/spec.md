@@ -71,7 +71,7 @@
 
 ### User Story 4 - ビルトイン6エージェントの定義提供 (Priority: P1)
 
-システムが6つの専門レビューエージェント（コードレビュー、サイレント障害検出、テスト分析、型設計分析、コメント分析、コード簡潔化）を TOML 定義ファイルとして標準提供する。各エージェントは専門領域に特化した適用ルールとシステムプロンプトを持つ。
+システムが6つの専門レビューエージェント（コードレビュー、サイレント障害検出、テスト分析、型安全性分析、コメント分析、コード簡潔化）を TOML 定義ファイルとして標準提供する。各エージェントは専門領域に特化した適用ルールとシステムプロンプトを持つ。
 
 **Why this priority**: ビルトインエージェントは基本レビュー実行の構成要素であり、エンドユーザーが何も設定しなくても有用なレビューが得られるために必須。
 
@@ -129,7 +129,7 @@
   - **code-reviewer**: コード品質・バグ・ベストプラクティスのレビュー。出力スキーマ: `scored_issues`
   - **silent-failure-hunter**: サイレント障害・エラーハンドリング不備の検出。出力スキーマ: `severity_classified`
   - **pr-test-analyzer**: テストカバレッジの欠落・テスト品質の分析。出力スキーマ: `test_gap_assessment`
-  - **type-design-analyzer**: 型設計・インターフェース設計の分析。出力スキーマ: `multi_dimensional_analysis`
+  - **type-design-analyzer**: 型アノテーション・型安全性の実用分析。出力スキーマ: `multi_dimensional_analysis`
   - **comment-analyzer**: コードコメントの正確性・品質の分析。出力スキーマ: `category_classification`
   - **code-simplifier**: コードの簡潔化・改善提案。出力スキーマ: `improvement_suggestions`
 

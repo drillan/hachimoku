@@ -142,7 +142,7 @@ CLI やレビューエンジン（006-cli-interface, 005-review-engine）が、�
 - **ScoredIssues（スコア付き問題）**: BaseAgentOutput を継承。数値スコアとレビュー問題のリストを組み合わせた出力スキーマ。コードレビューエージェント等が使用する
 - **SeverityClassified（重大度分類問題）**: BaseAgentOutput を継承。重大度でグループ化されたレビュー問題リストの出力スキーマ。サイレント障害検出エージェント等が使用する
 - **TestGapAssessment（テストギャップ評価）**: BaseAgentOutput を継承。テストカバレッジの欠落を評価する出力スキーマ。テスト分析エージェントが使用する
-- **MultiDimensionalAnalysis（多次元分析）**: BaseAgentOutput を継承。複数の評価軸でスコアリングする出力スキーマ。型設計分析エージェントが使用する
+- **MultiDimensionalAnalysis（多次元分析）**: BaseAgentOutput を継承。複数の評価軸でスコアリングする出力スキーマ。型安全性分析エージェントが使用する
 - **CategoryClassification（カテゴリ分類）**: BaseAgentOutput を継承。カテゴリ別に問題を分類する出力スキーマ。コメント分析エージェントが使用する
 - **ImprovementSuggestions（改善提案）**: BaseAgentOutput を継承。具体的な改善提案のリストを提供する出力スキーマ。コード簡潔化エージェントが使用する
 - **ToolCategory（ツールカテゴリ）**: エージェントに許可されるツールのカテゴリを表す StrEnum 列挙型。git_read（Git 読み取り）、gh_read（GitHub 読み取り）、file_read（ファイル読み取り）の3カテゴリを定義する。004-configuration の allowed_tools バリデーションと 005-review-engine の ToolCatalog が参照する共有定義。循環依存回避のため 002-domain-models に配置する

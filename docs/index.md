@@ -20,7 +20,7 @@ hachimoku（8moku）は、複数の専門エージェントを用いてコード
 - code-reviewer: コード品質・バグ検出
 - silent-failure-hunter: サイレント障害の検出
 - pr-test-analyzer: テストカバレッジの評価
-- type-design-analyzer: 型設計の分析
+- type-design-analyzer: 型アノテーション・型安全性の実用分析
 - comment-analyzer: コメントの正確性分析
 - code-simplifier: コード簡潔化の提案
 

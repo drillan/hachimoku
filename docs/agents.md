@@ -18,7 +18,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 | code-reviewer | コード品質・バグ検出 | scored_issues | main | 常時適用 |
 | silent-failure-hunter | サイレント障害の検出 | severity_classified | main | content_patterns |
 | pr-test-analyzer | テストカバレッジの評価 | test_gap_assessment | main | file_patterns |
-| type-design-analyzer | 型設計の分析 | multi_dimensional_analysis | main | file_patterns + content_patterns |
+| type-design-analyzer | 型アノテーション・型安全性の実用分析 | multi_dimensional_analysis | main | file_patterns + content_patterns |
 | comment-analyzer | コメントの正確性分析 | category_classification | final | content_patterns |
 | code-simplifier | コード簡潔化の提案 | improvement_suggestions | final | 常時適用 |
 
