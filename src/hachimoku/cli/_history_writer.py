@@ -58,18 +58,23 @@ def _resolve_jsonl_path(
     assert_never(target)
 
 
-def get_commit_hash() -> str:
-    """現在の HEAD コミットハッシュ（40文字16進小文字）を取得する。
+def _run_git_command(args: list[str]) -> str:
+    """git コマンドを実行し、stdout を返す共通ヘルパー。
+
+    Args:
+        args: git サブコマンドと引数のリスト（例: ``["rev-parse", "HEAD"]``）。
 
     Returns:
-        40文字のコミットハッシュ。
+        コマンドの stdout（前後空白除去済み）。
 
     Raises:
         GitInfoError: git コマンド失敗・未インストール・タイムアウト時。
     """
+    cmd = ["git", *args]
+    cmd_str = " ".join(cmd)
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            cmd,
             capture_output=True,
             text=True,
             check=True,
@@ -81,11 +86,23 @@ def get_commit_hash() -> str:
         ) from None
     except subprocess.TimeoutExpired as exc:
         raise GitInfoError(
-            f"git rev-parse timed out after {_GIT_TIMEOUT_SECONDS}s."
+            f"{cmd_str} timed out after {_GIT_TIMEOUT_SECONDS}s."
         ) from exc
     except subprocess.CalledProcessError as exc:
-        raise GitInfoError(f"git rev-parse failed: {exc.stderr.strip()}") from exc
+        raise GitInfoError(f"{cmd_str} failed: {exc.stderr.strip()}") from exc
     return result.stdout.strip()
+
+
+def get_commit_hash() -> str:
+    """現在の HEAD コミットハッシュ（40文字16進小文字）を取得する。
+
+    Returns:
+        40文字のコミットハッシュ。
+
+    Raises:
+        GitInfoError: git コマンド失敗・未インストール・タイムアウト時。
+    """
+    return _run_git_command(["rev-parse", "HEAD"])
 
 
 def get_branch_name() -> str:
@@ -99,25 +116,7 @@ def get_branch_name() -> str:
     Raises:
         GitInfoError: git コマンド失敗・未インストール・タイムアウト時。
     """
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except FileNotFoundError:
-        raise GitInfoError(
-            "git command not found. Ensure git is installed and available in PATH."
-        ) from None
-    except subprocess.TimeoutExpired as exc:
-        raise GitInfoError(
-            f"git rev-parse timed out after {_GIT_TIMEOUT_SECONDS}s."
-        ) from exc
-    except subprocess.CalledProcessError as exc:
-        raise GitInfoError(f"git rev-parse failed: {exc.stderr.strip()}") from exc
-    return result.stdout.strip()
+    return _run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
 
 
 def _build_record(
