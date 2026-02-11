@@ -1286,12 +1286,17 @@ class TestRunReviewAggregation:
     ) -> None:
         """集約成功時に report.aggregated が設定される。"""
         mock_config.return_value = HachimokuConfig()
-        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_load.return_value = LoadResult(
+            agents=(_make_agent("agent-a"), _make_agent("agent-b"))
+        )
         mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
-            selected_agents=["agent-a"], reasoning="Applicable"
+            selected_agents=["agent-a", "agent-b"], reasoning="Applicable"
         )
-        mock_execute.return_value = [_make_success("agent-a")]
+        mock_execute.return_value = [
+            _make_success("agent-a"),
+            _make_success("agent-b"),
+        ]
 
         agg_report = AggregatedReport(
             issues=[],
@@ -1399,12 +1404,17 @@ class TestRunReviewAggregation:
     ) -> None:
         """集約エージェント失敗時に aggregation_error が設定される。"""
         mock_config.return_value = HachimokuConfig()
-        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_load.return_value = LoadResult(
+            agents=(_make_agent("agent-a"), _make_agent("agent-b"))
+        )
         mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
-            selected_agents=["agent-a"], reasoning="Applicable"
+            selected_agents=["agent-a", "agent-b"], reasoning="Applicable"
         )
-        mock_execute.return_value = [_make_success("agent-a")]
+        mock_execute.return_value = [
+            _make_success("agent-a"),
+            _make_success("agent-b"),
+        ]
         mock_run_aggregator.side_effect = AggregatorError("Aggregator timeout")
 
         result = await run_review(target=_make_target())
@@ -1436,12 +1446,17 @@ class TestRunReviewAggregation:
     ) -> None:
         """load_aggregator 失敗時に aggregation_error が設定される。"""
         mock_config.return_value = HachimokuConfig()
-        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_load.return_value = LoadResult(
+            agents=(_make_agent("agent-a"), _make_agent("agent-b"))
+        )
         mock_resolve_content.return_value = "test diff"
         mock_selector.return_value = SelectorOutput(
-            selected_agents=["agent-a"], reasoning="Applicable"
+            selected_agents=["agent-a", "agent-b"], reasoning="Applicable"
         )
-        mock_execute.return_value = [_make_success("agent-a")]
+        mock_execute.return_value = [
+            _make_success("agent-a"),
+            _make_success("agent-b"),
+        ]
         mock_load_aggregator.side_effect = FileNotFoundError(
             "aggregator.toml not found"
         )
@@ -1496,3 +1511,175 @@ class TestRunReviewAggregation:
         assert result.report.aggregation_error is None
         mock_load_aggregator.assert_not_called()
         mock_run_aggregator.assert_not_called()
+
+    # ── Issue #174: 単一エージェント成功時のスキップ ──
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_skipped_when_single_successful_agent(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """有効結果が1件（AgentSuccess）のみの場合、集約がスキップされる。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_success("agent-a")]
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is None
+        mock_load_aggregator.assert_not_called()
+        mock_run_aggregator.assert_not_called()
+        captured = capsys.readouterr()
+        assert "skipped" in captured.err.lower()
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_skipped_when_single_truncated_agent(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """有効結果が1件（AgentTruncated）のみの場合、集約がスキップされる。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(agents=(_make_agent("agent-a"),))
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [_make_truncated("agent-a")]
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is None
+        mock_load_aggregator.assert_not_called()
+        mock_run_aggregator.assert_not_called()
+        captured = capsys.readouterr()
+        assert "skipped" in captured.err.lower()
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_skipped_when_one_success_and_failures(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """成功1件+失敗2件=有効結果1件の場合、集約がスキップされる。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(
+            agents=(
+                _make_agent("agent-a"),
+                _make_agent("agent-b"),
+                _make_agent("agent-c"),
+            )
+        )
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a", "agent-b", "agent-c"],
+            reasoning="Applicable",
+        )
+        mock_execute.return_value = [
+            _make_success("agent-a"),
+            _make_error("agent-b"),
+            _make_timeout("agent-c"),
+        ]
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is None
+        assert result.report.aggregation_error is None
+        mock_load_aggregator.assert_not_called()
+        mock_run_aggregator.assert_not_called()
+        captured = capsys.readouterr()
+        assert "skipped" in captured.err.lower()
+
+    @patch("hachimoku.engine._engine.run_aggregator")
+    @patch("hachimoku.engine._engine.load_aggregator")
+    @patch("hachimoku.engine._engine.execute_parallel")
+    @patch("hachimoku.engine._engine.run_selector")
+    @patch("hachimoku.engine._engine.resolve_content", new_callable=AsyncMock)
+    @patch("hachimoku.engine._engine.load_selector")
+    @patch("hachimoku.engine._engine.load_agents")
+    @patch("hachimoku.engine._engine.resolve_config")
+    async def test_aggregation_runs_when_two_successful_agents(
+        self,
+        mock_config: MagicMock,
+        mock_load: MagicMock,
+        _mock_load_selector: MagicMock,
+        mock_resolve_content: AsyncMock,
+        mock_selector: AsyncMock,
+        mock_execute: AsyncMock,
+        mock_load_aggregator: MagicMock,
+        mock_run_aggregator: AsyncMock,
+    ) -> None:
+        """有効結果が2件以上の場合、集約が実行される。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_load.return_value = LoadResult(
+            agents=(_make_agent("agent-a"), _make_agent("agent-b"))
+        )
+        mock_resolve_content.return_value = "test diff"
+        mock_selector.return_value = SelectorOutput(
+            selected_agents=["agent-a", "agent-b"], reasoning="Applicable"
+        )
+        mock_execute.return_value = [
+            _make_success("agent-a"),
+            _make_success("agent-b"),
+        ]
+        agg_report = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+        )
+        mock_run_aggregator.return_value = agg_report
+
+        result = await run_review(target=_make_target())
+
+        assert result.report.aggregated is not None
+        mock_load_aggregator.assert_called_once()

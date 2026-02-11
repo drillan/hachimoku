@@ -304,9 +304,17 @@ async def _run_aggregation_step(
     if not config.aggregation.enabled:
         return report
 
-    # 有効結果なし → スキップ
-    has_valid = any(isinstance(r, (AgentSuccess, AgentTruncated)) for r in results)
-    if not has_valid:
+    # 有効結果なし or 1件のみ → スキップ（重複排除不要）
+    valid_count = sum(
+        1 for r in results if isinstance(r, (AgentSuccess, AgentTruncated))
+    )
+    if valid_count == 0:
+        return report
+    if valid_count == 1:
+        print(
+            "Aggregation skipped: only 1 valid result (no deduplication needed)",
+            file=sys.stderr,
+        )
         return report
 
     # 集約エージェント定義読み込み
