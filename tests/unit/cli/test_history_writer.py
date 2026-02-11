@@ -169,7 +169,7 @@ class TestGetCommitHash:
     )
     def test_git_failure_raises_git_info_error(self, _mock: object) -> None:
         """git コマンド失敗時に GitInfoError。"""
-        with pytest.raises(GitInfoError, match="git rev-parse failed"):
+        with pytest.raises(GitInfoError, match="git rev-parse HEAD failed"):
             get_commit_hash()
 
 
@@ -220,7 +220,9 @@ class TestGetBranchName:
     )
     def test_git_failure_raises_git_info_error(self, _mock: object) -> None:
         """git コマンド失敗時に GitInfoError。"""
-        with pytest.raises(GitInfoError, match="git rev-parse failed"):
+        with pytest.raises(
+            GitInfoError, match="git rev-parse --abbrev-ref HEAD failed"
+        ):
             get_branch_name()
 
 
