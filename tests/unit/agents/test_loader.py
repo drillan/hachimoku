@@ -609,6 +609,21 @@ class TestBuiltinAgentSystemPromptStructure:
             f"{agent_name}: system_prompt contains backslash"
         )
 
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_contains_confidence_filtering_section(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """system_prompt に Confidence Filtering セクションを含む。"""
+        agent = _find_agent(builtin_agents, agent_name)
+        assert "## Confidence Filtering" in agent.system_prompt, (
+            f"{agent_name}: system_prompt does not contain Confidence Filtering section"
+        )
+
 
 # =============================================================================
 # ヘルパー（セレクター用）

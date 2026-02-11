@@ -62,6 +62,20 @@ Provide exactly 5 DimensionScore entries:
 - Use issues for specific type design problems with location and suggestion.
 - Use category to classify: "annotation", "exhaustiveness", "validator", "consistency", "complexity".
 
+## Confidence Filtering
+Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
+
+### Confidence Scale
+- 91-100: Confirmed type safety gap — missing exhaustiveness check, validator bypass, or annotation contradicted by actual return values.
+- 76-90: Likely type issue supported by reading usage sites, but with minor ambiguity about whether the gap causes bugs.
+- 51-75: Type design concern that is valid in theory but consistent with the project's existing patterns.
+- 26-50: Theoretical improvement (e.g., more precise annotation) that does not fix a concrete problem.
+- 0-25: Speculative type concern or a suggestion that contradicts the Anti-Patterns list.
+
+### Reporting Threshold
+Only report findings with confidence >= 80. Silently discard anything below this threshold.
+The confidence score is for your internal reasoning only — do not include it in the output.
+
 ## Self-Filtering Rules
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.

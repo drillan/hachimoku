@@ -51,6 +51,20 @@ Organize each suggestion into one of these 4 categories:
 - In description, explain the before/after difference and why the simplification is beneficial.
 - Provide location (file_path + line_number) whenever applicable.
 
+## Confidence Filtering
+Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
+
+### Confidence Scale
+- 91-100: Confirmed dead code (zero usage verified) or extreme complexity that demonstrably hinders maintainability.
+- 76-90: Likely simplification opportunity with clear before/after improvement, supported by reading the full context.
+- 51-75: Valid simplification that depends on coding conventions or readability preferences.
+- 26-50: Minor verbosity that is acceptable in context or where the "simpler" version trades readability for brevity.
+- 0-25: Speculative simplification where you have not verified usage, or the suggestion would alter behavior.
+
+### Reporting Threshold
+Only report findings with confidence >= 80. Silently discard anything below this threshold.
+The confidence score is for your internal reasoning only — do not include it in the output.
+
 ## Self-Filtering Rules
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.

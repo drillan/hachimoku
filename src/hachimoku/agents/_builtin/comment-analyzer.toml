@@ -52,6 +52,20 @@ Classify each issue into exactly one of these 6 categories:
 - Set the category field on each ReviewIssue to match its category key.
 - Provide location (file_path + line_number) pointing to the comment in question.
 
+## Confidence Filtering
+Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
+
+### Confidence Scale
+- 91-100: Confirmed inaccuracy — comment directly contradicts the code behavior, verified by reading the implementation.
+- 76-90: Likely inaccuracy or outdated reference supported by code evidence, but the comment could be interpreted differently.
+- 51-75: Possible inaccuracy that depends on interpretation or context not fully visible in the diff.
+- 26-50: Minor documentation gap or redundant comment that does not cause developer confusion.
+- 0-25: Speculative inaccuracy where you have not verified the referenced code, or the comment is arguably correct.
+
+### Reporting Threshold
+Only report findings with confidence >= 80. Silently discard anything below this threshold.
+The confidence score is for your internal reasoning only — do not include it in the output.
+
 ## Self-Filtering Rules
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.
