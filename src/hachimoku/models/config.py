@@ -24,6 +24,9 @@ _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
 DEFAULT_TIMEOUT_SECONDS: Final[int] = 600
 DEFAULT_MAX_TURNS: Final[int] = 20
 
+# referenced_content のサイズ上限（Issue #172）
+DEFAULT_REFERENCED_CONTENT_MAX_CHARS: Final[int] = 5000
+
 
 class OutputFormat(StrEnum):
     """レビュー結果の出力形式。FR-CF-002."""
@@ -43,6 +46,9 @@ class SelectorConfig(HachimokuBaseModel):
     model: str | None = Field(default=None, min_length=1)
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
+    referenced_content_max_chars: int = Field(
+        default=DEFAULT_REFERENCED_CONTENT_MAX_CHARS, gt=0
+    )
 
 
 class AgentConfig(HachimokuBaseModel):
