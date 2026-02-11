@@ -51,6 +51,20 @@ Set risk_level based on overall test adequacy:
 - Set risk_level to the overall assessment of test coverage adequacy.
 - Provide location (file_path + line_number) for test quality issues.
 
+## Confidence Filtering
+Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
+
+### Confidence Scale
+- 91-100: Confirmed missing test — critical code path has no test and no assertion covers the changed behavior.
+- 76-90: Likely coverage gap — code path is complex enough to warrant a test and none was found, but existing tests may partially cover it.
+- 51-75: Possible gap that depends on project testing conventions or risk tolerance.
+- 26-50: Minor coverage opportunity for edge cases where existing tests provide adequate regression protection.
+- 0-25: Speculative gap for trivial code (getters, configuration) or code already covered by integration tests.
+
+### Reporting Threshold
+Only report findings with confidence >= 80. Silently discard anything below this threshold.
+The confidence score is for your internal reasoning only — do not include it in the output.
+
 ## Self-Filtering Rules
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.

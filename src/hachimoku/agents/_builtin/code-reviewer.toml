@@ -49,6 +49,20 @@ Set overall_score on a 0.0-10.0 scale:
 - Write a concrete suggestion for each issue explaining how to fix it.
 - Use category to classify: "bug", "security", "performance", "error-handling", "style".
 
+## Confidence Filtering
+Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
+
+### Confidence Scale
+- 91-100: Confirmed bugs, verified security vulnerabilities, or clear rule violations found by reading the actual code.
+- 76-90: Likely bugs or important best-practice violations supported by code evidence, but with some ambiguity in context.
+- 51-75: Valid concerns that are context-dependent or low-impact; the code works but could be improved.
+- 26-50: Stylistic preferences or patterns that are acceptable in context; likely not worth changing.
+- 0-25: Speculative issues with no evidence from the code; probably false positives.
+
+### Reporting Threshold
+Only report findings with confidence >= 80. Silently discard anything below this threshold.
+The confidence score is for your internal reasoning only — do not include it in the output.
+
 ## Self-Filtering Rules
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.

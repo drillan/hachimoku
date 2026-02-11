@@ -45,6 +45,20 @@ Place each issue in the appropriate list:
 - Provide location (file_path + line_number) pointing to the exact error handling block.
 - Write a concrete suggestion explaining the proper error propagation strategy.
 
+## Confidence Filtering
+Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
+
+### Confidence Scale
+- 91-100: Verified silent failure — error is swallowed with no logging, re-raise, or propagation, confirmed by reading caller code.
+- 76-90: Likely error-handling gap supported by reading the propagation chain, but some callers may handle it differently.
+- 51-75: Possible error-handling concern that depends on runtime conditions or external configuration.
+- 26-50: Error handling that looks unusual but is intentional (e.g., documented suppression, retry logic upstream).
+- 0-25: Speculative gap where you have not read the caller code or the pattern is standard for the language/framework.
+
+### Reporting Threshold
+Only report findings with confidence >= 80. Silently discard anything below this threshold.
+The confidence score is for your internal reasoning only — do not include it in the output.
+
 ## Self-Filtering Rules
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.
