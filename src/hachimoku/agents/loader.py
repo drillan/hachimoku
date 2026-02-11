@@ -1,13 +1,13 @@
-"""エージェント定義ローダー。
+"""定義ローダー。
 
-TOML 形式のエージェント定義ファイルを読み込み、AgentDefinition モデルとして構築する。
+TOML 形式の定義ファイルを読み込み、AgentDefinition / SelectorDefinition /
+AggregatorDefinition モデルとして構築する。
 セレクター定義（selector.toml）・アグリゲーター定義（aggregator.toml）は専用のローダーで読み込む。
 """
 
 from __future__ import annotations
 
 import tomllib
-from collections.abc import Callable
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Final, TypeVar
@@ -82,25 +82,24 @@ def _load_builtin_definition(filename: str, model_type: type[_T]) -> _T:
         if resource.name == filename:
             with as_file(resource) as path:
                 return _load_single_definition(path, model_type)
-    raise FileNotFoundError(f"Builtin definition not found: {filename}")
+    raise FileNotFoundError(f"Builtin {model_type.__name__} not found: {filename}")
 
 
 def _load_definition_with_override(
     custom_dir: Path | None,
     filename: str,
-    builtin_loader: Callable[[], _T],
     model_type: type[_T],
 ) -> _T:
     """ビルトインとカスタムを統合して定義を読み込む。
 
     カスタムディレクトリに該当ファイルが存在する場合、ビルトインを上書きする。
-    カスタムの読み込みに失敗した場合は例外を送出する。
+    カスタムファイルの読み込み失敗時はビルトインへの暗黙的な切り替えを行わず、
+    例外を送出する。
 
     Args:
         custom_dir: カスタム定義ファイルのディレクトリパス。
             None の場合はビルトインのみ読み込む。
         filename: 定義ファイル名。
-        builtin_loader: ビルトイン定義を読み込む関数。
         model_type: バリデーションに使用する pydantic モデルクラス。
 
     Returns:
@@ -112,19 +111,16 @@ def _load_definition_with_override(
         tomllib.TOMLDecodeError: TOML 構文エラーの場合。
         pydantic.ValidationError: バリデーションエラーの場合。
     """
-    builtin = builtin_loader()
-    if custom_dir is None:
-        return builtin
-    if custom_dir.exists() and not custom_dir.is_dir():
-        raise NotADirectoryError(
-            f"custom_dir はディレクトリではありません: {custom_dir}"
-        )
+    if custom_dir is not None:
+        if custom_dir.exists() and not custom_dir.is_dir():
+            raise NotADirectoryError(
+                f"custom_dir はディレクトリではありません: {custom_dir}"
+            )
+        custom_path = custom_dir / filename
+        if custom_path.exists():
+            return _load_single_definition(custom_path, model_type)
 
-    custom_path = custom_dir / filename
-    if not custom_path.exists():
-        return builtin
-
-    return _load_single_definition(custom_path, model_type)
+    return _load_builtin_definition(filename, model_type)
 
 
 # =============================================================================
@@ -133,19 +129,7 @@ def _load_definition_with_override(
 
 
 def _load_single_agent(path: Path) -> AgentDefinition:
-    """単一の TOML ファイルからエージェント定義を読み込む。
-
-    Args:
-        path: TOML ファイルのパス。
-
-    Returns:
-        構築された AgentDefinition。
-
-    Raises:
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-        OSError: ファイルが存在しない場合やアクセスエラーの場合。
-    """
+    """AgentDefinition 用の _load_single_definition ラッパー。"""
     return _load_single_definition(path, AgentDefinition)
 
 
@@ -298,7 +282,7 @@ def load_selector(custom_dir: Path | None = None) -> SelectorDefinition:
         pydantic.ValidationError: バリデーションエラーの場合。
     """
     return _load_definition_with_override(
-        custom_dir, SELECTOR_FILENAME, load_builtin_selector, SelectorDefinition
+        custom_dir, SELECTOR_FILENAME, SelectorDefinition
     )
 
 
@@ -341,5 +325,5 @@ def load_aggregator(custom_dir: Path | None = None) -> AggregatorDefinition:
         pydantic.ValidationError: バリデーションエラーの場合。
     """
     return _load_definition_with_override(
-        custom_dir, AGGREGATOR_FILENAME, load_builtin_aggregator, AggregatorDefinition
+        custom_dir, AGGREGATOR_FILENAME, AggregatorDefinition
     )
