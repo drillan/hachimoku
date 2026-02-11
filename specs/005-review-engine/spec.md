@@ -184,6 +184,7 @@
 5. **Given** 集約エージェントがタイムアウトまたはエラーで失敗した状態, **When** 集約に失敗する, **Then** `ReviewReport.aggregated = None` のまま、エラー情報が ReviewReport に記録され、Step 9 までの通常レポートが返される
 6. **Given** 設定で集約が無効化されている状態（`aggregation.enabled = false`）, **When** レビューを実行する, **Then** Step 9.5 がスキップされ `ReviewReport.aggregated = None` となる
 7. **Given** 全エージェントが失敗し有効な結果が0件の状態, **When** 結果集約を行う, **Then** 集約ステップをスキップし `ReviewReport.aggregated = None` となる
+8. **Given** 有効結果（AgentSuccess / AgentTruncated）が1件のみの状態, **When** 結果集約を行う, **Then** 重複排除不要のため集約ステップをスキップし `ReviewReport.aggregated = None` となり、スキップ理由が stderr に出力される（Issue #174）
 
 ---
 
@@ -206,6 +207,7 @@
 - SelectorDefinition の `allowed_tools` にツールカタログに存在しないカテゴリ名が指定されている場合、FR-RE-016 のガードレールにより例外が送出され、レビュー実行は中断される（終了コード 3）
 - 集約エージェントが失敗した場合（タイムアウト・実行エラー・出力スキーマ違反）、`ReviewReport.aggregated = None` のまま、エラー情報を ReviewReport に記録する。終了コードには影響しない（Issue #152）
 - 全エージェントが失敗し集約への入力（AgentSuccess / AgentTruncated）が0件の場合、集約ステップをスキップする。`ReviewReport.aggregated = None`（Issue #152）
+- 有効結果（AgentSuccess / AgentTruncated）が1件のみの場合、重複排除の必要がないため集約ステップをスキップする。`ReviewReport.aggregated = None`、スキップ理由を stderr に出力する（Issue #174）
 - 設定で集約が無効化されている場合（`aggregation.enabled = false`）、Step 9.5 をスキップし `ReviewReport.aggregated = None`（Issue #152）
 - SIGINT/SIGTERM 受信時に集約ステップが実行中の場合、集約をキャンセルし Step 9 までの結果で部分レポートを生成する（`aggregated = None`）（Issue #152）
 
