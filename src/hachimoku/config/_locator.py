@@ -8,11 +8,46 @@ FR-CF-006: ユーザーグローバル設定パス
 from __future__ import annotations
 
 import stat as stat_module
+from collections.abc import Callable
 from pathlib import Path
 
 _PROJECT_DIR_NAME: str = ".hachimoku"
 _CONFIG_FILE_NAME: str = "config.toml"
 _PYPROJECT_FILE_NAME: str = "pyproject.toml"
+
+
+def _find_ancestor(
+    start: Path,
+    target_name: str,
+    check: Callable[[int], bool],
+) -> Path | None:
+    """start から親方向に target_name を探索し、最初にマッチした候補パスを返す。
+
+    Args:
+        start: 探索開始ディレクトリ。
+        target_name: 探索対象の名前（例: ".hachimoku", "pyproject.toml"）。
+        check: stat.st_mode に適用する種別チェック関数（例: stat.S_ISDIR）。
+
+    Returns:
+        最初にマッチした候補パス（start/…/target_name）。見つからなければ None。
+
+    Raises:
+        OSError: 探索パス上のアクセス権限エラー等。
+    """
+    current = start.resolve()
+    while True:
+        candidate = current / target_name
+        try:
+            st = candidate.stat()
+        except FileNotFoundError:
+            pass
+        else:
+            if check(st.st_mode):
+                return candidate
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
 
 
 def find_project_root(start: Path) -> Path | None:
@@ -29,20 +64,8 @@ def find_project_root(start: Path) -> Path | None:
     Raises:
         OSError: 探索パス上のアクセス権限エラー等。
     """
-    current = start.resolve()
-    while True:
-        candidate = current / _PROJECT_DIR_NAME
-        try:
-            st = candidate.stat()
-        except FileNotFoundError:
-            pass
-        else:
-            if stat_module.S_ISDIR(st.st_mode):
-                return current
-        parent = current.parent
-        if parent == current:
-            return None
-        current = parent
+    result = _find_ancestor(start, _PROJECT_DIR_NAME, stat_module.S_ISDIR)
+    return result.parent if result is not None else None
 
 
 def find_config_file(start: Path) -> Path | None:
@@ -81,20 +104,7 @@ def find_pyproject_toml(start: Path) -> Path | None:
     Raises:
         OSError: 探索パス上のアクセス権限エラー等。
     """
-    current = start.resolve()
-    while True:
-        candidate = current / _PYPROJECT_FILE_NAME
-        try:
-            st = candidate.stat()
-        except FileNotFoundError:
-            pass
-        else:
-            if stat_module.S_ISREG(st.st_mode):
-                return candidate
-        parent = current.parent
-        if parent == current:
-            return None
-        current = parent
+    return _find_ancestor(start, _PYPROJECT_FILE_NAME, stat_module.S_ISREG)
 
 
 def get_user_config_path() -> Path:
