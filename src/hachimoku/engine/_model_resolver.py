@@ -41,6 +41,7 @@ def resolve_model(model: str) -> str | Model:
         anthropic の場合: モデル文字列をそのまま返す。
 
     Raises:
+        ValueError: プレフィックス後のモデル名が空の場合。
         ValueError: anthropic プレフィックスで ANTHROPIC_API_KEY が未設定の場合。
         ValueError: 未知のプレフィックスが指定された場合。
     """
