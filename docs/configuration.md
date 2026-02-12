@@ -51,6 +51,7 @@ max_files_per_review = 100
 model = "claudecode:claude-haiku-4-5"
 timeout = 600
 max_turns = 20
+referenced_content_max_chars = 5000
 
 # 集約エージェント設定
 [aggregation]
@@ -110,6 +111,7 @@ parallel = false
 | `model` | `str \| None` | `None` | 空文字不可 | モデル名の上書き（プレフィックスでプロバイダー指定） |
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
+| `referenced_content_max_chars` | `int` | `5000` | 正の値 | referenced_content の各コンテンツの最大文字数。超過時は末尾切り詰め + truncation マーカー追加 |
 
 ### AggregationConfig
 

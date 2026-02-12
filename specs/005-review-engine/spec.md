@@ -18,6 +18,12 @@
 - Q: recommended_actions のデータ構造は？ → A: `RecommendedAction(description: str, priority: Priority)` のリスト。Priority enum（high/medium/low）を使用し、優先度順でソート表示可能にする
 - Q: 集約エージェントへの入力範囲は？ → A: AgentSuccess と AgentTruncated の結果のみを渡す。AggregatedReport に `agent_failures: list[str]` を追加し、失敗エージェント名を記録する。集約結果のみを参照する消費者にもレビューの不完全性が伝わるようにする
 
+### Session 2026-02-11 (Issue #172)
+
+- `referenced_content` の各 `content` にサイズ上限を導入。`SelectorConfig.referenced_content_max_chars`（デフォルト: 5000 文字）で制御
+- 上限超過時は末尾切り詰め + 未閉鎖コードフェンスの自動閉鎖 + truncation マーカー（`... (truncated, original: N chars)`）を追加
+- `build_selector_context_section()` に `max_referenced_content_chars` パラメータを追加。truncation は動的フェンス生成の前に適用される
+
 ### Session 2026-02-10 (Issue #159)
 
 - SelectorOutput に `referenced_content: list[ReferencedContent]`（default=[]）を追加。diff 内で参照されている外部リソース（Issue body、ファイル内容、仕様書等）の取得結果を保持する
@@ -229,7 +235,7 @@
   4. **レビュー指示構築**: 事前解決されたコンテンツを含むレビュー指示情報を構築する
   5. **セレクター定義読み込み**: ビルトインの `selector.toml` から SelectorDefinition を読み込む。カスタムの `selector.toml`（`.hachimoku/agents/selector.toml`）が存在する場合はビルトインを上書きする
   6. **エージェント選択（セレクターエージェント）**: SelectorDefinition と SelectorConfig に基づいてセレクターエージェント（pydantic-ai エージェント）を構築・実行し、レビュー指示情報と利用可能なエージェント定義一覧を渡す。セレクターエージェントは SelectorDefinition.allowed_tools で許可されたツールでレビュー対象を調査し、実行すべきエージェントリストを構造化出力で返す。エージェント定義の `file_patterns` / `content_patterns` / `phase` はセレクターの判断ガイダンスとして提供される
-  6.5. **セレクターメタデータ伝播**: セレクターエージェントの分析結果（変更意図・影響ファイル・関連規約・Issue コンテキスト・参照先コンテンツ）をレビューエージェント向けのユーザーメッセージに追記する。SelectorOutput の `change_intent`・`affected_files`・`relevant_conventions`・`issue_context`・`referenced_content` フィールドをマークダウンセクション化し、レビュー指示情報に結合する。`referenced_content` は diff 内で参照されている外部リソース（Issue body、ファイル内容等）の取得結果で、参照元と参照先の横断整合性チェックを可能にする（Issue #148, #159）。メタデータが全て空の場合はユーザーメッセージを変更しない
+  6.5. **セレクターメタデータ伝播**: セレクターエージェントの分析結果（変更意図・影響ファイル・関連規約・Issue コンテキスト・参照先コンテンツ）をレビューエージェント向けのユーザーメッセージに追記する。SelectorOutput の `change_intent`・`affected_files`・`relevant_conventions`・`issue_context`・`referenced_content` フィールドをマークダウンセクション化し、レビュー指示情報に結合する。`referenced_content` は diff 内で参照されている外部リソース（Issue body、ファイル内容等）の取得結果で、参照元と参照先の横断整合性チェックを可能にする（Issue #148, #159）。各 `referenced_content` の `content` は `SelectorConfig.referenced_content_max_chars`（デフォルト: 5000 文字）で切り詰められ、超過時は未閉鎖コードフェンスの自動閉鎖 + truncation マーカーが追加される（Issue #172）。メタデータが全て空の場合はユーザーメッセージを変更しない
   7. **実行コンテキスト構築**: 選択された各エージェントに対して実行コンテキスト（モデル・ツール・プロンプト・タイムアウト・最大ターン数）を構築する
   8. **エージェント実行**: 逐次または並列でエージェントを実行する
   9. **結果集約**: 各エージェントの結果（AgentResult）を ReviewReport に集約する

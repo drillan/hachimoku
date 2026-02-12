@@ -331,6 +331,10 @@ class TestSelectorConfigDefaults:
         """max_turns のデフォルトが None であること。"""
         assert SelectorConfig().max_turns is None
 
+    def test_default_referenced_content_max_chars(self) -> None:
+        """referenced_content_max_chars のデフォルトが 5000 であること。"""
+        assert SelectorConfig().referenced_content_max_chars == 5000
+
 
 class TestSelectorConfigValidation:
     """SelectorConfig のバリデーションテスト (FR-CF-004)。"""
@@ -371,6 +375,25 @@ class TestSelectorConfigValidation:
     def test_max_turns_positive_accepted(self) -> None:
         """max_turns に正の値を渡すと設定されること。"""
         assert SelectorConfig(max_turns=5).max_turns == 5
+
+    def test_referenced_content_max_chars_zero_rejected(self) -> None:
+        """referenced_content_max_chars に 0 を渡すと ValidationError。"""
+        with pytest.raises(ValidationError, match="referenced_content_max_chars"):
+            SelectorConfig(referenced_content_max_chars=0)
+
+    def test_referenced_content_max_chars_negative_rejected(self) -> None:
+        """referenced_content_max_chars に負の値を渡すと ValidationError。"""
+        with pytest.raises(ValidationError, match="referenced_content_max_chars"):
+            SelectorConfig(referenced_content_max_chars=-1)
+
+    def test_referenced_content_max_chars_positive_accepted(self) -> None:
+        """referenced_content_max_chars に正の値を渡すと設定されること。"""
+        assert (
+            SelectorConfig(
+                referenced_content_max_chars=8000
+            ).referenced_content_max_chars
+            == 8000
+        )
 
     def test_extra_field_rejected(self) -> None:
         """未知のキーを渡すと ValidationError が発生すること。"""
