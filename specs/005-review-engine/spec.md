@@ -10,6 +10,13 @@
 
 ## Clarifications
 
+### Session 2026-02-12 (Issue #171)
+
+- FR-RE-002 Step 7 にエージェント別差分フィルタリングを追加する。`applicability.file_patterns` が非空かつ `always=false` のエージェントに対し、DiffTarget/PRTarget 時に unified diff をファイル単位で分割し、fnmatch（basename マッチ）で合致するファイルの差分のみをユーザーメッセージに含める
+- フィルタリング後の diff が空（マッチファイルなし）の場合は diff 全文にリカバリする。セレクターの選択判断を上書きしない「ベストエフォート」方式
+- FileTarget の場合はフィルタリングを適用しない（unified diff フォーマットではないため）
+- `content_patterns` はファイル内容に対するマッチングであり、ファイル単位のフィルタリングとは別（Issue #171 のスコープ外）
+
 ### Session 2026-02-10 (Issue #152)
 
 - Q: 集約エージェント失敗時の挙動は？（フォールバック禁止原則との整合） → A: 集約失敗時は `ReviewReport.aggregated = None` のまま返し、エラー情報を ReviewReport に明示的に記録する。これはフォールバック（デフォルト値での処理続行）ではなく、オプショナルな enrichment ステップの結果が利用不可であることの明示的表現。エラーは隠蔽しない
@@ -246,7 +253,7 @@
   5. **セレクター定義読み込み**: ビルトインの `selector.toml` から SelectorDefinition を読み込む。カスタムの `selector.toml`（`.hachimoku/agents/selector.toml`）が存在する場合はビルトインを上書きする
   6. **エージェント選択（セレクターエージェント）**: SelectorDefinition と SelectorConfig に基づいてセレクターエージェント（pydantic-ai エージェント）を構築・実行し、diff メタデータ（DiffTarget / PRTarget の場合）またはフルコンテンツ（FileTarget の場合）と利用可能なエージェント定義一覧を渡す（Issue #170）。diff メタデータにはファイル一覧・変更行数・先頭変更数行のプレビューが含まれる。セレクターエージェントは SelectorDefinition.allowed_tools で許可されたツール（git_read 等）でフル diff やレビュー対象を調査し、実行すべきエージェントリストを構造化出力で返す。エージェント定義の `file_patterns` / `content_patterns` / `phase` はセレクターの判断ガイダンスとして提供される
   6.5. **セレクターメタデータ伝播**: セレクターエージェントの分析結果（変更意図・影響ファイル・関連規約・Issue コンテキスト・参照先コンテンツ）をレビューエージェント向けのユーザーメッセージに追記する。SelectorOutput の `change_intent`・`affected_files`・`relevant_conventions`・`issue_context`・`referenced_content` フィールドをマークダウンセクション化し、レビュー指示情報に結合する。`referenced_content` は diff 内で参照されている外部リソース（Issue body、ファイル内容等）の取得結果で、参照元と参照先の横断整合性チェックを可能にする（Issue #148, #159）。各 `referenced_content` の `content` は `SelectorConfig.referenced_content_max_chars`（デフォルト: 5000 文字）で切り詰められ、超過時は未閉鎖コードフェンスの自動閉鎖 + truncation マーカーが追加される（Issue #172）。メタデータが全て空の場合はユーザーメッセージを変更しない
-  7. **実行コンテキスト構築**: 選択された各エージェントに対して実行コンテキスト（モデル・ツール・プロンプト・タイムアウト・最大ターン数）を構築する
+  7. **実行コンテキスト構築**: 選択された各エージェントに対して実行コンテキスト（モデル・ツール・プロンプト・タイムアウト・最大ターン数）を構築する。DiffTarget / PRTarget の場合、エージェントの `applicability.file_patterns` が非空かつ `always` が false のとき、unified diff をファイル単位で分割し `file_patterns`（fnmatch basename マッチ）に合致するファイルの差分のみをユーザーメッセージに含める（Issue #171）。マッチするファイルがない場合は diff 全文にリカバリする。FileTarget の場合はフィルタリングを適用しない
   8. **エージェント実行**: 逐次または並列でエージェントを実行する
   9. **結果集約**: 各エージェントの結果（AgentResult）を ReviewReport に集約する
   9.5. **LLM ベース集約（オプショナル）**: 設定で集約が有効（デフォルト: 有効）の場合、AggregatorDefinition（TOML 定義）に基づいて集約エージェント（pydantic-ai エージェント）を構築・実行する。AgentSuccess と AgentTruncated の結果のみを入力とし、重複排除・統合した AggregatedReport を生成する。集約エージェント失敗時は `ReviewReport.aggregated = None` のまま、エラー情報を ReviewReport に記録する（Issue #152）
