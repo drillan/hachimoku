@@ -61,7 +61,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 
 name = "selector"
 description = "レビュー対象を分析し、実行すべきレビューエージェントを選択する"
-model = "claudecode:claude-haiku-4-5"
+model = "claudecode:claude-opus-4-6"
 allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """
 You are an agent selector for code review.

@@ -104,7 +104,7 @@ parallel = false
 ### SelectorConfig
 
 セレクターエージェントの設定上書きです。
-`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+`model`、`timeout`、`max_turns` が `None` の場合はセレクター定義の値を使用し、それも `None` の場合はグローバル設定値を使用します（3 層解決: config → definition → global）。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
@@ -116,7 +116,7 @@ parallel = false
 ### AggregationConfig
 
 集約エージェントの設定です。SelectorConfig と同パターンに加え、`enabled` で集約の有効/無効を切り替えます。
-`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
+`model`、`timeout`、`max_turns` が `None` の場合は集約エージェント定義の値を使用し、それも `None` の場合はグローバル設定値を使用します（3 層解決: config → definition → global）。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
