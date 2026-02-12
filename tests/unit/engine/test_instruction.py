@@ -3,6 +3,7 @@
 FR-RE-001: 入力モードに応じたプロンプトコンテキストの生成。
 FR-RE-011: --issue オプションの Issue 番号注入。
 Issue #129: resolved_content のインストラクション埋め込み。
+Issue #170: セレクター向け diff メタデータサマリー。
 """
 
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
@@ -10,6 +11,7 @@ import pytest
 
 from hachimoku.engine._instruction import (
     _close_unclosed_fences,
+    _summarize_diff,
     _truncate_content,
     build_review_instruction,
     build_selector_context_section,
@@ -20,6 +22,119 @@ from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 
 _SAMPLE_DIFF = "diff --git a/file.py b/file.py\n+added line"
 _SAMPLE_FILE_CONTENT = "--- src/main.py ---\nprint('hello')"
+
+# Issue #170: テスト用の realistic unified diff フィクスチャ
+_SINGLE_FILE_DIFF = (
+    "diff --git a/src/auth.py b/src/auth.py\n"
+    "index 1234567..abcdefg 100644\n"
+    "--- a/src/auth.py\n"
+    "+++ b/src/auth.py\n"
+    "@@ -1,5 +1,7 @@\n"
+    " import os\n"
+    "-def old_func():\n"
+    "-    pass\n"
+    "+def new_func():\n"
+    "+    return True\n"
+    "+\n"
+    "+# Added comment\n"
+)
+
+_MULTI_FILE_DIFF = (
+    "diff --git a/src/auth.py b/src/auth.py\n"
+    "index 1234567..abcdefg 100644\n"
+    "--- a/src/auth.py\n"
+    "+++ b/src/auth.py\n"
+    "@@ -1,3 +1,4 @@\n"
+    " import os\n"
+    "+import sys\n"
+    " def func():\n"
+    "     pass\n"
+    "diff --git a/src/config.py b/src/config.py\n"
+    "index 2345678..bcdefgh 100644\n"
+    "--- a/src/config.py\n"
+    "+++ b/src/config.py\n"
+    "@@ -1,3 +1,3 @@\n"
+    " SETTINGS = {\n"
+    '-    "timeout": 30,\n'
+    '+    "timeout": 60,\n'
+    " }\n"
+)
+
+_NEW_FILE_DIFF = (
+    "diff --git a/src/new_file.py b/src/new_file.py\n"
+    "new file mode 100644\n"
+    "index 0000000..1234567\n"
+    "--- /dev/null\n"
+    "+++ b/src/new_file.py\n"
+    "@@ -0,0 +1,3 @@\n"
+    "+def hello():\n"
+    '+    print("hello")\n'
+    "+    return True\n"
+)
+
+_DELETED_FILE_DIFF = (
+    "diff --git a/src/old_file.py b/src/old_file.py\n"
+    "deleted file mode 100644\n"
+    "index 1234567..0000000\n"
+    "--- a/src/old_file.py\n"
+    "+++ /dev/null\n"
+    "@@ -1,3 +0,0 @@\n"
+    "-def goodbye():\n"
+    '-    print("bye")\n'
+    "-    return False\n"
+)
+
+_RENAMED_FILE_DIFF = (
+    "diff --git a/src/old_name.py b/src/new_name.py\n"
+    "similarity index 90%\n"
+    "rename from src/old_name.py\n"
+    "rename to src/new_name.py\n"
+    "index 1234567..abcdefg 100644\n"
+    "--- a/src/old_name.py\n"
+    "+++ b/src/new_name.py\n"
+    "@@ -1,3 +1,3 @@\n"
+    " def func():\n"
+    '-    return "old"\n'
+    '+    return "new"\n'
+)
+
+_BINARY_FILE_DIFF = (
+    "diff --git a/image.png b/image.png\n"
+    "new file mode 100644\n"
+    "index 0000000..1234567\n"
+    "Binary files /dev/null and b/image.png differ\n"
+)
+
+_MULTI_HUNK_DIFF = (
+    "diff --git a/src/multi.py b/src/multi.py\n"
+    "index 1234567..abcdefg 100644\n"
+    "--- a/src/multi.py\n"
+    "+++ b/src/multi.py\n"
+    "@@ -1,5 +1,6 @@\n"
+    " import os\n"
+    "+import sys\n"
+    " def func_a():\n"
+    "     pass\n"
+    " \n"
+    "@@ -10,5 +11,6 @@\n"
+    " def func_b():\n"
+    "-    return None\n"
+    "+    return True\n"
+    "+    # fixed\n"
+)
+
+_NO_NEWLINE_DIFF = (
+    "diff --git a/src/no_nl.py b/src/no_nl.py\n"
+    "index 1234567..abcdefg 100644\n"
+    "--- a/src/no_nl.py\n"
+    "+++ b/src/no_nl.py\n"
+    "@@ -1,2 +1,2 @@\n"
+    " def func():\n"
+    "-    pass\n"
+    "\\ No newline at end of file\n"
+    "+    return True\n"
+    "\\ No newline at end of file\n"
+)
 
 
 def _make_agent(
@@ -215,23 +330,41 @@ class TestBuildReviewInstructionIssueCombinations:
 class TestBuildSelectorInstruction:
     """build_selector_instruction 関数のテスト。"""
 
-    def test_includes_review_instruction_content(self) -> None:
-        """レビュー指示情報を含む。"""
+    def test_includes_mode_header(self) -> None:
+        """モード固有のヘッダー（base_branch 名）を含む。"""
         target = DiffTarget(base_branch="main")
-        instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
         assert "main" in instruction
 
-    def test_includes_resolved_content(self) -> None:
-        """resolved_content がセレクターインストラクションにも含まれる。"""
+    def test_diff_target_contains_summary_not_full_diff(self) -> None:
+        """DiffTarget: フル diff ではなくサマリーが含まれる（Issue #170）。"""
         target = DiffTarget(base_branch="main")
-        instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
-        assert _SAMPLE_DIFF in instruction
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
+        # サマリーフォーマットが含まれる
+        assert "Diff Summary" in instruction
+        assert "src/auth.py" in instruction
+        # フル diff のハンクヘッダーは含まれない
+        assert "@@ -1,5 +1,7 @@" not in instruction
+
+    def test_pr_target_contains_summary_not_full_diff(self) -> None:
+        """PRTarget: フル diff ではなくサマリーが含まれる（Issue #170）。"""
+        target = PRTarget(pr_number=42)
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
+        assert "Diff Summary" in instruction
+        assert "@@ -1,5 +1,7 @@" not in instruction
+
+    def test_file_target_contains_full_content(self) -> None:
+        """FileTarget: フルコンテンツがそのまま含まれる（サマリーなし）。"""
+        target = FileTarget(paths=("src/main.py",))
+        instruction = build_selector_instruction(target, [], _SAMPLE_FILE_CONTENT)
+        assert _SAMPLE_FILE_CONTENT in instruction
+        assert "Diff Summary" not in instruction
 
     def test_includes_agent_name_and_description(self) -> None:
         """エージェント名と説明を含む。"""
         target = DiffTarget(base_branch="main")
         agent = _make_agent(name="code-reviewer", description="Code quality check")
-        instruction = build_selector_instruction(target, [agent], _SAMPLE_DIFF)
+        instruction = build_selector_instruction(target, [agent], _SINGLE_FILE_DIFF)
         assert "code-reviewer" in instruction
         assert "Code quality check" in instruction
 
@@ -242,16 +375,194 @@ class TestBuildSelectorInstruction:
             _make_agent(name="reviewer-a", description="Desc A"),
             _make_agent(name="reviewer-b", description="Desc B"),
         ]
-        instruction = build_selector_instruction(target, agents, _SAMPLE_DIFF)
+        instruction = build_selector_instruction(target, agents, _SINGLE_FILE_DIFF)
         assert "reviewer-a" in instruction
         assert "reviewer-b" in instruction
 
     def test_empty_agents_list_handled(self) -> None:
         """空のエージェントリストでも例外なく動作する。"""
         target = PRTarget(pr_number=10)
-        instruction = build_selector_instruction(target, [], _SAMPLE_DIFF)
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
         assert isinstance(instruction, str)
         assert len(instruction) > 0
+
+    def test_diff_target_with_issue_number(self) -> None:
+        """DiffTarget + issue_number でサマリーと Issue 参照の両方を含む。"""
+        target = DiffTarget(base_branch="main", issue_number=42)
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
+        assert "Diff Summary" in instruction
+        assert "#42" in instruction
+        assert "Related Issue" in instruction
+
+
+# =============================================================================
+# _summarize_diff（Issue #170）
+# =============================================================================
+
+
+class TestSummarizeDiffEmpty:
+    """_summarize_diff の空入力テスト。Issue #170."""
+
+    def test_empty_content_returns_empty(self) -> None:
+        """空の diff → 空文字列を返す。"""
+        assert _summarize_diff("") == ""
+
+
+class TestSummarizeDiffSingleFile:
+    """_summarize_diff の単一ファイル diff テスト。Issue #170."""
+
+    def test_file_path_included(self) -> None:
+        """ファイルパスがサマリーに含まれる。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        assert "src/auth.py" in result
+
+    def test_addition_count(self) -> None:
+        """追加行数が正しくカウントされる（+++ ヘッダーを除外）。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        # _SINGLE_FILE_DIFF has 4 additions: new_func, return True, empty, comment
+        assert "+4" in result
+
+    def test_deletion_count(self) -> None:
+        """削除行数が正しくカウントされる（--- ヘッダーを除外）。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        # _SINGLE_FILE_DIFF has 2 deletions: old_func, pass
+        assert "-2" in result
+
+    def test_summary_header(self) -> None:
+        """サマリーヘッダーが含まれる。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        assert "Diff Summary" in result
+
+    def test_preview_lines_included(self) -> None:
+        """変更行のプレビューが含まれる。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        assert "+def new_func():" in result
+
+    def test_hunk_headers_excluded(self) -> None:
+        """@@ ハンクヘッダーがサマリーに含まれない。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        assert "@@" not in result
+
+    def test_total_file_count(self) -> None:
+        """ファイル数の集計が含まれる。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        assert "1 file(s) changed" in result
+
+
+class TestSummarizeDiffMultipleFiles:
+    """_summarize_diff の複数ファイル diff テスト。Issue #170."""
+
+    def test_all_files_listed(self) -> None:
+        """全ファイルがサマリーに含まれる。"""
+        result = _summarize_diff(_MULTI_FILE_DIFF)
+        assert "src/auth.py" in result
+        assert "src/config.py" in result
+
+    def test_file_count(self) -> None:
+        """ファイル数の集計が正しい。"""
+        result = _summarize_diff(_MULTI_FILE_DIFF)
+        assert "2 file(s) changed" in result
+
+
+class TestSummarizeDiffNewFile:
+    """_summarize_diff の新規ファイル diff テスト。Issue #170."""
+
+    def test_new_file_status(self) -> None:
+        """新規ファイルが 'new' ステータスで表示される。"""
+        result = _summarize_diff(_NEW_FILE_DIFF)
+        assert "new" in result.lower()
+        assert "src/new_file.py" in result
+
+
+class TestSummarizeDiffDeletedFile:
+    """_summarize_diff の削除ファイル diff テスト。Issue #170."""
+
+    def test_deleted_file_status(self) -> None:
+        """削除ファイルが 'deleted' ステータスで表示される。"""
+        result = _summarize_diff(_DELETED_FILE_DIFF)
+        assert "deleted" in result.lower()
+        assert "src/old_file.py" in result
+
+
+class TestSummarizeDiffRenamedFile:
+    """_summarize_diff のリネームファイル diff テスト。Issue #170."""
+
+    def test_renamed_file_shows_both_paths(self) -> None:
+        """リネームファイルが old → new の形式で表示される。"""
+        result = _summarize_diff(_RENAMED_FILE_DIFF)
+        assert "src/old_name.py" in result
+        assert "src/new_name.py" in result
+
+
+class TestSummarizeDiffBinaryFile:
+    """_summarize_diff のバイナリファイル diff テスト。Issue #170."""
+
+    def test_binary_file_status(self) -> None:
+        """バイナリファイルが 'binary' ステータスで表示される。"""
+        result = _summarize_diff(_BINARY_FILE_DIFF)
+        assert "binary" in result.lower()
+        assert "image.png" in result
+
+    def test_binary_file_no_diff_preview(self) -> None:
+        """バイナリファイルにはプレビュー内容が含まれない。"""
+        result = _summarize_diff(_BINARY_FILE_DIFF)
+        assert "differ" not in result
+
+
+class TestSummarizeDiffPreviewLimit:
+    """_summarize_diff のプレビュー行数制限テスト。Issue #170."""
+
+    def test_preview_lines_limited(self) -> None:
+        """preview_lines パラメータでプレビュー行数が制限される。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF, preview_lines=2)
+        # _SINGLE_FILE_DIFF has 6 changed lines (4 additions + 2 deletions).
+        # With preview_lines=2, only the first 2 changed lines appear.
+        # Count actual diff-prefixed lines in the preview section
+        preview_section = (
+            result.split("Change Preview")[1] if "Change Preview" in result else ""
+        )
+        diff_lines = [
+            line
+            for line in preview_section.splitlines()
+            if line.startswith("+") or line.startswith("-")
+        ]
+        assert len(diff_lines) == 2
+
+    def test_custom_preview_lines_zero(self) -> None:
+        """preview_lines=0 でプレビューセクションが省略される。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF, preview_lines=0)
+        assert "Change Preview" not in result
+
+
+class TestSummarizeDiffMultiHunk:
+    """_summarize_diff のマルチハンク diff テスト。Issue #170."""
+
+    def test_multi_hunk_counts_accumulated(self) -> None:
+        """複数ハンクのファイルで行数カウントが累積される。"""
+        result = _summarize_diff(_MULTI_HUNK_DIFF)
+        # _MULTI_HUNK_DIFF: hunk1 adds 1 (import sys), hunk2 adds 2 (return True, # fixed) deletes 1 (return None)
+        assert "+3" in result
+        assert "-1" in result
+
+
+class TestSummarizeDiffNoNewline:
+    """_summarize_diff の No newline at end of file テスト。Issue #170."""
+
+    def test_no_newline_marker_excluded_from_counts(self) -> None:
+        """'\\\\No newline at end of file' がカウントに含まれない。"""
+        result = _summarize_diff(_NO_NEWLINE_DIFF)
+        # 1 deletion (-    pass) and 1 addition (+    return True)
+        assert "+1" in result
+        assert "-1" in result
+
+
+class TestSummarizeDiffToolGuidance:
+    """_summarize_diff のツールガイダンスノートテスト。Issue #170."""
+
+    def test_tool_guidance_included(self) -> None:
+        """git_read ツール使用のガイダンスノートが含まれる。"""
+        result = _summarize_diff(_SINGLE_FILE_DIFF)
+        assert "git_read" in result
 
 
 # =============================================================================
