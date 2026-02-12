@@ -3,6 +3,10 @@
 Issue #171: エージェント別 file_patterns ベースの差分フィルタリング。
 """
 
+import logging
+
+import pytest
+
 from hachimoku.engine._diff_filter import filter_diff_by_file_patterns
 
 # =============================================================================
@@ -131,9 +135,9 @@ class TestFilterDiffBasic:
         assert "+import sys" in result
 
     def test_single_file_not_matching_pattern(self) -> None:
-        """単一ファイル diff がパターンに非マッチ → diff 全文にリカバリ。"""
+        """単一ファイル diff がパターンに非マッチ → フィルタリング不適用で全文返却。"""
         result = filter_diff_by_file_patterns(_PY_FILE_DIFF, ("*.ts",))
-        # マッチなし → リカバリで全文返却
+        # マッチなし → フィルタリング不適用で全文返却
         assert result == _PY_FILE_DIFF
 
     def test_multi_file_partial_match(self) -> None:
@@ -153,7 +157,7 @@ class TestFilterDiffBasic:
         assert "README.md" in result
 
     def test_multi_file_no_match_recovers(self) -> None:
-        """マッチなし → diff 全文にリカバリ。"""
+        """マッチなし → フィルタリング不適用で全文返却。"""
         result = filter_diff_by_file_patterns(_MULTI_FILE_DIFF, ("*.java",))
         assert result == _MULTI_FILE_DIFF
 
@@ -343,3 +347,29 @@ class TestFilterDiffIntegrity:
         assert "+++ b/src/auth.py" in result
         assert "@@ -1,3 +1,4 @@" in result
         assert "+import sys" in result
+
+
+# =============================================================================
+# filter_diff_by_file_patterns — ログ出力
+# =============================================================================
+
+
+class TestFilterDiffLogging:
+    """フィルタリング時のログ出力検証。"""
+
+    def test_warning_logged_when_no_match(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """マッチなし時に warning ログが出力される。"""
+        with caplog.at_level(logging.WARNING, logger="hachimoku.engine._diff_filter"):
+            filter_diff_by_file_patterns(_MULTI_FILE_DIFF, ("*.java",))
+        assert any("No diff sections matched" in r.message for r in caplog.records)
+        assert any("*.java" in r.message for r in caplog.records)
+
+    def test_no_warning_when_match_exists(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """マッチありの場合は warning ログなし。"""
+        with caplog.at_level(logging.WARNING, logger="hachimoku.engine._diff_filter"):
+            filter_diff_by_file_patterns(_MULTI_FILE_DIFF, ("*.py",))
+        assert not any("No diff sections matched" in r.message for r in caplog.records)

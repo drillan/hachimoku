@@ -7,9 +7,12 @@ Issue #171: エージェントの file_patterns にマッチするファイル�
 from __future__ import annotations
 
 import fnmatch
+import logging
 import re
 from os.path import basename
 from typing import Final
+
+logger = logging.getLogger(__name__)
 
 _DIFF_SECTION_RE: Final[re.Pattern[str]] = re.compile(r"^diff --git ", re.MULTILINE)
 """unified diff のファイル単位セクション区切りパターン。"""
@@ -25,7 +28,7 @@ def filter_diff_by_file_patterns(
     """unified diff をファイル単位で分割し、file_patterns にマッチするファイルのみ抽出する。
 
     fnmatch でファイルの basename に対してマッチングを行う。
-    マッチするファイルがない場合は diff_text をそのまま返す（リカバリ動作）。
+    マッチするファイルがない場合は diff_text をそのまま返す（フィルタリング不適用）。
     diff_text が空、unified diff フォーマットでない、またはパターンが空の場合は
     そのまま返す。
 
@@ -52,6 +55,10 @@ def filter_diff_by_file_patterns(
 
         file_path = _extract_file_path(section)
         if not file_path:
+            logger.debug(
+                "Failed to extract file path from diff section: %s",
+                section.split("\n", 1)[0],
+            )
             continue
 
         if file_path in seen_paths:
@@ -63,6 +70,12 @@ def filter_diff_by_file_patterns(
             seen_paths.add(file_path)
 
     if not matched_sections:
+        logger.warning(
+            "No diff sections matched file_patterns %s "
+            "(%d sections parsed). Returning full diff.",
+            file_patterns,
+            len(positions),
+        )
         return diff_text
 
     return "".join(matched_sections)
