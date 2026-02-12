@@ -49,7 +49,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 
 1. `[selector]` 設定の `model`（[設定](configuration.md) 参照）
 2. セレクター定義の `model`
-3. グローバル設定の `model`（デフォルト: `"anthropic:claude-opus-4-6"`）
+3. グローバル設定の `model`（デフォルト: `"claudecode:claude-opus-4-6"`）
 
 ### ビルトインセレクター定義
 
@@ -61,7 +61,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 
 name = "selector"
 description = "レビュー対象を分析し、実行すべきレビューエージェントを選択する"
-model = "anthropic:claude-haiku-4-5"
+model = "claudecode:claude-haiku-4-5"
 allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """
 You are an agent selector for code review.
