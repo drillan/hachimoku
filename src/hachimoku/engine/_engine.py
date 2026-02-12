@@ -24,6 +24,7 @@ from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import AgentExecutionContext, build_execution_context
+from hachimoku.engine._diff_filter import filter_diff_by_file_patterns
 from hachimoku.engine._executor import execute_parallel, execute_sequential
 from hachimoku.engine._instruction import (
     build_review_instruction,
@@ -188,8 +189,8 @@ async def run_review(
             load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
         )
 
-    # Step 4: レビュー指示構築
-    user_message = build_review_instruction(target, resolved_content)
+    # Step 4: レビュー指示構築（ベース）
+    base_user_message = build_review_instruction(target, resolved_content)
 
     # Step 5: セレクターエージェント実行
     try:
@@ -219,7 +220,7 @@ async def run_review(
             load_result.errors, exit_code=ExitCode.SUCCESS
         )
 
-    # Step 5.5: セレクターメタデータを user_message に追記（Issue #148, #159, #172）
+    # Step 5.5: セレクターメタデータ（Issue #148, #159, #172）
     selector_context = build_selector_context_section(
         change_intent=selector_output.change_intent,
         affected_files=selector_output.affected_files,
@@ -228,10 +229,8 @@ async def run_review(
         referenced_content=selector_output.referenced_content,
         max_referenced_content_chars=config.selector.referenced_content_max_chars,
     )
-    if selector_context:
-        user_message = f"{user_message}\n\n{selector_context}"
 
-    # Step 6: 実行コンテキスト構築
+    # Step 6: 実行コンテキスト構築（Issue #171: エージェント別差分フィルタリング）
     selected_agents = _resolve_selected_agents(
         filtered_result.agents, selector_output.selected_agents
     )
@@ -240,7 +239,13 @@ async def run_review(
             agent_def=agent,
             agent_config=config.agents.get(agent.name),
             global_config=config,
-            user_message=user_message,
+            user_message=_build_agent_user_message(
+                agent_def=agent,
+                target=target,
+                base_user_message=base_user_message,
+                resolved_content=resolved_content,
+                selector_context=selector_context,
+            ),
             resolved_tools=resolve_tools(agent.allowed_tools),
         )
         for agent in selected_agents
@@ -390,6 +395,59 @@ def _resolve_selected_agents(
     """
     agent_map = {a.name: a for a in agents}
     return [agent_map[name] for name in selected_names if name in agent_map]
+
+
+def _should_filter_diff(
+    agent_def: AgentDefinition,
+    target: DiffTarget | PRTarget | FileTarget,
+) -> bool:
+    """エージェントに対して差分フィルタリングを適用すべきか判定する。
+
+    Issue #171: file_patterns を持つエージェントにのみフィルタリングを適用。
+    always=true、file_patterns 空、FileTarget の場合はフィルタリング不要。
+    """
+    if agent_def.applicability.always:
+        return False
+    if not agent_def.applicability.file_patterns:
+        return False
+    return not isinstance(target, FileTarget)
+
+
+def _build_agent_user_message(
+    *,
+    agent_def: AgentDefinition,
+    target: DiffTarget | PRTarget | FileTarget,
+    base_user_message: str,
+    resolved_content: str,
+    selector_context: str,
+) -> str:
+    """エージェント別のユーザーメッセージを構築する。
+
+    Issue #171: file_patterns を持つエージェントには、マッチするファイルの差分のみ
+    含むユーザーメッセージを構築する。フィルタリング不要なエージェントには
+    ベースのユーザーメッセージをそのまま返す。
+
+    Args:
+        agent_def: エージェント定義。
+        target: レビュー対象。
+        base_user_message: フィルタリング前のベースユーザーメッセージ。
+        resolved_content: 事前解決されたコンテンツ（diff テキスト等）。
+        selector_context: セレクターメタデータセクション（空文字列の場合あり）。
+
+    Returns:
+        エージェント向けのユーザーメッセージ。
+    """
+    if _should_filter_diff(agent_def, target):
+        filtered_content = filter_diff_by_file_patterns(
+            resolved_content, agent_def.applicability.file_patterns
+        )
+        user_message = build_review_instruction(target, filtered_content)
+    else:
+        user_message = base_user_message
+
+    if selector_context:
+        return f"{user_message}\n\n{selector_context}"
+    return user_message
 
 
 def _build_report(
