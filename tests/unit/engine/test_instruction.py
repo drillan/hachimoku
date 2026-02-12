@@ -394,6 +394,21 @@ class TestBuildSelectorInstruction:
         assert "#42" in instruction
         assert "Related Issue" in instruction
 
+    def test_diff_target_with_empty_diff(self) -> None:
+        """DiffTarget + 空 diff で空コンテンツが渡されても動作する。"""
+        target = DiffTarget(base_branch="main")
+        instruction = build_selector_instruction(target, [], "")
+        assert isinstance(instruction, str)
+        assert "main" in instruction
+
+    def test_diff_target_with_non_diff_content(self) -> None:
+        """DiffTarget + diff --git ヘッダーなしのコンテンツは元のまま渡される。"""
+        target = DiffTarget(base_branch="main")
+        raw_content = "some non-diff content\nwithout git headers"
+        instruction = build_selector_instruction(target, [], raw_content)
+        # _summarize_diff が空を返すため、元のコンテンツがそのまま渡される
+        assert raw_content in instruction
+
 
 # =============================================================================
 # _summarize_diff（Issue #170）

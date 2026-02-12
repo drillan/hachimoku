@@ -261,6 +261,9 @@ def build_selector_instruction(
     # Issue #170: DiffTarget/PRTarget → diff メタデータのみ送出
     if isinstance(target, (DiffTarget, PRTarget)):
         selector_content = _summarize_diff(resolved_content)
+        if not selector_content:
+            # diff --git ヘッダーを含まないコンテンツ → 元のまま渡す
+            selector_content = resolved_content
     else:
         selector_content = resolved_content
 
