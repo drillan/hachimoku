@@ -16,25 +16,15 @@ from pydantic_ai.models import Model
 _ANTHROPIC_PREFIX: str = "anthropic:"
 _CLAUDECODE_PREFIX: str = "claudecode:"
 
-# 書き込み系・危険な CLI ビルトインツールのブロックリスト。
-# 読み取り専用ツール（Read, Grep, Glob）はレビューエージェントの
-# コード解析に不可欠なため除外する。
+# レビューエージェントに許可する CLI ビルトインツールの許可リスト。
+# 読み取り専用ツール（Read, Grep, Glob）のみ許可する。
+# deny-list 方式では新規ツール（Task 等）の追加漏れによる
+# バイパスリスクがあるため、allow-list 方式を採用する。
 # pydantic-ai ツール（run_git, run_gh）は subprocess.run() を直接使用するため
-# Bash ブロックの影響を受けない。
+# この制限の影響を受けない。
 # Issue #161: ビルトインツール使用による権限拒否・ターン浪費の防止。
-_DISALLOWED_BUILTIN_TOOLS: Final[frozenset[str]] = frozenset(
-    {
-        "Bash",
-        "Write",
-        "Edit",
-        "MultiEdit",
-        "WebSearch",
-        "WebFetch",
-        "NotebookEdit",
-        "TodoRead",
-        "TodoWrite",
-    }
-)
+# Issue #184: deny-list から allow-list への切り替え。
+_ALLOWED_BUILTIN_TOOLS: Final[tuple[str, ...]] = ("Read", "Grep", "Glob")
 
 
 def resolve_model(model: str) -> str | Model:
@@ -46,8 +36,8 @@ def resolve_model(model: str) -> str | Model:
 
     Returns:
         claudecode の場合: ``claudecode:`` プレフィックスを除去し
-            ClaudeCodeModel インスタンスを返す。書き込み系・危険な
-            CLI ビルトインツールは ``disallowed_tools`` でブロックされる。
+            ClaudeCodeModel インスタンスを返す。読み取り専用の
+            CLI ビルトインツール（Read, Grep, Glob）のみ ``allowed_tools`` で許可される。
         anthropic の場合: モデル文字列をそのまま返す。
 
     Raises:
@@ -63,7 +53,7 @@ def resolve_model(model: str) -> str | Model:
             )
         return ClaudeCodeModel(
             model_name=bare_name,
-            disallowed_tools=list(_DISALLOWED_BUILTIN_TOOLS),
+            allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
         )
 
     if model.startswith(_ANTHROPIC_PREFIX):
