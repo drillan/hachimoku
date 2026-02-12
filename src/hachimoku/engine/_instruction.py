@@ -4,6 +4,7 @@ FR-RE-001: 入力モードに応じたプロンプトコンテキストの生成
 FR-RE-011: --issue オプションの Issue 番号注入。
 FR-RE-012: PR モードでの PR メタデータ注入指示。
 Issue #129: エンジンが事前解決したコンテンツをインストラクションに埋め込む。
+Issue #170: セレクター向け diff メタデータサマリー。
 Issue #172: referenced_content のサイズ上限と truncation。
 """
 
@@ -11,7 +12,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final, TypedDict
 
 from hachimoku.agents.models import AgentDefinition
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
@@ -22,6 +23,184 @@ if TYPE_CHECKING:
 
 # Issue #172: コードフェンス検出パターン（``` or ~~~、3文字以上）
 _FENCE_PATTERN: re.Pattern[str] = re.compile(r"^(`{3,}|~{3,})", re.MULTILINE)
+
+# Issue #170: diff セクション区切りパターン
+_DIFF_SECTION_RE: re.Pattern[str] = re.compile(r"^diff --git ", re.MULTILINE)
+
+_SELECTOR_PREVIEW_LINES: Final[int] = 5
+"""セレクター向け diff サマリーのファイルごとのプレビュー行数。"""
+
+
+class _FileDiffEntry(TypedDict):
+    """_summarize_diff 内部のパース結果。"""
+
+    path: str
+    old_path: str | None
+    status: str
+    additions: int
+    deletions: int
+    preview: list[str]
+
+
+def _summarize_diff(
+    content: str,
+    preview_lines: int = _SELECTOR_PREVIEW_LINES,
+) -> str:
+    """unified diff テキストからセレクター向けのメタデータサマリーを生成する。
+
+    ファイルパス、追加/削除行数、ファイルごとの変更プレビューを含む
+    構造化テキストを返す。セレクターがエージェント選択に必要な情報のみを提供し、
+    フル diff のトークン消費を回避する。
+
+    Args:
+        content: unified diff テキスト（git diff / gh pr diff の出力）。
+        preview_lines: ファイルごとのプレビュー行数。
+
+    Returns:
+        diff メタデータのマークダウンテキスト。
+        content が空の場合は空文字列。
+    """
+    if not content.strip():
+        return ""
+
+    # per-file セクションの開始位置を特定
+    positions = [m.start() for m in _DIFF_SECTION_RE.finditer(content)]
+    if not positions:
+        return ""
+
+    # 各セクションをパース
+    parsed: list[_FileDiffEntry] = []
+    for idx, pos in enumerate(positions):
+        end = positions[idx + 1] if idx + 1 < len(positions) else len(content)
+        entry = _parse_diff_section(content[pos:end], preview_lines)
+        parsed.append(entry)
+
+    return _format_diff_summary(parsed)
+
+
+def _parse_diff_section(
+    section: str,
+    max_preview: int,
+) -> _FileDiffEntry:
+    """unified diff の per-file セクションをパースする。
+
+    Args:
+        section: ``diff --git`` で始まる単一ファイルのセクション。
+        max_preview: プレビューに含める最大変更行数。
+
+    Returns:
+        パース結果の辞書。
+    """
+    lines = section.splitlines()
+    first_line = lines[0]
+
+    # ファイルパス抽出: "diff --git a/old b/new"
+    path_match = re.match(r"diff --git a/.+ b/(.+)", first_line)
+    path: str = path_match.group(1) if path_match else ""
+
+    status = "modified"
+    old_path: str | None = None
+    is_binary = False
+    additions = 0
+    deletions = 0
+    preview: list[str] = []
+
+    for line in lines[1:]:
+        if line.startswith("new file mode"):
+            status = "new"
+        elif line.startswith("deleted file mode"):
+            status = "deleted"
+        elif line.startswith("rename from "):
+            old_path = line[len("rename from ") :]
+            status = "renamed"
+        elif line.startswith("rename to "):
+            pass  # path は diff --git ヘッダーから取得済み
+        elif line.startswith("Binary files"):
+            is_binary = True
+            status = "binary"
+        elif line.startswith("+++") or line.startswith("---"):
+            continue
+        elif line.startswith("@@"):
+            continue
+        elif line.startswith("\\"):
+            continue  # "\ No newline at end of file"
+        elif line.startswith("+"):
+            additions += 1
+            if len(preview) < max_preview:
+                preview.append(line)
+        elif line.startswith("-"):
+            deletions += 1
+            if len(preview) < max_preview:
+                preview.append(line)
+
+    if is_binary:
+        preview = []
+
+    return {
+        "path": path,
+        "old_path": old_path,
+        "status": status,
+        "additions": additions,
+        "deletions": deletions,
+        "preview": preview,
+    }
+
+
+def _format_diff_summary(entries: list[_FileDiffEntry]) -> str:
+    """パース済みエントリからマークダウンサマリーを構築する。"""
+    total_additions = sum(e["additions"] for e in entries)
+    total_deletions = sum(e["deletions"] for e in entries)
+
+    parts: list[str] = [
+        "## Diff Summary",
+        "",
+        (
+            f"{len(entries)} file(s) changed, "
+            f"+{total_additions} additions, -{total_deletions} deletions"
+        ),
+        "",
+        "### Changed Files",
+        "",
+        "| File | Status | Changes |",
+        "|------|--------|---------|",
+    ]
+
+    for entry in entries:
+        path = entry["path"]
+        old_path = entry["old_path"]
+        status = entry["status"]
+        adds = entry["additions"]
+        dels = entry["deletions"]
+
+        file_col = f"{old_path} -> {path}" if old_path else path
+        changes = "-" if status == "binary" else f"+{adds}, -{dels}"
+        parts.append(f"| {file_col} | {status} | {changes} |")
+
+    # プレビューセクション
+    previews = [e for e in entries if e["preview"]]
+    if previews:
+        parts.append("")
+        parts.append("### Change Previews")
+        for entry in previews:
+            path = entry["path"]
+            old_path = entry["old_path"]
+            adds = entry["additions"]
+            dels = entry["deletions"]
+
+            file_label = f"{old_path} -> {path}" if old_path else path
+            parts.append("")
+            parts.append(f"#### {file_label} (+{adds}, -{dels})")
+            parts.append("```diff")
+            parts.extend(entry["preview"])
+            parts.append("```")
+
+    parts.append("")
+    parts.append(
+        "Note: This is a summary for agent selection. "
+        "Use git_read tools to access the full diff if needed."
+    )
+
+    return "\n".join(parts)
 
 
 def build_review_instruction(
@@ -65,8 +244,11 @@ def build_selector_instruction(
 ) -> str:
     """セレクターエージェント向けのユーザーメッセージを構築する。
 
-    レビュー指示情報に加えて、利用可能なエージェント定義一覧
-    （名前・説明・適用ルール・フェーズ）を含む。
+    DiffTarget・PRTarget の場合、フル diff の代わりに差分メタデータ
+    （ファイルリスト・変更行数・プレビュー）を含む。セレクターは
+    エージェント選択に必要な情報のみを受け取り、必要に応じて
+    git_read ツールでフル diff を取得できる。
+    FileTarget の場合はフルコンテンツをそのまま含む。
 
     Args:
         target: レビュー対象。
@@ -76,7 +258,24 @@ def build_selector_instruction(
     Returns:
         セレクターエージェントに渡すユーザーメッセージ文字列。
     """
-    review_section = build_review_instruction(target, resolved_content)
+    # Issue #170: DiffTarget/PRTarget → diff メタデータのみ送出
+    if isinstance(target, (DiffTarget, PRTarget)):
+        selector_content = _summarize_diff(resolved_content)
+        if not selector_content:
+            # diff --git ヘッダーを含まないコンテンツ → 元のまま渡す
+            selector_content = resolved_content
+    else:
+        selector_content = resolved_content
+
+    parts: list[str] = [_build_mode_section(target, selector_content)]
+
+    if target.issue_number is not None:
+        parts.append(
+            f"\nRelated Issue: #{target.issue_number}\n"
+            f"Use gh tools to fetch issue details for additional context."
+        )
+
+    review_section = "\n".join(parts)
     agents_section = _build_agents_section(available_agents)
 
     return (
