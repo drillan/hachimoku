@@ -804,13 +804,17 @@ _ExecuteFn = Callable[
     Coroutine[None, None, list[AgentResult]],
 ]
 
-_COLLECTED_RESULTS_CASES: list[tuple[str, _ExecuteFn, list[tuple[str, Phase]]]] = [
-    (
-        "sequential",
+_COLLECTED_RESULTS_CASES = [
+    pytest.param(
         execute_sequential,
         [("agent-a", Phase.EARLY), ("agent-b", Phase.MAIN)],
+        id="sequential",
     ),
-    ("parallel", execute_parallel, [("agent-a", Phase.MAIN), ("agent-b", Phase.MAIN)]),
+    pytest.param(
+        execute_parallel,
+        [("agent-a", Phase.MAIN), ("agent-b", Phase.MAIN)],
+        id="parallel",
+    ),
 ]
 
 
@@ -821,14 +825,13 @@ class TestCollectedResults:
     """
 
     @pytest.mark.parametrize(
-        ("label", "execute_fn", "context_specs"),
+        ("execute_fn", "context_specs"),
         _COLLECTED_RESULTS_CASES,
     )
     @patch("hachimoku.engine._executor.run_agent")
     async def test_results_appended_to_external_list(
         self,
         mock_run: AsyncMock,
-        label: str,
         execute_fn: _ExecuteFn,
         context_specs: list[tuple[str, Phase]],
     ) -> None:
@@ -848,14 +851,16 @@ class TestCollectedResults:
         assert results is external
 
     @pytest.mark.parametrize(
-        ("label", "execute_fn"),
-        [("sequential", execute_sequential), ("parallel", execute_parallel)],
+        "execute_fn",
+        [
+            pytest.param(execute_sequential, id="sequential"),
+            pytest.param(execute_parallel, id="parallel"),
+        ],
     )
     @patch("hachimoku.engine._executor.run_agent")
     async def test_none_creates_internal_list(
         self,
         mock_run: AsyncMock,
-        label: str,
         execute_fn: _ExecuteFn,
     ) -> None:
         """collected_results=None（デフォルト）で内部リストが作成される。"""

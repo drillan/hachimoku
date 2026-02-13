@@ -438,8 +438,8 @@ class TestReviewBooleanFlags:
     """boolean フラグペア（--parallel/--no-parallel 等）の三値テスト（R-005）。"""
 
     @pytest.mark.parametrize(
-        ("flag_true", "flag_false", "config_key"),
-        _BOOLEAN_FLAG_CASES,
+        ("cli_flag", "config_key"),
+        [(flag_true, key) for flag_true, _, key in _BOOLEAN_FLAG_CASES],
     )
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -447,19 +447,18 @@ class TestReviewBooleanFlags:
         self,
         mock_config: MagicMock,
         mock_run_review: AsyncMock,
-        flag_true: str,
-        flag_false: str,
+        cli_flag: str,
         config_key: str,
     ) -> None:
         """--flag → config_overrides[key] == True。"""
         setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, [flag_true])
+        runner.invoke(app, [cli_flag])
         overrides = mock_run_review.call_args.kwargs["config_overrides"]
         assert overrides[config_key] is True
 
     @pytest.mark.parametrize(
-        ("flag_true", "flag_false", "config_key"),
-        _BOOLEAN_FLAG_CASES,
+        ("cli_flag", "config_key"),
+        [(flag_false, key) for _, flag_false, key in _BOOLEAN_FLAG_CASES],
     )
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -467,19 +466,18 @@ class TestReviewBooleanFlags:
         self,
         mock_config: MagicMock,
         mock_run_review: AsyncMock,
-        flag_true: str,
-        flag_false: str,
+        cli_flag: str,
         config_key: str,
     ) -> None:
         """--no-flag → config_overrides[key] == False。"""
         setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, [flag_false])
+        runner.invoke(app, [cli_flag])
         overrides = mock_run_review.call_args.kwargs["config_overrides"]
         assert overrides[config_key] is False
 
     @pytest.mark.parametrize(
-        ("flag_true", "flag_false", "config_key"),
-        _BOOLEAN_FLAG_CASES,
+        "config_key",
+        [key for _, _, key in _BOOLEAN_FLAG_CASES],
     )
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -487,8 +485,6 @@ class TestReviewBooleanFlags:
         self,
         mock_config: MagicMock,
         mock_run_review: AsyncMock,
-        flag_true: str,
-        flag_false: str,
         config_key: str,
     ) -> None:
         """未指定 → config_overrides に key なし。"""

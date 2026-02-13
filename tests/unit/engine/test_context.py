@@ -418,7 +418,11 @@ class TestBuildExecutionContextTimeoutResolution:
         ],
     )
     def test_timeout_priority_resolution(
-        self, agent_def_timeout, global_timeout, agent_cfg_timeout, expected
+        self,
+        agent_def_timeout: int | None,
+        global_timeout: int,
+        agent_cfg_timeout: int | str | None,
+        expected: int,
     ) -> None:
         """timeout の優先順を検証: agent_config > agent_def > global_config。"""
         agent = _make_agent(timeout=agent_def_timeout)
@@ -426,7 +430,7 @@ class TestBuildExecutionContextTimeoutResolution:
         agent_cfg = (
             None
             if agent_cfg_timeout == _NO_AGENT_CONFIG
-            else AgentConfig(timeout=agent_cfg_timeout)
+            else AgentConfig(timeout=agent_cfg_timeout)  # type: ignore[arg-type]
         )
         ctx = build_execution_context(
             agent_def=agent,
@@ -458,7 +462,11 @@ class TestBuildExecutionContextMaxTurnsResolution:
         ],
     )
     def test_max_turns_priority_resolution(
-        self, agent_def_max_turns, global_max_turns, agent_cfg_max_turns, expected
+        self,
+        agent_def_max_turns: int | None,
+        global_max_turns: int,
+        agent_cfg_max_turns: int | str | None,
+        expected: int,
     ) -> None:
         """max_turns の優先順を検証: agent_config > agent_def > global_config。"""
         agent = _make_agent(max_turns=agent_def_max_turns)
@@ -466,7 +474,7 @@ class TestBuildExecutionContextMaxTurnsResolution:
         agent_cfg = (
             None
             if agent_cfg_max_turns == _NO_AGENT_CONFIG
-            else AgentConfig(max_turns=agent_cfg_max_turns)
+            else AgentConfig(max_turns=agent_cfg_max_turns)  # type: ignore[arg-type]
         )
         ctx = build_execution_context(
             agent_def=agent,
