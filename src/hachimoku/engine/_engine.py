@@ -35,6 +35,7 @@ from hachimoku.engine._resolver import ContentResolveError, resolve_content
 from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
 from hachimoku.engine._progress import (
     create_progress_reporter,
+    create_selector_spinner,
     report_load_warnings,
     report_selector_result,
     report_summary,
@@ -208,7 +209,9 @@ async def run_review(
     base_user_message = build_review_instruction(target, resolved_content)
 
     # Step 5: セレクターエージェント実行
+    selector_spinner = create_selector_spinner()
     try:
+        selector_spinner.start()
         selector_output = await run_selector(
             target=target,
             available_agents=filtered_result.agents,
@@ -220,15 +223,18 @@ async def run_review(
             resolved_content=resolved_content,
             prefetched_context=prefetched,
         )
-        report_selector_result(
-            len(selector_output.selected_agents),
-            selector_output.reasoning,
-        )
     except SelectorError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return _build_empty_engine_result(
             load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
         )
+    finally:
+        selector_spinner.stop()
+
+    report_selector_result(
+        len(selector_output.selected_agents),
+        selector_output.reasoning,
+    )
 
     # 空選択 → 正常終了
     if not selector_output.selected_agents:

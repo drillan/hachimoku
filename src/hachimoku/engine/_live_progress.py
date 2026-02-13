@@ -12,6 +12,7 @@ from typing import Final
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
+from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 
@@ -25,6 +26,12 @@ from hachimoku.models.agent_result import (
 
 PHASE_ORDER: Final[dict[str, int]] = {"early": 0, "main": 1, "final": 2}
 """フェーズのソート順序。"""
+
+SELECTOR_SPINNER_TEXT: Final[str] = "Selecting agents..."
+"""セレクタースピナーの表示テキスト。"""
+
+SELECTOR_SPINNER_STYLE: Final[str] = "dots"
+"""セレクタースピナーのアニメーションスタイル。"""
 
 
 @dataclass
@@ -134,3 +141,34 @@ def _render_status(status: str) -> Text | Spinner:
     if status.startswith("⏱"):
         return Text(status, style="red")
     return Text(status)
+
+
+# =============================================================================
+# RichSelectorSpinner
+# =============================================================================
+
+
+class RichSelectorSpinner:
+    """TTY 環境向け Rich スピナーセレクター進捗表示。
+
+    Console.status() を使用してセレクター実行中にスピナーを表示する。
+    """
+
+    def __init__(self, console: Console | None = None) -> None:
+        self._console: Console = console or Console(file=sys.stderr)
+        self._status: Status | None = None
+
+    def start(self) -> None:
+        """Rich Status スピナーを開始する。"""
+        status = self._console.status(
+            SELECTOR_SPINNER_TEXT,
+            spinner=SELECTOR_SPINNER_STYLE,
+        )
+        status.start()
+        self._status = status
+
+    def stop(self) -> None:
+        """Rich Status スピナーを停止する。"""
+        if self._status is not None:
+            self._status.stop()
+            self._status = None
