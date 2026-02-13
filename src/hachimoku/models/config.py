@@ -28,7 +28,7 @@ _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
 
 # グローバルデフォルト値（Issue #130: 複雑なレビューに対応するため引き上げ）
 DEFAULT_TIMEOUT_SECONDS: Final[int] = 600
-DEFAULT_MAX_TURNS: Final[int] = 20
+DEFAULT_MAX_TURNS: Final[int] = 30
 
 # referenced_content のサイズ上限（Issue #172）
 DEFAULT_REFERENCED_CONTENT_MAX_CHARS: Final[int] = 5000
