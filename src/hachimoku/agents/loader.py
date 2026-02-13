@@ -8,7 +8,7 @@ AggregatorDefinition モデルとして構築する。
 from __future__ import annotations
 
 import tomllib
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Final, TypeVar
@@ -182,12 +182,16 @@ def load_builtin_agents() -> LoadResult:
     """
     builtin_package = files("hachimoku.agents._builtin")
 
-    def _iter_paths() -> Iterator[Path]:
+    def _iter_paths() -> Generator[Path, None, None]:
         for resource in sorted(builtin_package.iterdir(), key=lambda r: r.name):
             with as_file(resource) as path:
                 yield path
 
-    return _collect_agents(_iter_paths())
+    gen = _iter_paths()
+    try:
+        return _collect_agents(gen)
+    finally:
+        gen.close()
 
 
 def load_custom_agents(custom_dir: Path) -> LoadResult:
