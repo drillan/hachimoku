@@ -4,13 +4,14 @@ T022: group_by_phase のフェーズグルーピングと
 execute_sequential の逐次実行（フェーズ順・名前辞書順）を検証する。
 T034: execute_parallel の並列実行（同一フェーズ内並列、フェーズ間順序保持）を検証する。
 FR-RE-006: parallel 設定に応じたフェーズ順序制御。
+FR-CLI-015: ProgressReporter 連携。
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Coroutine
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -759,16 +760,15 @@ class TestExecuteParallel:
         result_names = {r.agent_name for r in results}
         assert result_names == {"agent-a", "agent-b"}
 
-    @patch("hachimoku.engine._executor.report_agent_complete")
     @patch("hachimoku.engine._executor.run_agent")
     async def test_result_appended_before_report_complete(
-        self, mock_run: AsyncMock, mock_report: MagicMock
+        self, mock_run: AsyncMock
     ) -> None:
-        """結果が report_agent_complete より先に results に追加される。
+        """結果が reporter.on_agent_complete より先に results に追加される。
 
         CancelledError による結果損失を防止するため、
         結果保存を進捗報告より先に実行する。
-        report_agent_complete 呼び出し時点で結果がリストに存在するかを記録して検証する。
+        on_agent_complete 呼び出し時点で結果がリストに存在するかを記録して検証する。
         """
         collected: list[AgentResult] = []
         was_in_collected_at_report_time: list[bool] = []
@@ -778,19 +778,23 @@ class TestExecuteParallel:
 
         mock_run.side_effect = run_side_effect
 
+        reporter = _make_mock_reporter()
+
         def record_state(agent_name: str, result: AgentResult) -> None:
             was_in_collected_at_report_time.append(result in collected)
 
-        mock_report.side_effect = record_state
+        reporter.on_agent_complete.side_effect = record_state
 
         contexts = [_make_context("agent-a", Phase.MAIN)]
         event = asyncio.Event()
-        await execute_parallel(contexts, event, collected_results=collected)
+        await execute_parallel(
+            contexts, event, collected_results=collected, reporter=reporter
+        )
 
         assert len(collected) == 1
-        mock_report.assert_called_once()
+        reporter.on_agent_complete.assert_called_once()
         assert was_in_collected_at_report_time == [True], (
-            "result must be appended to collected before report_agent_complete is called"
+            "result must be appended to collected before on_agent_complete is called"
         )
 
 
@@ -925,3 +929,78 @@ class TestCollectedResults:
         assert len(external) == 1
         assert external[0].agent_name == "early-agent"
         assert results is external
+
+
+# =============================================================================
+# ProgressReporter 連携（FR-CLI-015）
+# =============================================================================
+
+
+def _make_mock_reporter() -> Mock:
+    """テスト用のモック ProgressReporter を生成する。"""
+    reporter = Mock()
+    reporter.on_agent_start = Mock()
+    reporter.on_agent_complete = Mock()
+    reporter.on_agent_pending = Mock()
+    reporter.start = Mock()
+    reporter.stop = Mock()
+    return reporter
+
+
+class TestExecutorWithReporter:
+    """reporter パラメータを使った executor テスト。"""
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_sequential_reporter_on_agent_start_called(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """逐次実行で reporter.on_agent_start が各エージェント実行前に呼ばれる。"""
+        mock_run.return_value = _make_success()
+        reporter = _make_mock_reporter()
+        event = asyncio.Event()
+        contexts = [_make_context("agent-a"), _make_context("agent-b")]
+
+        await execute_sequential(contexts, event, reporter=reporter)
+
+        assert reporter.on_agent_start.call_count == 2
+        reporter.on_agent_start.assert_any_call("agent-a")
+        reporter.on_agent_start.assert_any_call("agent-b")
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_sequential_reporter_on_agent_complete_called(
+        self, mock_run: AsyncMock
+    ) -> None:
+        """逐次実行で reporter.on_agent_complete が各エージェント完了後に呼ばれる。"""
+        result = _make_success("agent-a")
+        mock_run.return_value = result
+        reporter = _make_mock_reporter()
+        event = asyncio.Event()
+        contexts = [_make_context("agent-a")]
+
+        await execute_sequential(contexts, event, reporter=reporter)
+
+        reporter.on_agent_complete.assert_called_once_with("agent-a", result)
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_parallel_reporter_calls(self, mock_run: AsyncMock) -> None:
+        """並列実行でも reporter メソッドが呼ばれる。"""
+        mock_run.side_effect = lambda ctx: _make_success(ctx.agent_name)
+        reporter = _make_mock_reporter()
+        event = asyncio.Event()
+        contexts = [_make_context("agent-a"), _make_context("agent-b")]
+
+        await execute_parallel(contexts, event, reporter=reporter)
+
+        assert reporter.on_agent_start.call_count == 2
+        assert reporter.on_agent_complete.call_count == 2
+
+    @patch("hachimoku.engine._executor.run_agent")
+    async def test_none_reporter_uses_plain(self, mock_run: AsyncMock) -> None:
+        """reporter=None の場合でも正常に動作する（PlainProgressReporter が使われる）。"""
+        mock_run.return_value = _make_success()
+        event = asyncio.Event()
+        contexts = [_make_context("agent-a")]
+
+        # reporter=None（デフォルト）で例外なく動作することを検証
+        results = await execute_sequential(contexts, event)
+        assert len(results) == 1

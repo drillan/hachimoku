@@ -34,6 +34,7 @@ from hachimoku.engine._prefetch import PrefetchError, prefetch_selector_context
 from hachimoku.engine._resolver import ContentResolveError, resolve_content
 from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
 from hachimoku.engine._progress import (
+    create_progress_reporter,
     report_load_warnings,
     report_selector_result,
     report_summary,
@@ -90,7 +91,8 @@ async def _execute_with_shutdown_timeout(
     既に共有リストに追加された結果は保存される。
 
     Args:
-        executor_fn: execute_sequential または execute_parallel。
+        executor_fn: エージェント実行関数。3引数（contexts, shutdown_event,
+            collected_results）で呼び出される Callable。
         contexts: エージェント実行コンテキストのリスト。
         shutdown_event: シグナルハンドラがセットする停止イベント。
 
@@ -269,11 +271,26 @@ async def run_review(
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
+    # FR-CLI-015: 進捗レポーター生成（TTY → Rich / 非 TTY → Plain）
+    reporter = create_progress_reporter()
+    for ctx in contexts:
+        reporter.on_agent_pending(ctx.agent_name, ctx.phase.value)
+
     try:
         install_signal_handlers(shutdown_event, loop)
+        reporter.start()
+
         executor = execute_parallel if config.parallel else execute_sequential
+
+        async def _bound_executor(
+            ctxs: list[AgentExecutionContext],
+            event: asyncio.Event,
+            collected: list[AgentResult] | None = None,
+        ) -> list[AgentResult]:
+            return await executor(ctxs, event, collected, reporter=reporter)
+
         results: list[AgentResult] = await _execute_with_shutdown_timeout(
-            executor, contexts, shutdown_event
+            _bound_executor, contexts, shutdown_event
         )
 
         # Step 8: 結果集約
@@ -289,7 +306,10 @@ async def run_review(
                 custom_agents_dir=custom_agents_dir,
             )
     finally:
-        uninstall_signal_handlers(loop)
+        try:
+            reporter.stop()
+        finally:
+            uninstall_signal_handlers(loop)
 
     exit_code = _determine_exit_code(results, report.summary)
 
