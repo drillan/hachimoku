@@ -258,8 +258,8 @@ class TestReviewExecution:
         setup_mocks(mock_config, mock_run_review)
         result = runner.invoke(app)
         assert result.exit_code == 0
-        # 暫定出力は JSON ダンプ。total_issues が含まれることを検証
-        assert "total_issues" in result.output
+        # デフォルト出力は Markdown 形式（FR-CLI-005）
+        assert "# Review Report" in result.output
 
 
 class TestReviewExitCodes:

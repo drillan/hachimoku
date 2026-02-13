@@ -4,6 +4,7 @@ FR-CLI-001: デュアルコマンド名。
 FR-CLI-002: 位置引数からの入力モード判定。
 FR-CLI-003: 終了コード。
 FR-CLI-004: stdout/stderr ストリーム分離。
+FR-CLI-005: 出力形式選択（--format）。
 FR-CLI-006: CLI オプション対応表。
 FR-CLI-009: ファイル・ディレクトリ・glob パターンの展開。
 FR-CLI-011: max_files_per_review 超過時の確認プロンプト。
@@ -19,7 +20,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, assert_never
 
 import click
 import typer
@@ -29,6 +30,7 @@ from typer.core import TyperGroup
 from hachimoku.agents import LoadResult, load_agents, load_builtin_agents
 from hachimoku.cli._file_resolver import FileResolutionError, resolve_files
 from hachimoku.cli._init_handler import InitError, run_init
+from hachimoku.cli._markdown_formatter import format_markdown
 from hachimoku.cli._input_resolver import (
     DiffInput,
     FileInput,
@@ -294,13 +296,7 @@ def review_callback(
         raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from e
 
     # 6. stdout にレポート出力
-    # 007-output-format 未実装のため、暫定的に JSON のみサポート
-    effective_format = (
-        config.output_format
-        if config.output_format == OutputFormat.JSON
-        else OutputFormat.JSON
-    )
-    report_text = _format_report(result.report, effective_format)
+    report_text = _format_report(result.report, config.output_format)
     print(report_text)
 
     # 6.5. JSONL 蓄積 (FR-025)
@@ -539,13 +535,9 @@ def _save_review_result(
 
 
 def _format_report(report: ReviewReport, output_format: OutputFormat) -> str:
-    """レポートを文字列に変換する。
-
-    JSON 形式のみサポート。Markdown 形式は 007-output-format で実装予定。
-    """
+    """レポートを指定形式の文字列に変換する。"""
     if output_format == OutputFormat.JSON:
         return report.model_dump_json(indent=2)
-    raise NotImplementedError(
-        "Markdown format is not yet implemented (see 007-output-format). "
-        "Use --format json."
-    )
+    if output_format == OutputFormat.MARKDOWN:
+        return format_markdown(report)
+    assert_never(output_format)
