@@ -117,9 +117,12 @@ TOML ベースの階層的な設定をサポートします（優先度順）:
 
 詳細なドキュメントは [docs/](docs/) を参照してください。
 
+- [インストール](docs/installation.md)
+- [CLI リファレンス](docs/cli.md)
 - [エージェント定義](docs/agents.md)
 - [設定](docs/configuration.md)
 - [ドメインモデル](docs/models.md)
+- [Review Context ガイド](docs/review-context.md)
 
 ## ライセンス
 
