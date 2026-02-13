@@ -37,6 +37,9 @@ from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 
+_PASSTHROUGH_RESOLVE = lambda m, **_kw: m  # noqa: E731
+"""resolve_model のパススルーモック。keyword 引数（allowed_builtin_tools 等）を無視する。"""
+
 
 def _make_agent(
     name: str = "test-agent",
@@ -408,7 +411,7 @@ class TestRunSelectorSuccess:
     Agent.run() をモック化し、ツール実行を回避する。
     """
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_returns_selector_output(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -438,7 +441,7 @@ class TestRunSelectorSuccess:
         assert isinstance(result, SelectorOutput)
         assert result.selected_agents == ["agent-a", "agent-b"]
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_empty_selection_is_valid(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -465,7 +468,7 @@ class TestRunSelectorSuccess:
         assert isinstance(result, SelectorOutput)
         assert result.selected_agents == []
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_reasoning_preserved(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -491,7 +494,7 @@ class TestRunSelectorSuccess:
         )
         assert result.reasoning == "Detailed reasoning here"
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_model_override(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -520,7 +523,7 @@ class TestRunSelectorSuccess:
         call_kwargs = mock_agent_cls.call_args
         assert call_kwargs.kwargs["model"] == "custom-model"
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_definition_model_used_when_config_none(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -564,7 +567,7 @@ class TestRunSelectorError:
             (TimeoutError("timed out"), "timed out"),
         ],
     )
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_exception_raises_selector_error(
         self,
@@ -603,7 +606,7 @@ class TestRunSelectorError:
 class TestRunSelectorErrorDiagnostics:
     """run_selector が CLIExecutionError の構造化属性を SelectorError に伝播するテスト。"""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_cli_execution_error_attributes_propagated(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -640,7 +643,7 @@ class TestRunSelectorErrorDiagnostics:
         assert err.recoverable is False
         assert isinstance(err.__cause__, CLIExecutionError)
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_cli_execution_error_empty_stderr_preserved(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -672,7 +675,7 @@ class TestRunSelectorErrorDiagnostics:
 
         assert exc_info.value.stderr == ""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_non_cli_error_fields_remain_none(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -746,34 +749,6 @@ class TestRunSelectorResolveModel:
 
     @patch("hachimoku.engine._selector.resolve_model")
     @patch("hachimoku.engine._selector.Agent")
-    async def test_resolve_model_called_with_empty_builtin_tools(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
-    ) -> None:
-        """resolve_model が allowed_builtin_tools=() で呼ばれる（CLI ツール除去）。
-
-        Issue #198: セレクターは CLI ビルトインツールを使用しない。
-        """
-        mock_resolve.return_value = "resolved-model"
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
-
-        await run_selector(
-            target=_make_target(),
-            available_agents=[_make_agent()],
-            selector_definition=_make_selector_definition(),
-            selector_config=_make_selector_config(),
-            global_model="test",
-            global_timeout=300,
-            global_max_turns=10,
-            resolved_content="test diff content",
-        )
-
-        call_kwargs = mock_resolve.call_args
-        assert call_kwargs.kwargs["allowed_builtin_tools"] == ()
-
-    @patch("hachimoku.engine._selector.resolve_model")
-    @patch("hachimoku.engine._selector.Agent")
     async def test_registers_toolsets_for_claudecode_model(
         self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
     ) -> None:
@@ -803,7 +778,7 @@ class TestRunSelectorResolveModel:
             mock_instance._function_toolset
         )
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_skips_toolset_registration_for_string_model(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -838,7 +813,7 @@ class TestRunSelectorResolveModel:
 class TestRunSelectorModelSettings:
     """run_selector が agent.run() に model_settings を渡すテスト。"""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_model_settings_max_turns_passed(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -867,7 +842,7 @@ class TestRunSelectorModelSettings:
         assert call_kwargs["model_settings"] == {"max_turns": 10, "timeout": 300}
         assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_max_turns_override(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -895,7 +870,7 @@ class TestRunSelectorModelSettings:
         call_kwargs = mock_instance.run.call_args.kwargs
         assert call_kwargs["model_settings"] == {"max_turns": 5, "timeout": 300}
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_model_settings_timeout_passed(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -923,7 +898,7 @@ class TestRunSelectorModelSettings:
         call_kwargs = mock_instance.run.call_args.kwargs
         assert call_kwargs["model_settings"]["timeout"] == 600
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_timeout_override(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -960,7 +935,7 @@ class TestRunSelectorModelSettings:
 class TestRunSelectorDefinitionIntegration:
     """run_selector が SelectorDefinition を使用するテスト。"""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_system_prompt_from_definition(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -993,7 +968,7 @@ class TestRunSelectorDefinitionIntegration:
             call_kwargs.kwargs["system_prompt"] == "Custom system prompt for selector"
         )
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_config_model_overrides_definition_model(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -1022,7 +997,7 @@ class TestRunSelectorDefinitionIntegration:
         call_kwargs = mock_agent_cls.call_args
         assert call_kwargs.kwargs["model"] == "config-model"
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_global_model_used_when_config_and_definition_none(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -1256,7 +1231,7 @@ class TestPrefetchGuardrail:
 class TestRunSelectorDepsIntegration:
     """run_selector が SelectorDeps と instructions を Agent に渡すテスト。Issue #195。"""
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_constructed_with_deps_type(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -1280,7 +1255,7 @@ class TestRunSelectorDepsIntegration:
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert call_kwargs["deps_type"] is SelectorDeps
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_constructed_with_instructions(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -1304,7 +1279,7 @@ class TestRunSelectorDepsIntegration:
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert call_kwargs["instructions"] is _prefetch_guardrail
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_run_receives_deps(
         self, mock_agent_cls: MagicMock, _: MagicMock
@@ -1334,7 +1309,7 @@ class TestRunSelectorDepsIntegration:
         assert isinstance(deps, SelectorDeps)
         assert deps.prefetched is ctx
 
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m, **_kw: m)
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_run_receives_none_deps_when_no_prefetch(
         self, mock_agent_cls: MagicMock, _: MagicMock

@@ -16,8 +16,10 @@ from pydantic_ai.models import Model
 _ANTHROPIC_PREFIX: str = "anthropic:"
 _CLAUDECODE_PREFIX: str = "claudecode:"
 
-# レビューエージェントに許可する CLI ビルトインツールの許可リスト。
+# デフォルトで許可する CLI ビルトインツールの許可リスト。
 # 読み取り専用ツール（Read, Grep, Glob）のみ許可する。
+# resolve_model() の allowed_builtin_tools=None（デフォルト）時に使用される。
+# セレクターは allowed_builtin_tools=() で無効化する（Issue #198）。
 # deny-list 方式では新規ツール（Task 等）の追加漏れによる
 # バイパスリスクがあるため、allow-list 方式を採用する。
 # pydantic-ai ツール（run_git, run_gh）は subprocess.run() を直接使用するため
