@@ -361,7 +361,7 @@ class TestResolveConfigOnlyUserGlobalConfig:
         user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
         _write_toml(
             user_config_dir / "config.toml",
-            'model = "user-model"\nmax_turns = 30\n',
+            'model = "user-model"\nmax_turns = 42\n',
         )
         with patch(
             "hachimoku.config._resolver.get_user_config_path",
@@ -369,7 +369,7 @@ class TestResolveConfigOnlyUserGlobalConfig:
         ):
             config = resolve_config(start_dir=tmp_path)
         assert config.model == "user-model"
-        assert config.max_turns == 30
+        assert config.max_turns == 42
         assert config.timeout == 600  # デフォルト
 
 

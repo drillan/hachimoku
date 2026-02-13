@@ -155,10 +155,12 @@ class TestGenerateConfigTemplate:
 
     def test_contains_default_values(self) -> None:
         """デフォルト値が含まれている。"""
+        from hachimoku.models.config import DEFAULT_MAX_TURNS
+
         template = _generate_config_template()
         assert '"claudecode:claude-opus-4-6"' in template
         assert "600" in template
-        assert "20" in template
+        assert f"max_turns = {DEFAULT_MAX_TURNS}" in template
         assert "true" in template
         assert '"main"' in template
         assert '"markdown"' in template
