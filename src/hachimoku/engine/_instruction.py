@@ -6,6 +6,7 @@ FR-RE-012: PR モードでの PR メタデータ注入指示。
 Issue #129: エンジンが事前解決したコンテンツをインストラクションに埋め込む。
 Issue #170: セレクター向け diff メタデータサマリー。
 Issue #172: referenced_content のサイズ上限と truncation。
+Issue #187: セレクター向け事前取得コンテキストの埋め込み。
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import DEFAULT_REFERENCED_CONTENT_MAX_CHARS
 
 if TYPE_CHECKING:
+    from hachimoku.engine._prefetch import PrefetchedContext
     from hachimoku.engine._selector import ReferencedContent
 
 # Issue #172: コードフェンス検出パターン（``` or ~~~、3文字以上）
@@ -237,10 +239,52 @@ def build_review_instruction(
     return "\n".join(parts)
 
 
+def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
+    """PrefetchedContext からセレクター向けマークダウンセクションを構築する。
+
+    Issue #187: 事前取得されたコンテキストをインストラクションに埋め込む。
+    非空のフィールドのみ対応するサブセクションを出力する。
+    全て空の場合は空文字列を返す。
+
+    Args:
+        prefetched: 事前取得されたコンテキスト。
+
+    Returns:
+        マークダウン形式のセクション文字列。全て空の場合は空文字列。
+    """
+    subsections: list[str] = []
+
+    if prefetched.issue_context:
+        subsections.append(f"### Issue Context\n\n```\n{prefetched.issue_context}\n```")
+
+    if prefetched.pr_metadata:
+        subsections.append(f"### PR Metadata\n\n```\n{prefetched.pr_metadata}\n```")
+
+    if prefetched.project_conventions:
+        subsections.append(
+            f"### Project Conventions\n\n{prefetched.project_conventions}"
+        )
+
+    if prefetched.referenced_issues:
+        ref_parts: list[str] = []
+        for ref in prefetched.referenced_issues:
+            ref_parts.append(
+                f"#### [{ref.reference_type}] {ref.reference_id}\n\n"
+                f"```\n{ref.content}\n```"
+            )
+        subsections.append("### Referenced Issues\n\n" + "\n\n".join(ref_parts))
+
+    if not subsections:
+        return ""
+
+    return "## Pre-fetched Context\n\n" + "\n\n".join(subsections)
+
+
 def build_selector_instruction(
     target: DiffTarget | PRTarget | FileTarget,
     available_agents: Sequence[AgentDefinition],
     resolved_content: str,
+    prefetched_context: PrefetchedContext | None = None,
 ) -> str:
     """セレクターエージェント向けのユーザーメッセージを構築する。
 
@@ -254,6 +298,7 @@ def build_selector_instruction(
         target: レビュー対象。
         available_agents: 利用可能なエージェント定義リスト。
         resolved_content: 事前解決されたコンテンツ。
+        prefetched_context: 事前取得されたコンテキスト（Issue #187）。
 
     Returns:
         セレクターエージェントに渡すユーザーメッセージ文字列。
@@ -269,7 +314,11 @@ def build_selector_instruction(
 
     parts: list[str] = [_build_mode_section(target, selector_content)]
 
-    if target.issue_number is not None:
+    # Issue #187: 事前取得済みの Issue コンテキストがある場合はツール使用指示を省略
+    has_prefetched_issue = (
+        prefetched_context is not None and prefetched_context.issue_context != ""
+    )
+    if target.issue_number is not None and not has_prefetched_issue:
         parts.append(
             f"\nRelated Issue: #{target.issue_number}\n"
             f"Use the run_gh tool to fetch issue details for additional context."
@@ -278,12 +327,27 @@ def build_selector_instruction(
     review_section = "\n".join(parts)
     agents_section = _build_agents_section(available_agents)
 
-    return (
-        f"{review_section}\n\n"
-        f"## Available Agents\n\n"
-        f"{agents_section}\n\n"
-        f"Select the agents that are most applicable for this review."
+    # Issue #187: 事前取得コンテキストセクションの埋め込み
+    prefetched_section = ""
+    if prefetched_context is not None:
+        prefetched_section = _build_prefetched_section(prefetched_context)
+
+    instruction_parts = [
+        review_section,
+        "",
+        f"## Available Agents\n\n{agents_section}",
+    ]
+
+    if prefetched_section:
+        instruction_parts.append("")
+        instruction_parts.append(prefetched_section)
+
+    instruction_parts.append("")
+    instruction_parts.append(
+        "Select the agents that are most applicable for this review."
     )
+
+    return "\n".join(instruction_parts)
 
 
 def _close_unclosed_fences(text: str) -> str:

@@ -335,6 +335,11 @@ class TestSelectorConfigDefaults:
         """referenced_content_max_chars のデフォルトが 5000 であること。"""
         assert SelectorConfig().referenced_content_max_chars == 5000
 
+    def test_default_convention_files(self) -> None:
+        """convention_files のデフォルトが CLAUDE.md と config.toml であること。Issue #187."""
+        config = SelectorConfig()
+        assert config.convention_files == ("CLAUDE.md", ".hachimoku/config.toml")
+
 
 class TestSelectorConfigValidation:
     """SelectorConfig のバリデーションテスト (FR-CF-004)。"""
@@ -394,6 +399,17 @@ class TestSelectorConfigValidation:
             ).referenced_content_max_chars
             == 8000
         )
+
+    def test_convention_files_custom(self) -> None:
+        """convention_files にカスタム値を渡すと設定されること。Issue #187."""
+        custom = ("README.md", "pyproject.toml")
+        config = SelectorConfig(convention_files=custom)
+        assert config.convention_files == custom
+
+    def test_convention_files_empty_accepted(self) -> None:
+        """convention_files に空タプルを渡すと設定されること。Issue #187."""
+        config = SelectorConfig(convention_files=())
+        assert config.convention_files == ()
 
     def test_extra_field_rejected(self) -> None:
         """未知のキーを渡すと ValidationError が発生すること。"""

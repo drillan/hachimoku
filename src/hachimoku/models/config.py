@@ -49,6 +49,7 @@ class SelectorConfig(HachimokuBaseModel):
     referenced_content_max_chars: int = Field(
         default=DEFAULT_REFERENCED_CONTENT_MAX_CHARS, gt=0
     )
+    convention_files: tuple[str, ...] = ("CLAUDE.md", ".hachimoku/config.toml")
 
 
 class AgentConfig(HachimokuBaseModel):

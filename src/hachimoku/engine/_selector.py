@@ -3,6 +3,7 @@
 FR-RE-002 Step 5: セレクターエージェントの構築・実行・結果解釈。
 FR-RE-010: 空リスト返却時の正常終了。
 R-006: SelectorOutput モデル定義。
+Issue #187: prefetched_context の伝播。
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
@@ -24,6 +26,9 @@ from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
+
+if TYPE_CHECKING:
+    from hachimoku.engine._prefetch import PrefetchedContext
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +110,7 @@ async def run_selector(
     global_timeout: int,
     global_max_turns: int,
     resolved_content: str,
+    prefetched_context: PrefetchedContext | None = None,
 ) -> SelectorOutput:
     """セレクターエージェントを実行し、実行すべきエージェントを選択する。
 
@@ -127,6 +133,7 @@ async def run_selector(
         global_timeout: グローバルタイムアウト秒数。
         global_max_turns: グローバル最大ターン数。
         resolved_content: 事前解決されたコンテンツ（diff テキスト、ファイル内容等）。
+        prefetched_context: 事前取得されたコンテキスト（Issue #187）。
 
     Returns:
         SelectorOutput: 選択されたエージェント名リストと選択理由。
@@ -156,7 +163,10 @@ async def run_selector(
     try:
         tools = resolve_tools(selector_definition.allowed_tools)
         user_message = build_selector_instruction(
-            target, available_agents, resolved_content
+            target,
+            available_agents,
+            resolved_content,
+            prefetched_context=prefetched_context,
         )
 
         resolved = resolve_model(model)
