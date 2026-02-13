@@ -66,17 +66,21 @@ class RichProgressReporter:
 
     def start(self) -> None:
         """Rich Live 表示を開始する。"""
-        self._live = Live(
+        live = Live(
             self.build_table(),
             console=self._console,
             refresh_per_second=4,
         )
-        self._live.__enter__()
+        live.__enter__()
+        self._live = live
 
     def stop(self) -> None:
         """Rich Live 表示を停止する。"""
         if self._live is not None:
-            self._live.__exit__(None, None, None)
+            try:
+                self._live.__exit__(None, None, None)
+            except Exception:
+                pass
             self._live = None
 
     def build_table(self) -> Table:

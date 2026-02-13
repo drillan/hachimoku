@@ -91,7 +91,8 @@ async def _execute_with_shutdown_timeout(
     既に共有リストに追加された結果は保存される。
 
     Args:
-        executor_fn: execute_sequential または execute_parallel。
+        executor_fn: エージェント実行関数。3引数（contexts, shutdown_event,
+            collected_results）で呼び出される Callable。
         contexts: エージェント実行コンテキストのリスト。
         shutdown_event: シグナルハンドラがセットする停止イベント。
 
@@ -305,8 +306,10 @@ async def run_review(
                 custom_agents_dir=custom_agents_dir,
             )
     finally:
-        reporter.stop()
-        uninstall_signal_handlers(loop)
+        try:
+            reporter.stop()
+        finally:
+            uninstall_signal_handlers(loop)
 
     exit_code = _determine_exit_code(results, report.summary)
 

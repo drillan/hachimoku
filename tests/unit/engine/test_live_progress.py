@@ -159,8 +159,15 @@ class TestBuildTable:
         reporter.on_agent_pending("final-agent", "final")
 
         table = reporter.build_table()
-        # Rich Table の行数を検証
         assert table.row_count == 4
+        # Agent 列（index 0）の行順序を検証
+        agent_names = [str(cell) for cell in table.columns[0]._cells]
+        assert agent_names == [
+            "early-agent",
+            "a-reviewer",
+            "z-reviewer",
+            "final-agent",
+        ]
 
     def test_table_has_correct_columns(self) -> None:
         """テーブルに Agent, Phase, Status 列が存在する。"""
