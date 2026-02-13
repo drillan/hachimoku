@@ -555,47 +555,32 @@ class TestRunSelectorSuccess:
 class TestRunSelectorError:
     """run_selector のエラー系テスト。"""
 
+    @pytest.mark.parametrize(
+        ("exception", "match_pattern"),
+        [
+            (RuntimeError("LLM connection failed"), "LLM connection failed"),
+            (TimeoutError("timed out"), "timed out"),
+        ],
+    )
     @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._selector.Agent")
-    async def test_agent_exception_raises_selector_error(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+    async def test_exception_raises_selector_error(
+        self,
+        mock_agent_cls: MagicMock,
+        _: MagicMock,
+        exception: Exception,
+        match_pattern: str,
     ) -> None:
-        """Agent.run() の例外が SelectorError にラップされる。"""
+        """各種例外が SelectorError にラップされる。"""
         mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=RuntimeError("LLM connection failed"))
+        mock_instance.run = AsyncMock(side_effect=exception)
         mock_agent_cls.return_value = mock_instance
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
         config = _make_selector_config()
 
-        with pytest.raises(SelectorError, match="LLM connection failed"):
-            await run_selector(
-                target=target,
-                available_agents=agents,
-                selector_definition=_make_selector_definition(),
-                selector_config=config,
-                global_model="test",
-                global_timeout=300,
-                global_max_turns=10,
-                resolved_content="test diff content",
-            )
-
-    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._selector.Agent")
-    async def test_timeout_raises_selector_error(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """TimeoutError が SelectorError にラップされる。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=TimeoutError("timed out"))
-        mock_agent_cls.return_value = mock_instance
-
-        target = _make_target()
-        agents: Sequence[AgentDefinition] = [_make_agent()]
-        config = _make_selector_config()
-
-        with pytest.raises(SelectorError):
+        with pytest.raises(SelectorError, match=match_pattern):
             await run_selector(
                 target=target,
                 available_agents=agents,

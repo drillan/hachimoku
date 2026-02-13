@@ -400,41 +400,34 @@ class TestBuildExecutionContextModelResolution:
 # =============================================================================
 
 
+_NO_AGENT_CONFIG = "NO_AGENT_CONFIG"
+
+
 class TestBuildExecutionContextTimeoutResolution:
     """timeout_seconds フィールドの優先順解決を検証（FR-RE-004）。"""
 
-    def test_timeout_from_global_config_when_no_agent_config(self) -> None:
-        """agent_config=None の場合、global_config.timeout が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(timeout=600)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=None,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
+    @pytest.mark.parametrize(
+        ("agent_def_timeout", "global_timeout", "agent_cfg_timeout", "expected"),
+        [
+            (None, 600, _NO_AGENT_CONFIG, 600),  # global when no agent_config
+            (None, 600, None, 600),  # global when agent timeout is None
+            (None, 600, 60, 60),  # agent_config overrides global
+            (900, 600, _NO_AGENT_CONFIG, 900),  # agent_def when no agent_config
+            (900, 600, None, 900),  # agent_def when agent timeout is None
+            (900, 600, 120, 120),  # agent_config overrides agent_def
+        ],
+    )
+    def test_timeout_priority_resolution(
+        self, agent_def_timeout, global_timeout, agent_cfg_timeout, expected
+    ) -> None:
+        """timeout の優先順を検証: agent_config > agent_def > global_config。"""
+        agent = _make_agent(timeout=agent_def_timeout)
+        config = HachimokuConfig(timeout=global_timeout)
+        agent_cfg = (
+            None
+            if agent_cfg_timeout == _NO_AGENT_CONFIG
+            else AgentConfig(timeout=agent_cfg_timeout)
         )
-        assert ctx.timeout_seconds == 600
-
-    def test_timeout_from_global_config_when_agent_timeout_is_none(self) -> None:
-        """agent_config.timeout=None の場合、global_config.timeout が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(timeout=600)
-        agent_cfg = AgentConfig(timeout=None)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.timeout_seconds == 600
-
-    def test_timeout_from_agent_config_overrides_global(self) -> None:
-        """agent_config.timeout が global_config.timeout を上書きする。"""
-        agent = _make_agent()
-        config = HachimokuConfig(timeout=600)
-        agent_cfg = AgentConfig(timeout=60)
         ctx = build_execution_context(
             agent_def=agent,
             agent_config=agent_cfg,
@@ -442,48 +435,7 @@ class TestBuildExecutionContextTimeoutResolution:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.timeout_seconds == 60
-
-    def test_timeout_from_agent_def_when_no_agent_config(self) -> None:
-        """agent_def.timeout が agent_config=None 時に使用される。"""
-        agent = _make_agent(timeout=900)
-        config = HachimokuConfig(timeout=600)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=None,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.timeout_seconds == 900
-
-    def test_timeout_from_agent_def_when_agent_timeout_is_none(self) -> None:
-        """agent_def.timeout が agent_config.timeout=None 時に使用される。"""
-        agent = _make_agent(timeout=900)
-        config = HachimokuConfig(timeout=600)
-        agent_cfg = AgentConfig(timeout=None)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.timeout_seconds == 900
-
-    def test_timeout_agent_config_overrides_agent_def(self) -> None:
-        """agent_config.timeout が agent_def.timeout より優先される。"""
-        agent = _make_agent(timeout=900)
-        config = HachimokuConfig(timeout=600)
-        agent_cfg = AgentConfig(timeout=120)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.timeout_seconds == 120
+        assert ctx.timeout_seconds == expected
 
 
 # =============================================================================
@@ -494,38 +446,28 @@ class TestBuildExecutionContextTimeoutResolution:
 class TestBuildExecutionContextMaxTurnsResolution:
     """max_turns フィールドの優先順解決を検証（FR-RE-004）。"""
 
-    def test_max_turns_from_global_config_when_no_agent_config(self) -> None:
-        """agent_config=None かつ agent_def.max_turns=None の場合、global が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(max_turns=20)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=None,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
+    @pytest.mark.parametrize(
+        ("agent_def_max_turns", "global_max_turns", "agent_cfg_max_turns", "expected"),
+        [
+            (None, 20, _NO_AGENT_CONFIG, 20),  # global when no agent_config
+            (None, 20, None, 20),  # global when agent max_turns is None
+            (None, 20, 5, 5),  # agent_config overrides global
+            (25, 20, _NO_AGENT_CONFIG, 25),  # agent_def when no agent_config
+            (25, 20, None, 25),  # agent_def when agent max_turns is None
+            (25, 20, 5, 5),  # agent_config overrides agent_def
+        ],
+    )
+    def test_max_turns_priority_resolution(
+        self, agent_def_max_turns, global_max_turns, agent_cfg_max_turns, expected
+    ) -> None:
+        """max_turns の優先順を検証: agent_config > agent_def > global_config。"""
+        agent = _make_agent(max_turns=agent_def_max_turns)
+        config = HachimokuConfig(max_turns=global_max_turns)
+        agent_cfg = (
+            None
+            if agent_cfg_max_turns == _NO_AGENT_CONFIG
+            else AgentConfig(max_turns=agent_cfg_max_turns)
         )
-        assert ctx.max_turns == 20
-
-    def test_max_turns_from_global_config_when_agent_max_turns_is_none(self) -> None:
-        """agent_config.max_turns=None かつ agent_def.max_turns=None の場合、global が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(max_turns=20)
-        agent_cfg = AgentConfig(max_turns=None)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.max_turns == 20
-
-    def test_max_turns_from_agent_config_overrides_global(self) -> None:
-        """agent_config.max_turns が global_config.max_turns を上書きする。"""
-        agent = _make_agent()
-        config = HachimokuConfig(max_turns=20)
-        agent_cfg = AgentConfig(max_turns=5)
         ctx = build_execution_context(
             agent_def=agent,
             agent_config=agent_cfg,
@@ -533,48 +475,7 @@ class TestBuildExecutionContextMaxTurnsResolution:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.max_turns == 5
-
-    def test_max_turns_from_agent_def_when_no_agent_config(self) -> None:
-        """agent_def.max_turns が agent_config=None 時に使用される。"""
-        agent = _make_agent(max_turns=25)
-        config = HachimokuConfig(max_turns=20)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=None,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.max_turns == 25
-
-    def test_max_turns_from_agent_def_when_agent_max_turns_is_none(self) -> None:
-        """agent_def.max_turns が agent_config.max_turns=None 時に使用される。"""
-        agent = _make_agent(max_turns=25)
-        config = HachimokuConfig(max_turns=20)
-        agent_cfg = AgentConfig(max_turns=None)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.max_turns == 25
-
-    def test_max_turns_agent_config_overrides_agent_def(self) -> None:
-        """agent_config.max_turns が agent_def.max_turns より優先される。"""
-        agent = _make_agent(max_turns=25)
-        config = HachimokuConfig(max_turns=20)
-        agent_cfg = AgentConfig(max_turns=5)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.max_turns == 5
+        assert ctx.max_turns == expected
 
 
 # =============================================================================

@@ -19,6 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
@@ -425,113 +427,75 @@ class TestReviewConfigOverrides:
         assert call_kwargs["cli_overrides"]["model"] == "opus"
 
 
+_BOOLEAN_FLAG_CASES: list[tuple[str, str, str]] = [
+    ("--parallel", "--no-parallel", "parallel"),
+    ("--save-reviews", "--no-save-reviews", "save_reviews"),
+    ("--show-cost", "--no-show-cost", "show_cost"),
+]
+
+
 class TestReviewBooleanFlags:
     """boolean フラグペア（--parallel/--no-parallel 等）の三値テスト（R-005）。"""
 
-    # --- parallel ---
-
+    @pytest.mark.parametrize(
+        ("flag_true", "flag_false", "config_key"),
+        _BOOLEAN_FLAG_CASES,
+    )
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
-    def test_parallel_flag_true(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    def test_flag_true(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        flag_true: str,
+        flag_false: str,
+        config_key: str,
     ) -> None:
-        """--parallel → config_overrides["parallel"] == True。"""
+        """--flag → config_overrides[key] == True。"""
         setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--parallel"])
+        runner.invoke(app, [flag_true])
         overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["parallel"] is True
+        assert overrides[config_key] is True
 
+    @pytest.mark.parametrize(
+        ("flag_true", "flag_false", "config_key"),
+        _BOOLEAN_FLAG_CASES,
+    )
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
-    def test_parallel_flag_false(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    def test_flag_false(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        flag_true: str,
+        flag_false: str,
+        config_key: str,
     ) -> None:
-        """--no-parallel → config_overrides["parallel"] == False。"""
+        """--no-flag → config_overrides[key] == False。"""
         setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--no-parallel"])
+        runner.invoke(app, [flag_false])
         overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["parallel"] is False
+        assert overrides[config_key] is False
 
+    @pytest.mark.parametrize(
+        ("flag_true", "flag_false", "config_key"),
+        _BOOLEAN_FLAG_CASES,
+    )
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
-    def test_parallel_flag_unset(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    def test_flag_unset(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        flag_true: str,
+        flag_false: str,
+        config_key: str,
     ) -> None:
-        """未指定 → config_overrides に "parallel" キーなし。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app)
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert "parallel" not in overrides
-
-    # --- save_reviews ---
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_save_reviews_flag_true(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """--save-reviews → config_overrides["save_reviews"] == True。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--save-reviews"])
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["save_reviews"] is True
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_save_reviews_flag_false(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """--no-save-reviews → config_overrides["save_reviews"] == False。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--no-save-reviews"])
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["save_reviews"] is False
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_save_reviews_flag_unset(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """未指定 → config_overrides に "save_reviews" キーなし。"""
+        """未指定 → config_overrides に key なし。"""
         setup_mocks(mock_config, mock_run_review)
         runner.invoke(app)
         overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert "save_reviews" not in overrides
-
-    # --- show_cost ---
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_show_cost_flag_true(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """--show-cost → config_overrides["show_cost"] == True。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--show-cost"])
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["show_cost"] is True
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_show_cost_flag_false(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """--no-show-cost → config_overrides["show_cost"] == False。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app, ["--no-show-cost"])
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert overrides["show_cost"] is False
-
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_show_cost_flag_unset(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
-        """未指定 → config_overrides に "show_cost" キーなし。"""
-        setup_mocks(mock_config, mock_run_review)
-        runner.invoke(app)
-        overrides = mock_run_review.call_args.kwargs["config_overrides"]
-        assert "show_cost" not in overrides
+        assert config_key not in overrides
 
 
 class TestReviewIssueOption:
@@ -1476,44 +1440,32 @@ class TestEdgeCases:
 
     # --- Git リポジトリ外での diff/PR モード ---
 
+    @pytest.mark.parametrize("cli_args", [[], ["123"]])
     @patch(PATCH_GIT_EXISTS, return_value=False)
     @patch(PATCH_RESOLVE_CONFIG)
-    def test_diff_mode_outside_git_repo_exits_with_4(
-        self, mock_config: MagicMock, _mock_git: MagicMock
+    def test_outside_git_repo_exits_with_4(
+        self,
+        mock_config: MagicMock,
+        _mock_git: MagicMock,
+        cli_args: list[str],
     ) -> None:
-        """diff モードで Git リポジトリ外 → 終了コード 4。"""
+        """diff/PR モードで Git リポジトリ外 → 終了コード 4。"""
         mock_config.return_value = HachimokuConfig()
-        result = runner.invoke(app)
+        result = runner.invoke(app, cli_args)
         assert result.exit_code == ExitCode.INPUT_ERROR
 
+    @pytest.mark.parametrize("cli_args", [[], ["123"]])
     @patch(PATCH_GIT_EXISTS, return_value=False)
     @patch(PATCH_RESOLVE_CONFIG)
-    def test_diff_mode_outside_git_repo_shows_hint(
-        self, mock_config: MagicMock, _mock_git: MagicMock
+    def test_outside_git_repo_shows_hint(
+        self,
+        mock_config: MagicMock,
+        _mock_git: MagicMock,
+        cli_args: list[str],
     ) -> None:
-        """diff モード Git 外エラーに解決方法ヒントが含まれる。"""
+        """diff/PR モード Git 外エラーに解決方法ヒントが含まれる。"""
         mock_config.return_value = HachimokuConfig()
-        result = runner.invoke(app)
-        assert "git" in result.output.lower()
-
-    @patch(PATCH_GIT_EXISTS, return_value=False)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_pr_mode_outside_git_repo_exits_with_4(
-        self, mock_config: MagicMock, _mock_git: MagicMock
-    ) -> None:
-        """PR モードで Git リポジトリ外 → 終了コード 4。"""
-        mock_config.return_value = HachimokuConfig()
-        result = runner.invoke(app, ["123"])
-        assert result.exit_code == ExitCode.INPUT_ERROR
-
-    @patch(PATCH_GIT_EXISTS, return_value=False)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_pr_mode_outside_git_repo_shows_hint(
-        self, mock_config: MagicMock, _mock_git: MagicMock
-    ) -> None:
-        """PR モード Git 外エラーに解決方法ヒントが含まれる。"""
-        mock_config.return_value = HachimokuConfig()
-        result = runner.invoke(app, ["123"])
+        result = runner.invoke(app, cli_args)
         assert "git" in result.output.lower()
 
     # --- S-4: file モードは Git リポジトリ外でも動作 ---
