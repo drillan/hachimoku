@@ -236,6 +236,8 @@ async def run_selector(
             output_type=SelectorOutput,
             # ツール自体は deps を参照しないが、Agent[SelectorDeps] が
             # Tool[SelectorDeps] を要求するため型不整合が発生する。
+            # TODO(#195): ツールが ctx.deps を使い始めた場合は resolve_tools を
+            # TypeVar でジェネリック化して型安全性を回復すること。
             tools=list(tools),  # type: ignore[arg-type]
             system_prompt=selector_definition.system_prompt,
             deps_type=SelectorDeps,

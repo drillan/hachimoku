@@ -2,14 +2,18 @@
 
 FR-RE-002 Step 5-6: セレクター定義読み込み・セレクターエージェントの構築・実行・結果解釈。
 FR-RE-010: 空リスト返却時の正常終了。
+Issue #195: SelectorDeps 依存性注入 + _prefetch_guardrail 動的ガードレール。
 
 SelectorDefinition（TOML 定義）からシステムプロンプト・モデル・ツールを取得し、
 SelectorConfig（設定）によるオーバーライドを適用して pydantic-ai エージェントとして実行する。
+PrefetchedContext の内容に応じて動的ガードレール（instructions）を注入し、
+事前取得済みデータの再取得を抑制する。
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field
@@ -19,6 +23,9 @@ from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 
 if TYPE_CHECKING:
+    from pydantic_ai import RunContext
+
+    from hachimoku.engine._prefetch import PrefetchedContext
     from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 
 
@@ -56,6 +63,36 @@ class SelectorOutput(HachimokuBaseModel):
     reasoning: str
 
 
+@dataclass
+class SelectorDeps:
+    """セレクターエージェントの依存性コンテナ.
+
+    Issue #195: pydantic-ai の Dependencies 機構を利用し、
+    PrefetchedContext を依存性として注入する。
+
+    Attributes:
+        prefetched: 事前取得されたコンテキスト（Issue #187）。
+    """
+
+    prefetched: PrefetchedContext | None
+
+
+def _prefetch_guardrail(ctx: RunContext[SelectorDeps]) -> str:
+    """事前取得済みデータがある場合に再取得禁止のガードレールを注入する.
+
+    Issue #195: PrefetchedContext の各フィールドが非空の場合に、
+    対応するデータの再取得を禁止する指示を動的に生成する。
+    pydantic-ai の ``instructions`` パラメータとして Agent に渡される。
+
+    Args:
+        ctx: pydantic-ai の RunContext。deps に SelectorDeps を保持。
+
+    Returns:
+        ガードレール指示テキスト。事前取得データがない場合は空文字列。
+    """
+    ...
+
+
 async def run_selector(
     target: DiffTarget | PRTarget | FileTarget,
     available_agents: Sequence[AgentDefinition],
@@ -64,6 +101,8 @@ async def run_selector(
     global_model: str,
     global_timeout: int,
     global_max_turns: int,
+    resolved_content: str,
+    prefetched_context: PrefetchedContext | None = None,
 ) -> SelectorOutput:
     """セレクターエージェントを実行し、実行すべきエージェントを選択する.
 
@@ -74,8 +113,10 @@ async def run_selector(
         2. ToolCatalog から SelectorDefinition.allowed_tools のツールを解決
         3. SelectorDefinition.system_prompt でシステムプロンプトを設定し、
            build_selector_instruction() でユーザーメッセージを構築
-        4. pydantic-ai Agent(output_type=SelectorOutput) を構築
+        4. pydantic-ai Agent(output_type=SelectorOutput, deps_type=SelectorDeps,
+           instructions=_prefetch_guardrail) を構築
         5. asyncio.timeout() + UsageLimits でエージェントを実行
+           （deps=SelectorDeps(prefetched=prefetched_context) を渡す）
         6. SelectorOutput を返す
 
     エラー時の挙動（仕様 Edge Cases より）:
@@ -92,6 +133,8 @@ async def run_selector(
         global_model: グローバルモデル名。
         global_timeout: グローバルタイムアウト秒数。
         global_max_turns: グローバル最大ターン数。
+        resolved_content: 事前解決されたコンテンツ（diff テキスト、ファイル内容等）。
+        prefetched_context: 事前取得されたコンテキスト（Issue #187）。
 
     Returns:
         SelectorOutput: 選択されたエージェント名リストと選択理由。
