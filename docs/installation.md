@@ -10,7 +10,39 @@
 - Python 3.13 以上
 - Git（diff モード・PR モードで必要）
 
-## ソースからインストール
+## グローバルインストール（uv tool install）
+
+`uv tool install` を使うと、仮想環境を明示的にアクティベートせずに `8moku` / `hachimoku` コマンドをグローバルに利用できます。
+
+### Git URL からインストール
+
+リポジトリを直接指定してインストールします:
+
+```bash
+uv tool install git+https://github.com/drillan/hachimoku.git
+```
+
+### ローカルクローンからインストール
+
+リポジトリをクローンしてからインストールします:
+
+```bash
+git clone https://github.com/drillan/hachimoku.git
+cd hachimoku
+uv tool install .
+```
+
+### uv sync との使い分け
+
+| 方法 | 対象 | 用途 |
+|------|------|------|
+| `uv tool install` | 利用者 | グローバルにコマンドをインストールしてレビューツールとして使用 |
+| `uv sync` | 開発者 | プロジェクトディレクトリ内で開発・テスト・デバッグ |
+
+- **利用者**: `uv tool install` でインストールすれば、任意のディレクトリから `8moku` コマンドを実行できます
+- **開発者**: `uv sync` でプロジェクトの仮想環境に依存関係を同期し、`uv run` 経由でコマンドを実行します
+
+## ソースからインストール（開発用）
 
 リポジトリをクローンして依存関係を同期します:
 
