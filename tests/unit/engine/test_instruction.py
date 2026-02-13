@@ -1140,7 +1140,8 @@ class TestBuildSelectorInstructionPrefetched:
         assert "## Pre-fetched Context" in result
         assert "Issue 187 details" in result
 
-    def test_issue_hint_suppressed_when_prefetched(self) -> None:
+    def test_tool_hint_not_in_user_message_when_prefetched(self) -> None:
+        """Issue #195: ツールヒントは system_prompt に移行したため user message に含まれない。"""
         from hachimoku.engine._prefetch import PrefetchedContext
 
         target = DiffTarget(base_branch="main", issue_number=187)
@@ -1151,8 +1152,10 @@ class TestBuildSelectorInstructionPrefetched:
             target, agents, _SAMPLE_DIFF, prefetched_context=ctx
         )
         assert "Use the run_gh tool" not in result
+        assert "Related Issue: #187" in result
 
-    def test_issue_hint_present_when_no_prefetched_issue(self) -> None:
+    def test_tool_hint_not_in_user_message_without_prefetch(self) -> None:
+        """Issue #195: ツールヒントは system_prompt に集約。user message には不在。"""
         from hachimoku.engine._prefetch import PrefetchedContext
 
         target = DiffTarget(base_branch="main", issue_number=187)
@@ -1162,7 +1165,8 @@ class TestBuildSelectorInstructionPrefetched:
         result = build_selector_instruction(
             target, agents, _SAMPLE_DIFF, prefetched_context=ctx
         )
-        assert "Use the run_gh tool" in result
+        assert "Use the run_gh tool" not in result
+        assert "Related Issue: #187" in result
 
     def test_empty_prefetched_produces_no_section(self) -> None:
         from hachimoku.engine._prefetch import PrefetchedContext

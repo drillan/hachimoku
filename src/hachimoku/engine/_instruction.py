@@ -315,15 +315,10 @@ def build_selector_instruction(
 
     parts: list[str] = [_build_mode_section(target, selector_content)]
 
-    # Issue #187: 事前取得済みの Issue コンテキストがある場合はツール使用指示を省略
-    has_prefetched_issue = (
-        prefetched_context is not None and prefetched_context.issue_context != ""
-    )
-    if target.issue_number is not None and not has_prefetched_issue:
-        parts.append(
-            f"\nRelated Issue: #{target.issue_number}\n"
-            f"Use the run_gh tool to fetch issue details for additional context."
-        )
+    # Issue #195: ツール使用指示は system_prompt（静的 + 動的ガードレール）に集約。
+    # user message には Issue 番号の参照のみ含める。
+    if target.issue_number is not None:
+        parts.append(f"\nRelated Issue: #{target.issue_number}")
 
     review_section = "\n".join(parts)
     agents_section = _build_agents_section(available_agents)

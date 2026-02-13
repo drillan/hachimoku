@@ -35,7 +35,7 @@ Only include files you have verified exist and are actually affected. Do not spe
 List project conventions relevant to this review. Check CLAUDE.md, .hachimoku/config.toml, and project documentation for applicable rules. This helps agents avoid suggesting changes that contradict project policies.
 
 ### issue_context
-If an issue number is provided, use the run_gh tool to fetch the issue details and summarize the relevant requirements, acceptance criteria, and discussion points that help review agents understand the broader context.
+If an issue number is provided and issue context is NOT already available in the pre-fetched data (check the user message for '## Pre-fetched Context > ### Issue Context'), use the run_gh tool to fetch the issue details. If issue context has been pre-fetched, summarize it directly from the provided data. Include relevant requirements, acceptance criteria, and discussion points that help review agents understand the broader context.
 
 ### referenced_content
 When the diff or associated context mentions external references (Issue numbers like "#152", file paths like "src/foo.py", spec paths like "specs/005/spec.md", or quoted passages attributed to a source), fetch the referenced content and include it in this field. For each reference:
@@ -43,7 +43,7 @@ When the diff or associated context mentions external references (Issue numbers 
 - Set reference_id to the identifier (e.g., "#152", "src/hachimoku/models/_base.py").
 - Set content to the relevant text from the referenced source.
 
-Use the run_gh tool to fetch issue bodies, the read_file tool to read files and specs. Only include references you successfully fetched. If a reference cannot be resolved, omit it.
+Before fetching, check if the referenced content is already available in the pre-fetched data. Use the run_gh tool to fetch issue bodies, the read_file tool to read files and specs. Only include references you successfully fetched. If a reference cannot be resolved, omit it.
 
 This data enables review agents to verify consistency between the diff text and its referenced sources (e.g., correct quoting, accurate paraphrasing, matching terminology).
 """
