@@ -56,47 +56,9 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 パッケージにはビルトインの `selector.toml` が同梱されています。
 カスタムの `selector.toml` を `.hachimoku/agents/selector.toml` に配置すると、ビルトインを上書きできます。
 
-```{code-block} toml
+```{literalinclude} ../src/hachimoku/agents/_builtin/selector.toml
+:language: toml
 :caption: selector.toml（ビルトイン）
-
-name = "selector"
-description = "レビュー対象を分析し、実行すべきレビューエージェントを選択する"
-model = "claudecode:claude-opus-4-6"
-allowed_tools = ["git_read", "gh_read", "file_read"]
-system_prompt = """
-You are an agent selector for code review.
-Your task is to analyze the review target and select the most applicable
-review agents from the available list.
-
-## Workflow
-
-1. Identify changed files and their types using the provided tools:
-   - For diff mode: run git commands to list changed files
-   - For PR mode: use gh commands to get PR metadata and changed files
-   - For file mode: read the specified file paths
-
-2. Analyze the changes:
-   - Determine file types and languages involved
-   - Check for patterns in the diff (error handling, type definitions, tests, etc.)
-   - Consider the scope and nature of the changes
-
-3. Select agents based on applicability:
-   - Always include agents with `always=true` applicability
-   - Include agents whose `file_patterns` match any changed file (basename match)
-   - Include agents whose `content_patterns` match any content in the diff
-   - Consider the agent's `phase` for execution ordering
-
-4. Return selected agent names ordered by phase (early → main → final),
-   and provide reasoning for your selection.
-
-## Selection Guidelines
-
-- Prefer including an agent over excluding it when uncertain
-- An empty selection is valid when no agents are applicable
-  (e.g., no meaningful changes to review)
-- Use file_patterns and content_patterns as guidance, not strict rules;
-  the LLM's judgment can override mechanical pattern matching
-"""
 ```
 
 ### load_selector()
@@ -114,26 +76,9 @@ print(definition.name)  # "selector"
 
 エージェント定義は以下の形式の TOML ファイルで記述します。
 
-```{code-block} toml
-name = "code-reviewer"
-description = "コード品質・バグ・ベストプラクティスの総合レビュー"
-model = "anthropic:claude-opus-4-6"
-output_schema = "scored_issues"
-phase = "main"
-allowed_tools = ["git_read", "gh_read", "file_read"]
-system_prompt = """
-You are code-reviewer, an expert code quality analyst. Analyze code changes
-for bugs, security issues, and best practice violations.
-
-## Review Methodology
-1. Use run_git(["diff", "--name-only"]) to list changed files.
-2. Use read_file(path) to read surrounding context.
-3. Check for bugs, security vulnerabilities, and performance concerns.
-...
-"""
-
-[applicability]
-always = true
+```{literalinclude} ../src/hachimoku/agents/_builtin/code-reviewer.toml
+:language: toml
+:caption: code-reviewer.toml（ビルトイン）
 ```
 
 ### フィールド一覧
@@ -275,21 +220,9 @@ for error in result.errors:
 1. `.hachimoku/agents/` ディレクトリを作成
 2. TOML 形式でエージェント定義ファイルを配置
 
-```{code-block} toml
+```{literalinclude} _examples/security-checker.toml
+:language: toml
 :caption: .hachimoku/agents/security-checker.toml
-
-name = "security-checker"
-description = "セキュリティ脆弱性の検出"
-model = "anthropic:claude-opus-4-6"
-output_schema = "scored_issues"
-allowed_tools = ["git_read", "gh_read", "file_read"]
-system_prompt = """
-You are security-checker, a security vulnerability specialist.
-Analyze the code for injection, authentication, and data exposure issues.
-"""
-
-[applicability]
-always = true
 ```
 
 `output_schema` には [SCHEMA_REGISTRY](schema-registry) に登録されたスキーマ名を指定します。

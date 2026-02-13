@@ -30,45 +30,9 @@ hachimoku は TOML ベースの階層的な設定システムを提供します�
 
 ### .hachimoku/config.toml
 
-```{code-block} toml
-# 実行設定
-model = "claudecode:claude-opus-4-6"  # プレフィックスでプロバイダーを指定
-timeout = 600
-max_turns = 20
-parallel = true
-base_branch = "main"
-
-# 出力設定
-output_format = "markdown"  # "markdown" or "json"
-save_reviews = true
-show_cost = false
-
-# ファイルモード設定
-max_files_per_review = 100
-
-# セレクターエージェント設定
-[selector]
-model = "claudecode:claude-haiku-4-5"
-timeout = 600
-max_turns = 20
-referenced_content_max_chars = 5000
-
-# 集約エージェント設定
-[aggregation]
-enabled = true
-# model = "claudecode:claude-opus-4-6"
-# timeout = 300
-# max_turns = 10
-
-# エージェント個別設定
-[agents.code-reviewer]
-enabled = true
-model = "anthropic:claude-opus-4-6"  # anthropic: プレフィックスで API 直接呼び出し
-timeout = 600
-max_turns = 15
-
-[agents.comment-analyzer]
-enabled = false
+```{literalinclude} _examples/config.toml
+:language: toml
+:caption: .hachimoku/config.toml
 ```
 
 ### pyproject.toml

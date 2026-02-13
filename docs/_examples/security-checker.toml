@@ -1,0 +1,12 @@
+name = "security-checker"
+description = "セキュリティ脆弱性の検出"
+model = "anthropic:claude-opus-4-6"
+output_schema = "scored_issues"
+allowed_tools = ["git_read", "gh_read", "file_read"]
+system_prompt = """
+You are security-checker, a security vulnerability specialist.
+Analyze the code for injection, authentication, and data exposure issues.
+"""
+
+[applicability]
+always = true
