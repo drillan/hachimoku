@@ -50,7 +50,7 @@ hachimoku は `8moku` と `hachimoku` の2つのコマンド名を提供しま�
 | `--max-turns INTEGER` | int (min: 1) | エージェントの最大ターン数 |
 | `--parallel / --no-parallel` | bool | 並列実行の有効/無効 |
 | `--base-branch TEXT` | str | diff モードのベースブランチ |
-| `--format json` | OutputFormat | 出力形式（現在は JSON のみ対応） |
+| `--format FORMAT` | OutputFormat | 出力形式（`markdown` / `json`、デフォルト: `markdown`） |
 | `--save-reviews / --no-save-reviews` | bool | レビュー結果の保存 |
 | `--show-cost / --no-show-cost` | bool | コスト情報の表示 |
 | `--max-files INTEGER` | int (min: 1) | レビュー対象の最大ファイル数 |
@@ -135,10 +135,10 @@ stderr
 
 ```bash
 # レポートをファイルに保存
-8moku > review.json
+8moku > review.md
 
 # レポートを別のコマンドにパイプ
-8moku | jq '.agents'
+8moku --format json | jq '.agents'
 ```
 
 ## 終了コード

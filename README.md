@@ -15,7 +15,7 @@ hachimoku（8moku）は、複数の専門エージェントを用いてコード
 - LLM ベース結果集約: 複数エージェントの指摘を重複排除・統合し、推奨アクションを生成
 - コスト効率化: セレクター・集約は軽量モデル、レビューは高性能モデルで精度を維持
 - 柔軟なモデル設定: config → definition → global の優先順位で解決、いつでも Opus 4.6 に戻せる
-- JSON 出力対応（Markdown は今後対応予定）
+- Markdown / JSON 出力対応（デフォルトは Markdown）
 
 ## インストール
 
@@ -75,7 +75,7 @@ uv sync
 | `--model TEXT` | LLM モデル名（プレフィックス付き: `claudecode:` or `anthropic:`） |
 | `--timeout INTEGER` | タイムアウト秒数 |
 | `--parallel / --no-parallel` | 並列実行の有効/無効 |
-| `--format json` | 出力形式 |
+| `--format FORMAT` | 出力形式（`markdown` / `json`、デフォルト: `markdown`） |
 | `--base-branch TEXT` | diff モードのベースブランチ |
 | `--issue INTEGER` | コンテキスト用 GitHub Issue 番号 |
 | `--no-confirm` | 確認プロンプトをスキップ |
