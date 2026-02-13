@@ -11,12 +11,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
 from pydantic import Field
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition, SelectorDefinition
@@ -70,6 +71,66 @@ class SelectorOutput(HachimokuBaseModel):
     relevant_conventions: list[str] = Field(default_factory=list)
     issue_context: str = ""
     referenced_content: list[ReferencedContent] = Field(default_factory=list)
+
+
+@dataclass
+class SelectorDeps:
+    """セレクターエージェントの依存性コンテナ。
+
+    Issue #195: pydantic-ai の Dependencies 機構を利用し、
+    PrefetchedContext を依存性として注入する。
+
+    Attributes:
+        prefetched: 事前取得されたコンテキスト（Issue #187）。
+    """
+
+    prefetched: PrefetchedContext | None
+
+
+def _prefetch_guardrail(ctx: RunContext[SelectorDeps]) -> str:
+    """事前取得済みデータがある場合に再取得禁止のガードレールを注入する。
+
+    Issue #195: PrefetchedContext の各フィールドが非空の場合に、
+    対応するデータの再取得を禁止する指示を動的に生成する。
+    pydantic-ai の ``instructions`` パラメータとして Agent に渡される。
+
+    Args:
+        ctx: pydantic-ai の RunContext。deps に SelectorDeps を保持。
+
+    Returns:
+        ガードレール指示テキスト。事前取得データがない場合は空文字列。
+    """
+    if ctx.deps.prefetched is None:
+        return ""
+
+    guardrails: list[str] = []
+
+    if ctx.deps.prefetched.issue_context:
+        guardrails.append(
+            "IMPORTANT: Issue context has already been pre-fetched and is included "
+            "in the user message under '## Pre-fetched Context > ### Issue Context'. "
+            "Do NOT use the run_gh tool to re-fetch issue details. "
+            "Use the pre-fetched data directly."
+        )
+
+    if ctx.deps.prefetched.pr_metadata:
+        guardrails.append(
+            "IMPORTANT: PR metadata has already been pre-fetched and is included "
+            "in the user message under '## Pre-fetched Context > ### PR Metadata'. "
+            "Do NOT use the run_gh tool to re-fetch PR details. "
+            "Use the pre-fetched data directly."
+        )
+
+    if ctx.deps.prefetched.project_conventions:
+        guardrails.append(
+            "IMPORTANT: Project conventions have already been pre-fetched and are "
+            "included in the user message under "
+            "'## Pre-fetched Context > ### Project Conventions'. "
+            "Do NOT use file reading tools to re-read these convention files. "
+            "Use the pre-fetched data directly."
+        )
+
+    return "\n\n".join(guardrails)
 
 
 class SelectorError(Exception):
@@ -173,8 +234,14 @@ async def run_selector(
         agent = Agent(
             model=resolved,
             output_type=SelectorOutput,
-            tools=list(tools),
+            # ツール自体は deps を参照しないが、Agent[SelectorDeps] が
+            # Tool[SelectorDeps] を要求するため型不整合が発生する。
+            # TODO(#195): ツールが ctx.deps を使い始めた場合は resolve_tools を
+            # TypeVar でジェネリック化して型安全性を回復すること。
+            tools=list(tools),  # type: ignore[arg-type]
             system_prompt=selector_definition.system_prompt,
+            deps_type=SelectorDeps,
+            instructions=_prefetch_guardrail,
         )
         if isinstance(resolved, ClaudeCodeModel):
             # mypy が FunctionToolset.tools の dict[str, Tool[Any]] を
@@ -185,6 +252,7 @@ async def run_selector(
         async with asyncio.timeout(timeout):
             result = await agent.run(
                 user_message,
+                deps=SelectorDeps(prefetched=prefetched_context),
                 usage_limits=UsageLimits(request_limit=max_turns),
                 model_settings=ClaudeCodeModelSettings(
                     max_turns=max_turns,

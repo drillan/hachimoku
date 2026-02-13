@@ -26,8 +26,10 @@ from hachimoku.agents.models import (
 )
 from hachimoku.engine._selector import (
     ReferencedContent,
+    SelectorDeps,
     SelectorError,
     SelectorOutput,
+    _prefetch_guardrail,
     run_selector,
 )
 
@@ -1093,3 +1095,237 @@ class TestRunSelectorPrefetched:
         )
 
         assert result.selected_agents == ["test-agent"]
+
+
+# =============================================================================
+# SelectorDeps（Issue #195）
+# =============================================================================
+
+
+class TestSelectorDeps:
+    """SelectorDeps データクラスのテスト。Issue #195。"""
+
+    def test_construction_with_prefetched(self) -> None:
+        """PrefetchedContext を持つ SelectorDeps を構築できる。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(issue_context="Issue body")
+        deps = SelectorDeps(prefetched=ctx)
+        assert deps.prefetched is ctx
+        assert deps.prefetched.issue_context == "Issue body"
+
+    def test_construction_with_none(self) -> None:
+        """prefetched=None で SelectorDeps を構築できる。"""
+        deps = SelectorDeps(prefetched=None)
+        assert deps.prefetched is None
+
+
+# =============================================================================
+# _prefetch_guardrail（Issue #195）
+# =============================================================================
+
+
+class TestPrefetchGuardrail:
+    """_prefetch_guardrail 関数のテスト。Issue #195。
+
+    事前取得済みデータの存在に応じたガードレール指示の動的生成を検証する。
+    """
+
+    def test_none_prefetched_returns_empty(self) -> None:
+        """prefetched=None のとき空文字列を返す。"""
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(prefetched=None)
+        assert _prefetch_guardrail(mock_ctx) == ""
+
+    def test_empty_prefetched_returns_empty(self) -> None:
+        """全フィールド空の PrefetchedContext のとき空文字列を返す。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(prefetched=PrefetchedContext())
+        assert _prefetch_guardrail(mock_ctx) == ""
+
+    def test_issue_context_guardrail(self) -> None:
+        """issue_context が非空のとき Issue ガードレールを含む。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(
+            prefetched=PrefetchedContext(issue_context="Issue body")
+        )
+        result = _prefetch_guardrail(mock_ctx)
+        assert "Issue context" in result
+        assert "Do NOT" in result
+        assert "run_gh" in result
+
+    def test_pr_metadata_guardrail(self) -> None:
+        """pr_metadata が非空のとき PR ガードレールを含む。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(
+            prefetched=PrefetchedContext(pr_metadata="PR #42 details")
+        )
+        result = _prefetch_guardrail(mock_ctx)
+        assert "PR metadata" in result
+        assert "Do NOT" in result
+        assert "run_gh" in result
+
+    def test_project_conventions_guardrail(self) -> None:
+        """project_conventions が非空のとき conventions ガードレールを含む。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(
+            prefetched=PrefetchedContext(project_conventions="--- CLAUDE.md ---\nrules")
+        )
+        result = _prefetch_guardrail(mock_ctx)
+        assert "Project conventions" in result
+        assert "Do NOT" in result
+
+    def test_all_fields_produces_combined_guardrails(self) -> None:
+        """全フィールド非空のとき全ガードレールを含む。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(
+            prefetched=PrefetchedContext(
+                issue_context="Issue body",
+                pr_metadata="PR details",
+                project_conventions="Conventions",
+            )
+        )
+        result = _prefetch_guardrail(mock_ctx)
+        assert "Issue context" in result
+        assert "PR metadata" in result
+        assert "Project conventions" in result
+
+    def test_partial_fields_only_include_relevant(self) -> None:
+        """一部のフィールドのみ非空のとき、該当するガードレールのみ含む。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(
+            prefetched=PrefetchedContext(
+                issue_context="Issue body",
+                pr_metadata="",
+                project_conventions="Conventions",
+            )
+        )
+        result = _prefetch_guardrail(mock_ctx)
+        assert "Issue context" in result
+        assert "PR metadata" not in result
+        assert "Project conventions" in result
+
+
+# =============================================================================
+# run_selector — SelectorDeps 統合（Issue #195）
+# =============================================================================
+
+
+class TestRunSelectorDepsIntegration:
+    """run_selector が SelectorDeps と instructions を Agent に渡すテスト。Issue #195。"""
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_agent_constructed_with_deps_type(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """Agent コンストラクタに deps_type=SelectorDeps が渡される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        await run_selector(
+            target=_make_target(),
+            available_agents=[_make_agent()],
+            selector_definition=_make_selector_definition(),
+            selector_config=_make_selector_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff",
+        )
+
+        call_kwargs = mock_agent_cls.call_args.kwargs
+        assert call_kwargs["deps_type"] is SelectorDeps
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_agent_constructed_with_instructions(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """Agent コンストラクタに instructions=_prefetch_guardrail が渡される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        await run_selector(
+            target=_make_target(),
+            available_agents=[_make_agent()],
+            selector_definition=_make_selector_definition(),
+            selector_config=_make_selector_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff",
+        )
+
+        call_kwargs = mock_agent_cls.call_args.kwargs
+        assert call_kwargs["instructions"] is _prefetch_guardrail
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_agent_run_receives_deps(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """agent.run() に deps=SelectorDeps(prefetched=ctx) が渡される。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        ctx = PrefetchedContext(issue_context="Prefetched issue")
+        await run_selector(
+            target=_make_target(),
+            available_agents=[_make_agent()],
+            selector_definition=_make_selector_definition(),
+            selector_config=_make_selector_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff",
+            prefetched_context=ctx,
+        )
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        deps = call_kwargs["deps"]
+        assert isinstance(deps, SelectorDeps)
+        assert deps.prefetched is ctx
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_agent_run_receives_none_deps_when_no_prefetch(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """prefetched_context=None のとき deps.prefetched=None が渡される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        await run_selector(
+            target=_make_target(),
+            available_agents=[_make_agent()],
+            selector_definition=_make_selector_definition(),
+            selector_config=_make_selector_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff",
+        )
+
+        call_kwargs = mock_instance.run.call_args.kwargs
+        deps = call_kwargs["deps"]
+        assert isinstance(deps, SelectorDeps)
+        assert deps.prefetched is None
