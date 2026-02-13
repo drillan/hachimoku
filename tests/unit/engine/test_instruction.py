@@ -1095,21 +1095,6 @@ class TestBuildPrefetchedSection:
         assert "### Project Conventions" in result
         assert "CLAUDE.md" in result
 
-    def test_referenced_issues_embedded(self) -> None:
-        from hachimoku.engine._instruction import _build_prefetched_section
-        from hachimoku.engine._prefetch import PrefetchedContext, PrefetchedReference
-
-        ref = PrefetchedReference(
-            reference_type="issue",
-            reference_id="#42",
-            content="Issue 42 body",
-        )
-        ctx = PrefetchedContext(referenced_issues=(ref,))
-        result = _build_prefetched_section(ctx)
-        assert "### Referenced Issues" in result
-        assert "[issue] #42" in result
-        assert "Issue 42 body" in result
-
 
 class TestBuildSelectorInstructionPrefetched:
     """build_selector_instruction の prefetched_context テスト。Issue #187。"""

@@ -265,15 +265,6 @@ def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
             f"### Project Conventions\n\n{prefetched.project_conventions}"
         )
 
-    if prefetched.referenced_issues:
-        ref_parts: list[str] = []
-        for ref in prefetched.referenced_issues:
-            ref_parts.append(
-                f"#### [{ref.reference_type}] {ref.reference_id}\n\n"
-                f"```\n{ref.content}\n```"
-            )
-        subsections.append("### Referenced Issues\n\n" + "\n\n".join(ref_parts))
-
     if not subsections:
         return ""
 

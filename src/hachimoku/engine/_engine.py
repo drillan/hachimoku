@@ -194,7 +194,7 @@ async def run_review(
     # Step 3.7: セレクター向けコンテキスト事前取得（Issue #187）
     try:
         prefetched = await prefetch_selector_context(
-            target, resolved_content, convention_files=config.selector.convention_files
+            target, convention_files=config.selector.convention_files
         )
     except PrefetchError as exc:
         print(f"Error: {exc}", file=sys.stderr)

@@ -7,20 +7,11 @@ Issue コンテキスト、PR メタデータ、プロジェクト規約を事�
 from __future__ import annotations
 
 import asyncio
-import logging
-import re
 from pathlib import Path
 from typing import Final
 
-from pydantic import Field
-
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
-
-logger = logging.getLogger(__name__)
-
-_ISSUE_REF_PATTERN: re.Pattern[str] = re.compile(r"#(\d+)")
-"""diff テキスト内の Issue 番号参照パターン（#123 形式）。"""
 
 _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 """subprocess のタイムアウト秒数。_resolver.py と統一。"""
@@ -33,9 +24,6 @@ PR_METADATA_MAX_CHARS: Final[int] = 3000
 
 CONVENTIONS_MAX_CHARS: Final[int] = 5000
 """プロジェクト規約ファイルの最大文字数（ファイルごと）。"""
-
-REFERENCED_ISSUE_MAX_CHARS: Final[int] = 3000
-"""参照 Issue コンテンツの最大文字数（Issue ごと）。"""
 
 DEFAULT_CONVENTION_FILES: Final[tuple[str, ...]] = (
     "CLAUDE.md",
@@ -51,44 +39,16 @@ class PrefetchError(Exception):
     """
 
 
-class PrefetchedReference(HachimokuBaseModel):
-    """diff 内で検出された参照の事前取得結果。"""
-
-    reference_type: str = Field(min_length=1)
-    reference_id: str = Field(min_length=1)
-    content: str = Field(min_length=1)
-
-
 class PrefetchedContext(HachimokuBaseModel):
     """セレクターエージェント向けの事前取得コンテキスト。
 
-    各フィールドが空文字列/空タプルの場合、対応する事前取得が
+    各フィールドが空文字列の場合、対応する事前取得が
     不要だったことを意味する。
     """
 
     issue_context: str = ""
     pr_metadata: str = ""
     project_conventions: str = ""
-    referenced_issues: tuple[PrefetchedReference, ...] = ()
-
-
-def extract_issue_references(
-    content: str,
-    exclude_numbers: frozenset[int] = frozenset(),
-) -> frozenset[int]:
-    """diff テキストから Issue 番号参照（#NNN 形式）を抽出する。
-
-    Args:
-        content: diff テキストまたはその他のコンテンツ。
-        exclude_numbers: 除外する Issue 番号（target.issue_number 等）。
-
-    Returns:
-        検出された Issue 番号の集合（exclude_numbers と #0 を除く）。
-    """
-    matches = _ISSUE_REF_PATTERN.findall(content)
-    return frozenset(
-        num for m in matches if (num := int(m)) > 0 and num not in exclude_numbers
-    )
 
 
 def _truncate(content: str, max_chars: int) -> str:
@@ -213,45 +173,8 @@ def _read_project_conventions(
     return "\n\n".join(parts)
 
 
-async def _fetch_referenced_issues(
-    issue_numbers: frozenset[int],
-) -> tuple[PrefetchedReference, ...]:
-    """diff 内で参照されている Issue を取得する。
-
-    発見的に抽出された参照のため、個別の取得失敗は警告ログを出力しスキップする。
-
-    Args:
-        issue_numbers: 取得対象の Issue 番号集合。
-
-    Returns:
-        取得成功した参照のタプル。
-    """
-    if not issue_numbers:
-        return ()
-
-    results: list[PrefetchedReference] = []
-    for num in sorted(issue_numbers):
-        try:
-            content = await _run_gh("issue", "view", str(num))
-            truncated = _truncate(content, REFERENCED_ISSUE_MAX_CHARS)
-            results.append(
-                PrefetchedReference(
-                    reference_type="issue",
-                    reference_id=f"#{num}",
-                    content=truncated,
-                )
-            )
-        except PrefetchError:
-            logger.warning(
-                "Failed to fetch referenced issue #%d, skipping",
-                num,
-            )
-    return tuple(results)
-
-
 async def prefetch_selector_context(
     target: DiffTarget | PRTarget | FileTarget,
-    resolved_content: str,
     convention_files: tuple[str, ...] = DEFAULT_CONVENTION_FILES,
 ) -> PrefetchedContext:
     """セレクターエージェント向けのコンテキストを事前取得する。
@@ -260,7 +183,6 @@ async def prefetch_selector_context(
 
     Args:
         target: レビュー対象。
-        resolved_content: 事前解決されたコンテンツ（diff テキスト等）。
         convention_files: 読み込む規約ファイルのパス（CWD からの相対パス）。
 
     Returns:
@@ -280,15 +202,8 @@ async def prefetch_selector_context(
 
     project_conventions = _read_project_conventions(convention_files)
 
-    exclude: frozenset[int] = frozenset()
-    if target.issue_number is not None:
-        exclude = frozenset({target.issue_number})
-    ref_numbers = extract_issue_references(resolved_content, exclude_numbers=exclude)
-    referenced_issues = await _fetch_referenced_issues(ref_numbers)
-
     return PrefetchedContext(
         issue_context=issue_context,
         pr_metadata=pr_metadata,
         project_conventions=project_conventions,
-        referenced_issues=referenced_issues,
     )
