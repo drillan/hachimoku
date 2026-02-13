@@ -255,10 +255,20 @@ def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
     subsections: list[str] = []
 
     if prefetched.issue_context:
-        subsections.append(f"### Issue Context\n\n```\n{prefetched.issue_context}\n```")
+        fence = "```"
+        while fence in prefetched.issue_context:
+            fence += "`"
+        subsections.append(
+            f"### Issue Context\n\n{fence}\n{prefetched.issue_context}\n{fence}"
+        )
 
     if prefetched.pr_metadata:
-        subsections.append(f"### PR Metadata\n\n```\n{prefetched.pr_metadata}\n```")
+        fence = "```"
+        while fence in prefetched.pr_metadata:
+            fence += "`"
+        subsections.append(
+            f"### PR Metadata\n\n{fence}\n{prefetched.pr_metadata}\n{fence}"
+        )
 
     if prefetched.project_conventions:
         subsections.append(
@@ -282,7 +292,7 @@ def build_selector_instruction(
     DiffTarget・PRTarget の場合、フル diff の代わりに差分メタデータ
     （ファイルリスト・変更行数・プレビュー）を含む。セレクターは
     エージェント選択に必要な情報のみを受け取り、必要に応じて
-    git_read ツールでフル diff を取得できる。
+    run_git ツールでフル diff を取得できる。
     FileTarget の場合はフルコンテンツをそのまま含む。
 
     Args:

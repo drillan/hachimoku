@@ -12,10 +12,16 @@ import re
 from enum import StrEnum
 from typing import Final
 
-from pydantic import Field, StrictBool, field_validator
+from typing import Annotated
+
+from pydantic import Field, StringConstraints, StrictBool, field_validator
 
 from hachimoku.agents.models import AGENT_NAME_PATTERN
 from hachimoku.models._base import HachimokuBaseModel
+
+# _prefetch.DEFAULT_CONVENTION_FILES と同値。
+# 循環インポート（config → engine._prefetch → engine/__init__ → _engine → config）を避けるためリテラル定義。
+_DEFAULT_CONVENTION_FILES: tuple[str, ...] = ("CLAUDE.md", ".hachimoku/config.toml")
 
 # 既存の AGENT_NAME_PATTERN (str) をコンパイル済み正規表現として使用
 _AGENT_NAME_RE: re.Pattern[str] = re.compile(AGENT_NAME_PATTERN)
@@ -49,7 +55,9 @@ class SelectorConfig(HachimokuBaseModel):
     referenced_content_max_chars: int = Field(
         default=DEFAULT_REFERENCED_CONTENT_MAX_CHARS, gt=0
     )
-    convention_files: tuple[str, ...] = ("CLAUDE.md", ".hachimoku/config.toml")
+    convention_files: tuple[Annotated[str, StringConstraints(min_length=1)], ...] = (
+        _DEFAULT_CONVENTION_FILES
+    )
 
 
 class AgentConfig(HachimokuBaseModel):

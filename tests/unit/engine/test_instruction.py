@@ -1095,6 +1095,24 @@ class TestBuildPrefetchedSection:
         assert "### Project Conventions" in result
         assert "CLAUDE.md" in result
 
+    def test_code_fence_escalation_in_issue_context(self) -> None:
+        """issue_context に ``` が含まれる場合、フェンスがエスカレートすること。"""
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(issue_context="Some ```code``` in issue")
+        result = _build_prefetched_section(ctx)
+        assert "````" in result
+
+    def test_code_fence_escalation_in_pr_metadata(self) -> None:
+        """pr_metadata に ``` が含まれる場合、フェンスがエスカレートすること。"""
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(pr_metadata="PR with ```python\ncode\n``` block")
+        result = _build_prefetched_section(ctx)
+        assert "````" in result
+
 
 class TestBuildSelectorInstructionPrefetched:
     """build_selector_instruction の prefetched_context テスト。Issue #187。"""

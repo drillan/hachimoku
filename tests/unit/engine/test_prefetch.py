@@ -267,6 +267,28 @@ class TestReadProjectConventions:
         assert "custom-rules.md" in result
         assert "Custom Rules" in result
 
+    def test_unreadable_file_raises_prefetch_error(self, tmp_path: object) -> None:
+        """存在するが読み込み不能なファイルで PrefetchError が送出されること。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import PrefetchError, _read_project_conventions
+
+        import os
+
+        original_cwd = os.getcwd()
+        tmp = Path(str(tmp_path))
+        try:
+            os.chdir(tmp)
+            unreadable = tmp / "unreadable.md"
+            unreadable.write_text("content")
+            unreadable.chmod(0o000)
+
+            with pytest.raises(PrefetchError, match="Failed to read"):
+                _read_project_conventions(("unreadable.md",))
+        finally:
+            unreadable.chmod(0o644)
+            os.chdir(original_cwd)
+
 
 # ── Phase 4: 統合関数テスト ────────────────────────────────
 

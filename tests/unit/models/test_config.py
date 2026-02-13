@@ -340,6 +340,12 @@ class TestSelectorConfigDefaults:
         config = SelectorConfig()
         assert config.convention_files == ("CLAUDE.md", ".hachimoku/config.toml")
 
+    def test_default_convention_files_matches_prefetch(self) -> None:
+        """convention_files のデフォルトが _prefetch.DEFAULT_CONVENTION_FILES と同値であること。"""
+        from hachimoku.engine._prefetch import DEFAULT_CONVENTION_FILES
+
+        assert SelectorConfig().convention_files == DEFAULT_CONVENTION_FILES
+
 
 class TestSelectorConfigValidation:
     """SelectorConfig のバリデーションテスト (FR-CF-004)。"""
@@ -410,6 +416,11 @@ class TestSelectorConfigValidation:
         """convention_files に空タプルを渡すと設定されること。Issue #187."""
         config = SelectorConfig(convention_files=())
         assert config.convention_files == ()
+
+    def test_convention_files_empty_string_element_rejected(self) -> None:
+        """convention_files に空文字列の要素を含むと ValidationError が発生すること。Issue #187."""
+        with pytest.raises(ValidationError, match="convention_files"):
+            SelectorConfig(convention_files=("CLAUDE.md", ""))
 
     def test_extra_field_rejected(self) -> None:
         """未知のキーを渡すと ValidationError が発生すること。"""

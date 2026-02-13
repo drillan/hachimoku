@@ -86,19 +86,25 @@ async def _run_gh(*args: str) -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=_SUBPROCESS_TIMEOUT_SECONDS
-        )
     except FileNotFoundError as exc:
         raise PrefetchError(
             "gh command not found. Ensure gh is installed and available in PATH."
         ) from exc
+
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=_SUBPROCESS_TIMEOUT_SECONDS
+        )
     except TimeoutError as exc:
         proc.kill()
         await proc.wait()
         raise PrefetchError(
             f"{cmd_display} timed out after {_SUBPROCESS_TIMEOUT_SECONDS}s"
         ) from exc
+    except BaseException:
+        proc.kill()
+        await proc.wait()
+        raise
 
     if proc.returncode != 0:
         stderr_text = stderr.decode(errors="replace").strip()
@@ -191,14 +197,29 @@ async def prefetch_selector_context(
     Raises:
         PrefetchError: 明示的な対象の取得に失敗した場合。
     """
+    coros: list[asyncio.Task[str]] = []
+
+    fetch_issue = target.issue_number is not None
+    fetch_pr = isinstance(target, PRTarget)
+
+    if fetch_issue:
+        assert target.issue_number is not None  # for type narrowing
+        coros.append(asyncio.ensure_future(_fetch_issue_context(target.issue_number)))
+    if fetch_pr:
+        assert isinstance(target, PRTarget)  # for type narrowing
+        coros.append(asyncio.ensure_future(_fetch_pr_metadata(target.pr_number)))
+
+    results = await asyncio.gather(*coros) if coros else []
+
+    idx = 0
     issue_context = ""
+    if fetch_issue:
+        issue_context = results[idx]
+        idx += 1
+
     pr_metadata = ""
-
-    if target.issue_number is not None:
-        issue_context = await _fetch_issue_context(target.issue_number)
-
-    if isinstance(target, PRTarget):
-        pr_metadata = await _fetch_pr_metadata(target.pr_number)
+    if fetch_pr:
+        pr_metadata = results[idx]
 
     project_conventions = _read_project_conventions(convention_files)
 
