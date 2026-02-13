@@ -401,12 +401,25 @@ class TestRunAggregatorSuccess:
 class TestRunAggregatorModelResolution:
     """run_aggregator のモデル解決テスト。"""
 
+    @pytest.mark.parametrize(
+        ("config_model", "definition_model", "expected_model"),
+        [
+            ("config-model", "definition-model", "config-model"),
+            (None, "definition-model", "definition-model"),
+            (None, None, "global-model"),
+        ],
+    )
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._aggregator.Agent")
-    async def test_config_model_overrides_definition(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+    async def test_model_resolution_priority(
+        self,
+        mock_agent_cls: MagicMock,
+        _: MagicMock,
+        config_model: str | None,
+        definition_model: str | None,
+        expected_model: str,
     ) -> None:
-        """AggregationConfig.model が AggregatorDefinition.model より優先される。"""
+        """モデル解決の優先順: config > definition > global。"""
         mock_instance = MagicMock()
         mock_instance.run = _make_mock_agent_run()
         mock_agent_cls.return_value = mock_instance
@@ -414,58 +427,14 @@ class TestRunAggregatorModelResolution:
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
             results=[success],
-            aggregator_definition=_make_aggregator_definition(model="definition-model"),
-            aggregation_config=_make_aggregation_config(model="config-model"),
+            aggregator_definition=_make_aggregator_definition(model=definition_model),
+            aggregation_config=_make_aggregation_config(model=config_model),
             global_model="global-model",
             global_timeout=300,
             global_max_turns=10,
         )
         call_kwargs = mock_agent_cls.call_args
-        assert call_kwargs.kwargs["model"] == "config-model"
-
-    @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._aggregator.Agent")
-    async def test_definition_model_when_config_none(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """AggregationConfig.model が None の場合、AggregatorDefinition.model が使用される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
-
-        success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
-        await run_aggregator(
-            results=[success],
-            aggregator_definition=_make_aggregator_definition(model="definition-model"),
-            aggregation_config=_make_aggregation_config(model=None),
-            global_model="global-model",
-            global_timeout=300,
-            global_max_turns=10,
-        )
-        call_kwargs = mock_agent_cls.call_args
-        assert call_kwargs.kwargs["model"] == "definition-model"
-
-    @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._aggregator.Agent")
-    async def test_global_model_when_config_and_definition_none(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """config と definition の両方が None の場合、global_model が使用される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
-
-        success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
-        await run_aggregator(
-            results=[success],
-            aggregator_definition=_make_aggregator_definition(model=None),
-            aggregation_config=_make_aggregation_config(model=None),
-            global_model="global-model",
-            global_timeout=300,
-            global_max_turns=10,
-        )
-        call_kwargs = mock_agent_cls.call_args
-        assert call_kwargs.kwargs["model"] == "global-model"
+        assert call_kwargs.kwargs["model"] == expected_model
 
 
 # =============================================================================
@@ -476,12 +445,25 @@ class TestRunAggregatorModelResolution:
 class TestRunAggregatorTimeoutResolution:
     """run_aggregator の timeout/max_turns 解決テスト。"""
 
+    @pytest.mark.parametrize(
+        ("config_timeout", "config_max_turns", "assert_field", "expected_value"),
+        [
+            (120, None, "timeout", 120),
+            (None, 5, "max_turns", 5),
+        ],
+    )
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._aggregator.Agent")
-    async def test_config_timeout_overrides_global(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+    async def test_config_overrides_global(
+        self,
+        mock_agent_cls: MagicMock,
+        _: MagicMock,
+        config_timeout: int | None,
+        config_max_turns: int | None,
+        assert_field: str,
+        expected_value: int,
     ) -> None:
-        """AggregationConfig.timeout がグローバル timeout より優先される。"""
+        """AggregationConfig の timeout/max_turns がグローバル値より優先される。"""
         mock_instance = MagicMock()
         mock_instance.run = _make_mock_agent_run()
         mock_agent_cls.return_value = mock_instance
@@ -490,35 +472,15 @@ class TestRunAggregatorTimeoutResolution:
         await run_aggregator(
             results=[success],
             aggregator_definition=_make_aggregator_definition(),
-            aggregation_config=_make_aggregation_config(timeout=120),
+            aggregation_config=_make_aggregation_config(
+                timeout=config_timeout, max_turns=config_max_turns
+            ),
             global_model="test",
             global_timeout=600,
             global_max_turns=10,
         )
         call_kwargs = mock_instance.run.call_args.kwargs
-        assert call_kwargs["model_settings"]["timeout"] == 120
-
-    @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._aggregator.Agent")
-    async def test_config_max_turns_overrides_global(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """AggregationConfig.max_turns がグローバル max_turns より優先される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
-
-        success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
-        await run_aggregator(
-            results=[success],
-            aggregator_definition=_make_aggregator_definition(),
-            aggregation_config=_make_aggregation_config(max_turns=5),
-            global_model="test",
-            global_timeout=300,
-            global_max_turns=10,
-        )
-        call_kwargs = mock_instance.run.call_args.kwargs
-        assert call_kwargs["model_settings"]["max_turns"] == 5
+        assert call_kwargs["model_settings"][assert_field] == expected_value
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._aggregator.Agent")

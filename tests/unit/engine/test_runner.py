@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from claudecode_model import ClaudeCodeModel
 from claudecode_model.exceptions import CLIExecutionError
 from pydantic import ValidationError
@@ -417,80 +418,55 @@ class TestRunAgentModelSettings:
 class TestRunAgentErrorDiagnostics:
     """run_agent が CLIExecutionError の構造化属性を AgentError に保存するテスト。"""
 
+    @pytest.mark.parametrize(
+        ("error_kwargs", "assert_field", "expected_value"),
+        [
+            (
+                {"exit_code": 1, "stderr": "error", "error_type": "unknown"},
+                "exit_code",
+                1,
+            ),
+            (
+                {
+                    "exit_code": 1,
+                    "stderr": "detailed error output",
+                    "error_type": "unknown",
+                },
+                "stderr",
+                "detailed error output",
+            ),
+            (
+                {"exit_code": 2, "stderr": "", "error_type": "permission"},
+                "error_type",
+                "permission",
+            ),
+            (
+                {"exit_code": 1, "stderr": "", "error_type": "unknown"},
+                "stderr",
+                "",
+            ),
+        ],
+    )
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._runner.Agent")
-    async def test_cli_execution_error_preserves_exit_code(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+    async def test_cli_execution_error_preserves_field(
+        self,
+        mock_agent_cls: MagicMock,
+        _: MagicMock,
+        error_kwargs: dict[str, object],
+        assert_field: str,
+        expected_value: object,
     ) -> None:
-        """CLIExecutionError の exit_code が AgentError に保存される。"""
+        """CLIExecutionError の各属性が AgentError に保存される。"""
         mock_instance = mock_agent_cls.return_value
         mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "CLI failed", exit_code=1, stderr="error", error_type="unknown"
-            )
+            side_effect=CLIExecutionError("CLI failed", **error_kwargs)  # type: ignore[arg-type]
         )
         ctx = _make_context(agent_name="cli-error-agent")
         result = await run_agent(ctx)
 
         assert isinstance(result, AgentError)
-        assert result.exit_code == 1
-
-    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._runner.Agent")
-    async def test_cli_execution_error_preserves_stderr(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """CLIExecutionError の stderr が AgentError に保存される。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "CLI failed",
-                exit_code=1,
-                stderr="detailed error output",
-                error_type="unknown",
-            )
-        )
-        ctx = _make_context(agent_name="cli-error-agent")
-        result = await run_agent(ctx)
-
-        assert isinstance(result, AgentError)
-        assert result.stderr == "detailed error output"
-
-    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._runner.Agent")
-    async def test_cli_execution_error_preserves_error_type(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """CLIExecutionError の error_type が AgentError に保存される。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "CLI failed", exit_code=2, stderr="", error_type="permission"
-            )
-        )
-        ctx = _make_context(agent_name="cli-error-agent")
-        result = await run_agent(ctx)
-
-        assert isinstance(result, AgentError)
-        assert result.error_type == "permission"
-
-    @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
-    @patch("hachimoku.engine._runner.Agent")
-    async def test_cli_execution_error_empty_stderr_preserved(
-        self, mock_agent_cls: MagicMock, _: MagicMock
-    ) -> None:
-        """CLIExecutionError の空 stderr は空文字列として保存される。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "CLI failed", exit_code=1, stderr="", error_type="unknown"
-            )
-        )
-        ctx = _make_context(agent_name="cli-error-agent")
-        result = await run_agent(ctx)
-
-        assert isinstance(result, AgentError)
-        assert result.stderr == ""
+        assert getattr(result, assert_field) == expected_value
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._runner.Agent")
