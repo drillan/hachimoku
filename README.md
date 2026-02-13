@@ -19,13 +19,21 @@ hachimoku（8moku）は、複数の専門エージェントを用いてコード
 
 ## インストール
 
-現在 PyPI には未公開です。ソースからインストールしてください。
+現在 PyPI には未公開です。`uv tool install` でグローバルにインストールできます。
+
+```bash
+uv tool install git+https://github.com/drillan/hachimoku.git
+```
+
+開発者向け（ソースからのセットアップ）:
 
 ```bash
 git clone https://github.com/drillan/hachimoku.git
 cd hachimoku
 uv sync
 ```
+
+詳細は [インストール](docs/installation.md) を参照してください。
 
 ## クイックスタート
 
