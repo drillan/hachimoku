@@ -16,6 +16,7 @@ from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 
+from hachimoku.engine._progress import SELECTOR_START_MESSAGE
 from hachimoku.models.agent_result import (
     AgentError,
     AgentResult,
@@ -26,9 +27,6 @@ from hachimoku.models.agent_result import (
 
 PHASE_ORDER: Final[dict[str, int]] = {"early": 0, "main": 1, "final": 2}
 """フェーズのソート順序。"""
-
-SELECTOR_SPINNER_TEXT: Final[str] = "Selecting agents..."
-"""セレクタースピナーの表示テキスト。"""
 
 SELECTOR_SPINNER_STYLE: Final[str] = "dots"
 """セレクタースピナーのアニメーションスタイル。"""
@@ -161,7 +159,7 @@ class RichSelectorSpinner:
     def start(self) -> None:
         """Rich Status スピナーを開始する。"""
         status = self._console.status(
-            SELECTOR_SPINNER_TEXT,
+            SELECTOR_START_MESSAGE,
             spinner=SELECTOR_SPINNER_STYLE,
         )
         status.start()
