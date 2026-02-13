@@ -230,7 +230,7 @@ async def run_selector(
             prefetched_context=prefetched_context,
         )
 
-        resolved = resolve_model(model)
+        resolved = resolve_model(model, allowed_builtin_tools=())
         agent = Agent(
             model=resolved,
             output_type=SelectorOutput,

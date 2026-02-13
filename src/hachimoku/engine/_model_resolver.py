@@ -27,17 +27,26 @@ _CLAUDECODE_PREFIX: str = "claudecode:"
 _ALLOWED_BUILTIN_TOOLS: Final[tuple[str, ...]] = ("Read", "Grep", "Glob")
 
 
-def resolve_model(model: str) -> str | Model:
+def resolve_model(
+    model: str,
+    *,
+    allowed_builtin_tools: tuple[str, ...] | None = None,
+) -> str | Model:
     """モデル文字列のプレフィックスに基づきプロバイダーを解決する。
 
     Args:
         model: プレフィックス付きモデル名文字列
             （例: ``"claudecode:claude-opus-4-6"``, ``"anthropic:claude-opus-4-6"``）。
+        allowed_builtin_tools: claudecode プレフィックス時に許可する
+            CLI ビルトインツール名のタプル。``None`` の場合は
+            デフォルトの ``_ALLOWED_BUILTIN_TOOLS``（Read, Grep, Glob）を使用する。
+            空タプル ``()`` を渡すと CLI ビルトインツールを全て無効化する
+            （Issue #198: セレクター向け）。anthropic プレフィックスでは無視される。
 
     Returns:
         claudecode の場合: ``claudecode:`` プレフィックスを除去し
-            ClaudeCodeModel インスタンスを返す。読み取り専用の
-            CLI ビルトインツール（Read, Grep, Glob）のみ ``allowed_tools`` で許可される。
+            ClaudeCodeModel インスタンスを返す。``allowed_builtin_tools`` で
+            指定された CLI ビルトインツールのみ ``allowed_tools`` で許可される。
         anthropic の場合: モデル文字列をそのまま返す。
 
     Raises:
@@ -52,9 +61,14 @@ def resolve_model(model: str) -> str | Model:
                 f"Model name cannot be empty after prefix in '{model}'. "
                 "Specify a model name, e.g. 'claudecode:claude-opus-4-6'."
             )
+        tools = list(
+            allowed_builtin_tools
+            if allowed_builtin_tools is not None
+            else _ALLOWED_BUILTIN_TOOLS
+        )
         return ClaudeCodeModel(
             model_name=bare_name,
-            allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
+            allowed_tools=tools,
         )
 
     if model.startswith(_ANTHROPIC_PREFIX):

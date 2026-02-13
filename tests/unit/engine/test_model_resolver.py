@@ -134,3 +134,52 @@ class TestResolveModelAllowedTools:
     def test_allowed_tools_has_exactly_three_tools(self) -> None:
         """許可リストは正確に3つの読み取り専用ツールのみ。"""
         assert len(_ALLOWED_BUILTIN_TOOLS) == 3
+
+
+class TestResolveModelAllowedBuiltinToolsOverride:
+    """allowed_builtin_tools パラメータによるオーバーライドのテスト。
+
+    Issue #198: セレクター向けに CLI ビルトインツールを空にできる仕組み。
+    """
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_none_uses_default_tools(self, mock_ccm_cls: MagicMock) -> None:
+        """allowed_builtin_tools=None でデフォルトの _ALLOWED_BUILTIN_TOOLS が使用される。"""
+        resolve_model("claudecode:claude-opus-4-6", allowed_builtin_tools=None)
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
+        )
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_empty_tuple_passes_empty_list(self, mock_ccm_cls: MagicMock) -> None:
+        """allowed_builtin_tools=() で空リストが ClaudeCodeModel に渡される。"""
+        resolve_model("claudecode:claude-opus-4-6", allowed_builtin_tools=())
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=[],
+        )
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_custom_tools_passed(self, mock_ccm_cls: MagicMock) -> None:
+        """allowed_builtin_tools=("Read",) で指定ツールのみ渡される。"""
+        resolve_model("claudecode:claude-opus-4-6", allowed_builtin_tools=("Read",))
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=["Read"],
+        )
+
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
+    def test_anthropic_prefix_ignores_parameter(self) -> None:
+        """anthropic: プレフィックスでは allowed_builtin_tools が無視される。"""
+        result = resolve_model("anthropic:claude-opus-4-6", allowed_builtin_tools=())
+        assert result == "anthropic:claude-opus-4-6"
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_omitted_parameter_uses_default(self, mock_ccm_cls: MagicMock) -> None:
+        """パラメータ省略時はデフォルトの _ALLOWED_BUILTIN_TOOLS が使用される。"""
+        resolve_model("claudecode:claude-opus-4-6")
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
+        )
