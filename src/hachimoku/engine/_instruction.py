@@ -197,7 +197,7 @@ def _format_diff_summary(entries: list[_FileDiffEntry]) -> str:
     parts.append("")
     parts.append(
         "Note: This is a summary for agent selection. "
-        "Use git_read tools to access the full diff if needed."
+        "Use the run_git tool to access the full diff if needed."
     )
 
     return "\n".join(parts)
@@ -231,7 +231,7 @@ def build_review_instruction(
     if target.issue_number is not None:
         parts.append(
             f"\nRelated Issue: #{target.issue_number}\n"
-            f"Use gh tools to fetch issue details for additional context."
+            f"Use the run_gh tool to fetch issue details for additional context."
         )
 
     return "\n".join(parts)
@@ -272,7 +272,7 @@ def build_selector_instruction(
     if target.issue_number is not None:
         parts.append(
             f"\nRelated Issue: #{target.issue_number}\n"
-            f"Use gh tools to fetch issue details for additional context."
+            f"Use the run_gh tool to fetch issue details for additional context."
         )
 
     review_section = "\n".join(parts)
@@ -416,8 +416,9 @@ def _build_mode_section(
     if isinstance(target, PRTarget):
         return (
             f"Review Pull Request #{target.pr_number}.\n"
-            f"Use `gh pr view {target.pr_number}` to get PR metadata "
-            f"(title, labels, linked issues).\n\n"
+            f"Use the run_gh tool with args "
+            f'["pr", "view", "{target.pr_number}"] '
+            f"to get PR metadata (title, labels, linked issues).\n\n"
             f"{resolved_content}"
         )
 

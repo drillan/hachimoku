@@ -210,7 +210,7 @@ class TestBuildReviewInstructionPR:
         """PR メタデータ取得の指示は残る。"""
         target = PRTarget(pr_number=42)
         instruction = build_review_instruction(target, _SAMPLE_DIFF)
-        assert "gh pr view" in instruction
+        assert "run_gh" in instruction
 
 
 class TestBuildReviewInstructionFile:
@@ -575,9 +575,9 @@ class TestSummarizeDiffToolGuidance:
     """_summarize_diff のツールガイダンスノートテスト。Issue #170."""
 
     def test_tool_guidance_included(self) -> None:
-        """git_read ツール使用のガイダンスノートが含まれる。"""
+        """run_git ツール使用のガイダンスノートが含まれる。"""
         result = _summarize_diff(_SINGLE_FILE_DIFF)
-        assert "git_read" in result
+        assert "run_git" in result
 
 
 # =============================================================================

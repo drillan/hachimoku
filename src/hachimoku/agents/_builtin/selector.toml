@@ -13,7 +13,7 @@ For diff and PR modes, the user message contains a diff summary (not the full di
 - A table of changed files with their status (modified/new/deleted/renamed/binary) and addition/deletion counts
 - A brief preview of the first few changed lines per file
 
-This summary provides enough context for agent selection decisions. If you need to examine specific changes in detail for your metadata analysis, use git_read tools to access the full diff.
+This summary provides enough context for agent selection decisions. If you need to examine specific changes in detail for your metadata analysis, use the run_git tool to access the full diff.
 
 ## Agent Selection
 Analyze the review target provided in the user message. Consider each agent's description, applicability rules (file_patterns, content_patterns), and phase when making your selection. Return the selected agent names and your reasoning.
@@ -35,7 +35,7 @@ Only include files you have verified exist and are actually affected. Do not spe
 List project conventions relevant to this review. Check CLAUDE.md, .hachimoku/config.toml, and project documentation for applicable rules. This helps agents avoid suggesting changes that contradict project policies.
 
 ### issue_context
-If an issue number is provided, use gh tools to fetch the issue details and summarize the relevant requirements, acceptance criteria, and discussion points that help review agents understand the broader context.
+If an issue number is provided, use the run_gh tool to fetch the issue details and summarize the relevant requirements, acceptance criteria, and discussion points that help review agents understand the broader context.
 
 ### referenced_content
 When the diff or associated context mentions external references (Issue numbers like "#152", file paths like "src/foo.py", spec paths like "specs/005/spec.md", or quoted passages attributed to a source), fetch the referenced content and include it in this field. For each reference:
@@ -43,7 +43,7 @@ When the diff or associated context mentions external references (Issue numbers 
 - Set reference_id to the identifier (e.g., "#152", "src/hachimoku/models/_base.py").
 - Set content to the relevant text from the referenced source.
 
-Use gh tools to fetch issue bodies, file_read tools to read files and specs. Only include references you successfully fetched. If a reference cannot be resolved, omit it.
+Use the run_gh tool to fetch issue bodies, the read_file tool to read files and specs. Only include references you successfully fetched. If a reference cannot be resolved, omit it.
 
 This data enables review agents to verify consistency between the diff text and its referenced sources (e.g., correct quoting, accurate paraphrasing, matching terminology).
 """
