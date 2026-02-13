@@ -1,12 +1,17 @@
 """ProgressReporter のテスト。
 
 FR-RE-015: stderr 進捗表示。
+FR-CLI-015: TTY 時 Rich 進捗表示 / 非 TTY 時プレーンテキスト自動切替。
 """
+
+from unittest.mock import patch
 
 import pytest
 
 from hachimoku.agents.models import LoadError
 from hachimoku.engine._progress import (
+    PlainProgressReporter,
+    create_progress_reporter,
     report_agent_complete,
     report_agent_start,
     report_load_warnings,
@@ -236,3 +241,89 @@ class TestReportSelectorResult:
         report_selector_result(selected_count=1, reasoning="test")
         captured = capsys.readouterr()
         assert captured.out == ""
+
+
+# =============================================================================
+# PlainProgressReporter
+# =============================================================================
+
+
+class TestPlainProgressReporter:
+    """PlainProgressReporter のテスト。FR-CLI-015 非 TTY 時の動作。"""
+
+    def test_on_agent_start_delegates_to_report_agent_start(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """on_agent_start が report_agent_start に委譲する。"""
+        reporter = PlainProgressReporter()
+        reporter.on_agent_start("test-agent")
+        captured = capsys.readouterr()
+        assert captured.err.strip() == "Running agent: test-agent..."
+        assert captured.out == ""
+
+    def test_on_agent_complete_success(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """on_agent_complete が成功結果を report_agent_complete に委譲する。"""
+        reporter = PlainProgressReporter()
+        result = AgentSuccess(agent_name="test", issues=[], elapsed_time=1.0)
+        reporter.on_agent_complete("test", result)
+        captured = capsys.readouterr()
+        assert "Agent test: completed (0 issues found)" in captured.err
+
+    def test_on_agent_complete_error(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """on_agent_complete がエラー結果を report_agent_complete に委譲する。"""
+        reporter = PlainProgressReporter()
+        result = AgentError(agent_name="test", error_message="Connection failed")
+        reporter.on_agent_complete("test", result)
+        captured = capsys.readouterr()
+        assert "Agent test: error (Connection failed)" in captured.err
+
+    def test_on_agent_pending_is_noop(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """on_agent_pending は何も出力しない。"""
+        reporter = PlainProgressReporter()
+        reporter.on_agent_pending("test-agent", "main")
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+    def test_start_is_noop(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """start は何もしない。"""
+        reporter = PlainProgressReporter()
+        reporter.start()
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+    def test_stop_is_noop(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """stop は何もしない。"""
+        reporter = PlainProgressReporter()
+        reporter.stop()
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+
+# =============================================================================
+# create_progress_reporter
+# =============================================================================
+
+
+class TestCreateProgressReporter:
+    """create_progress_reporter ファクトリのテスト。FR-CLI-015 TTY 自動切替。"""
+
+    def test_returns_rich_when_stderr_is_tty(self) -> None:
+        """stderr が TTY の場合 RichProgressReporter を返す。"""
+        from hachimoku.engine._live_progress import RichProgressReporter
+
+        with patch("hachimoku.engine._progress.sys") as mock_sys:
+            mock_sys.stderr.isatty.return_value = True
+            reporter = create_progress_reporter()
+        assert isinstance(reporter, RichProgressReporter)
+
+    def test_returns_plain_when_stderr_is_not_tty(self) -> None:
+        """stderr が非 TTY の場合 PlainProgressReporter を返す。"""
+        with patch("hachimoku.engine._progress.sys") as mock_sys:
+            mock_sys.stderr.isatty.return_value = False
+            reporter = create_progress_reporter()
+        assert isinstance(reporter, PlainProgressReporter)

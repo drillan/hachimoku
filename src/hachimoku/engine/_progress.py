@@ -1,6 +1,7 @@
 """ProgressReporter — stderr 進捗表示。
 
 FR-RE-015: レビュー実行中の進捗情報を stderr に出力する。
+FR-CLI-015: TTY 時は Rich Live テーブル、非 TTY 時はプレーンテキストで自動切替。
 Art.3: 進捗表示・ログは stderr に出力。
 """
 
@@ -8,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
 
 from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
@@ -17,6 +19,86 @@ from hachimoku.models.agent_result import (
     AgentTimeout,
     AgentTruncated,
 )
+
+
+# =============================================================================
+# ProgressReporter Protocol
+# =============================================================================
+
+
+@runtime_checkable
+class ProgressReporter(Protocol):
+    """エージェント実行進捗を報告するプロトコル。
+
+    FR-CLI-015: TTY/非 TTY で異なる実装を切り替える。
+    """
+
+    def on_agent_pending(self, agent_name: str, phase: str) -> None:
+        """エージェントを pending 状態として登録する。"""
+        ...
+
+    def on_agent_start(self, agent_name: str) -> None:
+        """エージェント実行開始を通知する。"""
+        ...
+
+    def on_agent_complete(self, agent_name: str, result: AgentResult) -> None:
+        """エージェント実行完了を通知する。"""
+        ...
+
+    def start(self) -> None:
+        """進捗表示を開始する。"""
+        ...
+
+    def stop(self) -> None:
+        """進捗表示を停止する。"""
+        ...
+
+
+# =============================================================================
+# PlainProgressReporter
+# =============================================================================
+
+
+class PlainProgressReporter:
+    """非 TTY 環境向けプレーンテキスト進捗レポーター。
+
+    既存の report_agent_start / report_agent_complete 関数に委譲する。
+    """
+
+    def on_agent_pending(self, agent_name: str, phase: str) -> None:
+        """プレーンテキストでは pending 表示しない。"""
+
+    def on_agent_start(self, agent_name: str) -> None:
+        """report_agent_start に委譲する。"""
+        report_agent_start(agent_name)
+
+    def on_agent_complete(self, agent_name: str, result: AgentResult) -> None:
+        """report_agent_complete に委譲する。"""
+        report_agent_complete(agent_name, result)
+
+    def start(self) -> None:
+        """プレーンテキストでは開始処理なし。"""
+
+    def stop(self) -> None:
+        """プレーンテキストでは停止処理なし。"""
+
+
+# =============================================================================
+# ファクトリ関数
+# =============================================================================
+
+
+def create_progress_reporter() -> ProgressReporter:
+    """stderr の TTY 状態に基づいて適切な ProgressReporter を生成する。
+
+    FR-CLI-015: TTY の場合は RichProgressReporter、非 TTY の場合は
+    PlainProgressReporter を返す。
+    """
+    if sys.stderr.isatty():
+        from hachimoku.engine._live_progress import RichProgressReporter
+
+        return RichProgressReporter()
+    return PlainProgressReporter()
 
 
 def report_agent_start(agent_name: str) -> None:

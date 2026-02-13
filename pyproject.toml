@@ -11,6 +11,7 @@ dependencies = [
     "claudecode-model",
     "pydantic>=2.12.5",
     "pydantic-ai>=1.56.0",
+    "rich>=14.0.0",
     "typer>=0.21.1",
 ]
 

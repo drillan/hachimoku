@@ -1,6 +1,7 @@
 """Executor — 逐次/並列エージェント実行。
 
 FR-RE-006: parallel 設定に応じたフェーズ順序制御。
+FR-CLI-015: ProgressReporter による進捗表示。
 フェーズ順（early → main → final）で実行し、
 parallel=false では同フェーズ内を名前辞書順で逐次実行、
 parallel=true では同フェーズ内を asyncio.TaskGroup で並列実行する。
@@ -10,16 +11,26 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from hachimoku.agents.models import Phase
 from hachimoku.engine._context import AgentExecutionContext
-from hachimoku.engine._progress import report_agent_complete, report_agent_start
+from hachimoku.engine._progress import PlainProgressReporter
 from hachimoku.engine._runner import run_agent
 from hachimoku.models.agent_result import AgentResult
 
+if TYPE_CHECKING:
+    from hachimoku.engine._progress import ProgressReporter
+
 PHASE_SEQUENCE: Final[tuple[Phase, ...]] = (Phase.EARLY, Phase.MAIN, Phase.FINAL)
 """フェーズの実行順序。"""
+
+
+def _resolve_reporter(reporter: ProgressReporter | None) -> ProgressReporter:
+    """reporter が None の場合は PlainProgressReporter を生成する。"""
+    if reporter is None:
+        return PlainProgressReporter()
+    return reporter
 
 
 def group_by_phase(
@@ -52,6 +63,7 @@ async def execute_sequential(
     contexts: list[AgentExecutionContext],
     shutdown_event: asyncio.Event,
     collected_results: list[AgentResult] | None = None,
+    reporter: ProgressReporter | None = None,
 ) -> list[AgentResult]:
     """エージェントをフェーズ順・名前辞書順で逐次実行する。
 
@@ -66,10 +78,12 @@ async def execute_sequential(
         shutdown_event: シグナルハンドラがセットする停止イベント。
         collected_results: 外部から結果を参照するための共有リスト。
             None の場合は内部でリストを作成する。
+        reporter: 進捗レポーター。None の場合は PlainProgressReporter を使用。
 
     Returns:
         実行完了したエージェントの AgentResult リスト。
     """
+    effective_reporter = _resolve_reporter(reporter)
     results: list[AgentResult] = (
         collected_results if collected_results is not None else []
     )
@@ -80,9 +94,9 @@ async def execute_sequential(
             if shutdown_event.is_set():
                 return results
 
-            report_agent_start(ctx.agent_name)
+            effective_reporter.on_agent_start(ctx.agent_name)
             result = await run_agent(ctx)
-            report_agent_complete(ctx.agent_name, result)
+            effective_reporter.on_agent_complete(ctx.agent_name, result)
             results.append(result)
 
     return results
@@ -92,6 +106,7 @@ async def execute_parallel(
     contexts: list[AgentExecutionContext],
     shutdown_event: asyncio.Event,
     collected_results: list[AgentResult] | None = None,
+    reporter: ProgressReporter | None = None,
 ) -> list[AgentResult]:
     """同一フェーズ内のエージェントを並列実行する。
 
@@ -110,11 +125,13 @@ async def execute_parallel(
         shutdown_event: シグナルハンドラがセットする停止イベント。
         collected_results: 外部から結果を参照するための共有リスト。
             None の場合は内部でリストを作成する。
+        reporter: 進捗レポーター。None の場合は PlainProgressReporter を使用。
 
     Returns:
         実行完了したエージェントの AgentResult リスト。
         フェーズ間の順序は保持されるが、同一フェーズ内の順序は非決定的。
     """
+    effective_reporter = _resolve_reporter(reporter)
     # asyncio は単一スレッドで動作するため、
     # list.append は並列タスク間で安全に使用できる。
     results: list[AgentResult] = (
@@ -130,13 +147,13 @@ async def execute_parallel(
             if shutdown_event.is_set():
                 return
             try:
-                report_agent_start(ctx.agent_name)
+                effective_reporter.on_agent_start(ctx.agent_name)
             except Exception:
                 pass
             result = await run_agent(ctx)
             results.append(result)
             try:
-                report_agent_complete(ctx.agent_name, result)
+                effective_reporter.on_agent_complete(ctx.agent_name, result)
             except Exception:
                 pass
 

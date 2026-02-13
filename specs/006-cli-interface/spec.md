@@ -242,6 +242,27 @@ CLI が file モードの位置引数（ファイル・ディレクトリ・glob
   例: `Error: PR #999 not found. Verify the PR number exists on the remote repository.`
   例: `Error: File 'nonexistent.py' not found. Check the file path and try again.`
 
+- **FR-CLI-015**: システムは stderr が TTY に接続されている場合、エージェント実行中の進捗情報を Rich ライブラリの Live テーブルとしてリアルタイム表示しなければならない（Issue #202）。表示仕様は以下の通り:
+
+  **テーブル列**: Agent（エージェント名）| Phase（実行フェーズ）| Status（ステータス）
+
+  **ステータス表示**:
+
+  | 状態 | 表示 | 条件 |
+  |------|------|------|
+  | pending | `⏳ pending` | セレクター選択後、実行開始前 |
+  | running | `⠋ running`（スピナー） | エージェント実行中 |
+  | completed | `✓ N issues` | 正常完了（N は検出 issue 数） |
+  | truncated | `⚠ N issues` | ターン数上限で切り詰め |
+  | error | `✗ error` | 実行エラー |
+  | timeout | `⏱ timeout` | タイムアウト |
+
+  **行順序**: フェーズ順（early → main → final）、同フェーズ内はエージェント名の辞書順
+
+  **TTY 自動切替**: stderr が TTY でない場合（パイプ・リダイレクト時）は FR-RE-015 の既存プレーンテキスト出力を使用する。これにより `2>log.txt` でのログ取得時にエスケープシーケンスが混入しない
+
+  **ライフサイクル**: Live テーブルはエージェント実行フェーズ（Step 7）でのみアクティブとする。セレクター結果・ロード警告・完了サマリーは従来通りプレーンテキストで stderr に出力する
+
 ### Key Entities
 
 - **CliApp（CLI アプリケーション）**: Typer で構築されたコマンドラインアプリケーション。`8moku` と `hachimoku` の2つのエントリポイントから呼び出される。デフォルト動作（レビュー）のコールバックと、`init`・`agents` のサブコマンドを持つ。CLI オプションの解析と入力モード判定を担当し、ビジネスロジックは各ハンドラーに委譲する
