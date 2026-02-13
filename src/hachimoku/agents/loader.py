@@ -8,6 +8,7 @@ AggregatorDefinition モデルとして構築する。
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Generator, Iterable
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Final, TypeVar
@@ -133,6 +134,40 @@ def _load_single_agent(path: Path) -> AgentDefinition:
     return _load_single_definition(path, AgentDefinition)
 
 
+def _collect_agents(toml_paths: Iterable[Path]) -> LoadResult:
+    """TOML ファイルパスのイテラブルからエージェント定義を収集する。
+
+    .toml 以外のファイルおよび除外対象ファイルはスキップされる。
+    個々のファイルの読み込みエラーは LoadResult.errors に収集される。
+
+    Args:
+        toml_paths: ファイルパスのイテラブル。
+
+    Returns:
+        収集されたエージェント定義とエラーの読み込み結果。
+    """
+    agents: list[AgentDefinition] = []
+    errors: list[LoadError] = []
+
+    for path in toml_paths:
+        if not path.name.endswith(".toml"):
+            continue
+        if path.name in _EXCLUDED_FILENAMES:
+            continue
+        try:
+            agent = _load_single_agent(path)
+            agents.append(agent)
+        except (tomllib.TOMLDecodeError, ValidationError, OSError) as e:
+            errors.append(
+                LoadError(
+                    source=path.name,
+                    message=f"{type(e).__name__}: {e}",
+                )
+            )
+
+    return LoadResult(agents=tuple(agents), errors=tuple(errors))
+
+
 def load_builtin_agents() -> LoadResult:
     """ビルトインエージェント定義をパッケージリソースから読み込む。
 
@@ -146,27 +181,17 @@ def load_builtin_agents() -> LoadResult:
         ModuleNotFoundError: ビルトインパッケージが見つからない場合。
     """
     builtin_package = files("hachimoku.agents._builtin")
-    agents: list[AgentDefinition] = []
-    errors: list[LoadError] = []
 
-    for resource in sorted(builtin_package.iterdir(), key=lambda r: r.name):
-        if not resource.name.endswith(".toml"):
-            continue
-        if resource.name in _EXCLUDED_FILENAMES:
-            continue
-        try:
+    def _iter_paths() -> Generator[Path, None, None]:
+        for resource in sorted(builtin_package.iterdir(), key=lambda r: r.name):
             with as_file(resource) as path:
-                agent = _load_single_agent(path)
-            agents.append(agent)
-        except (tomllib.TOMLDecodeError, ValidationError, OSError) as e:
-            errors.append(
-                LoadError(
-                    source=resource.name,
-                    message=f"{type(e).__name__}: {e}",
-                )
-            )
+                yield path
 
-    return LoadResult(agents=tuple(agents), errors=tuple(errors))
+    gen = _iter_paths()
+    try:
+        return _collect_agents(gen)
+    finally:
+        gen.close()
 
 
 def load_custom_agents(custom_dir: Path) -> LoadResult:
@@ -192,26 +217,7 @@ def load_custom_agents(custom_dir: Path) -> LoadResult:
             f"custom_dir はディレクトリではありません: {custom_dir}"
         )
 
-    agents: list[AgentDefinition] = []
-    errors: list[LoadError] = []
-
-    for toml_path in sorted(custom_dir.iterdir()):
-        if not toml_path.name.endswith(".toml"):
-            continue
-        if toml_path.name in _EXCLUDED_FILENAMES:
-            continue
-        try:
-            agent = _load_single_agent(toml_path)
-            agents.append(agent)
-        except (tomllib.TOMLDecodeError, ValidationError, OSError) as e:
-            errors.append(
-                LoadError(
-                    source=toml_path.name,
-                    message=f"{type(e).__name__}: {e}",
-                )
-            )
-
-    return LoadResult(agents=tuple(agents), errors=tuple(errors))
+    return _collect_agents(sorted(custom_dir.iterdir()))
 
 
 def load_agents(custom_dir: Path | None = None) -> LoadResult:
