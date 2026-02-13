@@ -11,7 +11,9 @@ import pytest
 from hachimoku.agents.models import LoadError
 from hachimoku.engine._progress import (
     PlainProgressReporter,
+    PlainSelectorSpinner,
     create_progress_reporter,
+    create_selector_spinner,
     report_agent_complete,
     report_agent_start,
     report_load_warnings,
@@ -327,3 +329,61 @@ class TestCreateProgressReporter:
             mock_sys.stderr.isatty.return_value = False
             reporter = create_progress_reporter()
         assert isinstance(reporter, PlainProgressReporter)
+
+
+# =============================================================================
+# PlainSelectorSpinner
+# =============================================================================
+
+
+class TestPlainSelectorSpinner:
+    """PlainSelectorSpinner のテスト。"""
+
+    def test_start_outputs_selecting_message(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """start() で 'Selecting agents...' が stderr に出力される。"""
+        spinner = PlainSelectorSpinner()
+        spinner.start()
+        captured = capsys.readouterr()
+        assert captured.err.strip() == "Selecting agents..."
+
+    def test_stop_is_noop(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """stop() は何も出力しない。"""
+        spinner = PlainSelectorSpinner()
+        spinner.stop()
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+    def test_no_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """start() が stdout に出力しない (FR-CLI-004)。"""
+        spinner = PlainSelectorSpinner()
+        spinner.start()
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+
+# =============================================================================
+# create_selector_spinner
+# =============================================================================
+
+
+class TestCreateSelectorSpinner:
+    """create_selector_spinner ファクトリのテスト。"""
+
+    def test_returns_rich_when_stderr_is_tty(self) -> None:
+        """stderr が TTY の場合 RichSelectorSpinner を返す。"""
+        from hachimoku.engine._live_progress import RichSelectorSpinner
+
+        with patch("hachimoku.engine._progress.sys") as mock_sys:
+            mock_sys.stderr.isatty.return_value = True
+            spinner = create_selector_spinner()
+        assert isinstance(spinner, RichSelectorSpinner)
+
+    def test_returns_plain_when_stderr_is_not_tty(self) -> None:
+        """stderr が非 TTY の場合 PlainSelectorSpinner を返す。"""
+        with patch("hachimoku.engine._progress.sys") as mock_sys:
+            mock_sys.stderr.isatty.return_value = False
+            spinner = create_selector_spinner()
+        assert isinstance(spinner, PlainSelectorSpinner)

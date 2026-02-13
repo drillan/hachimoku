@@ -8,7 +8,7 @@ import io
 import pytest
 from rich.console import Console
 
-from hachimoku.engine._live_progress import RichProgressReporter
+from hachimoku.engine._live_progress import RichProgressReporter, RichSelectorSpinner
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
@@ -209,3 +209,50 @@ class TestLifecycle:
         reporter.stop()
         output = buf.getvalue()
         assert "test-agent" in output
+
+
+# =============================================================================
+# RichSelectorSpinner
+# =============================================================================
+
+
+def _make_selector_spinner() -> tuple[RichSelectorSpinner, io.StringIO]:
+    """テスト用 RichSelectorSpinner を生成する。
+
+    Returns:
+        (spinner, output_buffer) のタプル。
+    """
+    buf = io.StringIO()
+    console = Console(file=buf, force_terminal=True, width=80)
+    spinner = RichSelectorSpinner(console=console)
+    return spinner, buf
+
+
+class TestRichSelectorSpinner:
+    """RichSelectorSpinner のテスト。"""
+
+    def test_start_stop_no_exception(self) -> None:
+        """start/stop が例外なく動作する。"""
+        spinner, _ = _make_selector_spinner()
+        spinner.start()
+        spinner.stop()
+
+    def test_stop_without_start_no_exception(self) -> None:
+        """start なしで stop を呼んでも例外が発生しない。"""
+        spinner, _ = _make_selector_spinner()
+        spinner.stop()
+
+    def test_output_contains_selecting_text(self) -> None:
+        """スピナー出力に 'Selecting agents...' テキストが含まれる。"""
+        spinner, buf = _make_selector_spinner()
+        spinner.start()
+        spinner.stop()
+        output = buf.getvalue()
+        assert "Selecting agents" in output
+
+    def test_double_stop_no_exception(self) -> None:
+        """stop を2回呼んでも例外が発生しない。"""
+        spinner, _ = _make_selector_spinner()
+        spinner.start()
+        spinner.stop()
+        spinner.stop()

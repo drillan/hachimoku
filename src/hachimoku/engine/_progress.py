@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Sequence
-from typing import Protocol, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
 
 from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
@@ -99,6 +99,65 @@ def create_progress_reporter() -> ProgressReporter:
 
         return RichProgressReporter()
     return PlainProgressReporter()
+
+
+# =============================================================================
+# SelectorSpinner Protocol
+# =============================================================================
+
+
+SELECTOR_START_MESSAGE: Final[str] = "Selecting agents..."
+"""セレクター実行中に表示するメッセージ。"""
+
+
+@runtime_checkable
+class SelectorSpinner(Protocol):
+    """セレクター実行中のスピナー表示プロトコル。
+
+    FR-RE-015: セレクター実行中の進捗情報を stderr に表示する。
+    """
+
+    def start(self) -> None:
+        """スピナー表示を開始する。"""
+        ...
+
+    def stop(self) -> None:
+        """スピナー表示を停止する。"""
+        ...
+
+
+# =============================================================================
+# PlainSelectorSpinner
+# =============================================================================
+
+
+class PlainSelectorSpinner:
+    """非 TTY 環境向けプレーンテキストセレクタースピナー。"""
+
+    def start(self) -> None:
+        """'Selecting agents...' を stderr に出力する。"""
+        print(SELECTOR_START_MESSAGE, file=sys.stderr)
+
+    def stop(self) -> None:
+        """プレーンテキストでは停止処理なし。"""
+
+
+# =============================================================================
+# ファクトリ関数
+# =============================================================================
+
+
+def create_selector_spinner() -> SelectorSpinner:
+    """stderr の TTY 状態に基づいて適切な SelectorSpinner を生成する。
+
+    FR-CLI-015: TTY の場合は RichSelectorSpinner、非 TTY の場合は
+    PlainSelectorSpinner を返す。
+    """
+    if sys.stderr.isatty():
+        from hachimoku.engine._live_progress import RichSelectorSpinner
+
+        return RichSelectorSpinner()
+    return PlainSelectorSpinner()
 
 
 def report_agent_start(agent_name: str) -> None:
