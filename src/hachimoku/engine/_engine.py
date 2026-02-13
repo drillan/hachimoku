@@ -30,6 +30,7 @@ from hachimoku.engine._instruction import (
     build_review_instruction,
     build_selector_context_section,
 )
+from hachimoku.engine._prefetch import PrefetchError, prefetch_selector_context
 from hachimoku.engine._resolver import ContentResolveError, resolve_content
 from hachimoku.engine._signal import install_signal_handlers, uninstall_signal_handlers
 from hachimoku.engine._progress import (
@@ -142,6 +143,7 @@ async def run_review(
         1. 設定解決（resolve_config）
         2. エージェント読み込み（load_agents）
         3. 無効エージェント除外（enabled=false）
+        3.7. セレクター向けコンテキスト事前取得（Issue #187）
         4. レビュー指示構築（ReviewInstructionBuilder）
         5. セレクターエージェント実行（SelectorAgent）
         6. 実行コンテキスト構築（AgentExecutionContext）
@@ -189,6 +191,17 @@ async def run_review(
             load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
         )
 
+    # Step 3.7: セレクター向けコンテキスト事前取得（Issue #187）
+    try:
+        prefetched = await prefetch_selector_context(
+            target, convention_files=config.selector.convention_files
+        )
+    except PrefetchError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return _build_empty_engine_result(
+            load_result.errors, exit_code=ExitCode.EXECUTION_ERROR
+        )
+
     # Step 4: レビュー指示構築（ベース）
     base_user_message = build_review_instruction(target, resolved_content)
 
@@ -203,6 +216,7 @@ async def run_review(
             global_timeout=config.timeout,
             global_max_turns=config.max_turns,
             resolved_content=resolved_content,
+            prefetched_context=prefetched,
         )
         report_selector_result(
             len(selector_output.selected_agents),

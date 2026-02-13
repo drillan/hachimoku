@@ -210,7 +210,7 @@ class TestBuildReviewInstructionPR:
         """PR メタデータ取得の指示は残る。"""
         target = PRTarget(pr_number=42)
         instruction = build_review_instruction(target, _SAMPLE_DIFF)
-        assert "gh pr view" in instruction
+        assert "run_gh" in instruction
 
 
 class TestBuildReviewInstructionFile:
@@ -575,9 +575,9 @@ class TestSummarizeDiffToolGuidance:
     """_summarize_diff のツールガイダンスノートテスト。Issue #170."""
 
     def test_tool_guidance_included(self) -> None:
-        """git_read ツール使用のガイダンスノートが含まれる。"""
+        """run_git ツール使用のガイダンスノートが含まれる。"""
         result = _summarize_diff(_SINGLE_FILE_DIFF)
-        assert "git_read" in result
+        assert "run_git" in result
 
 
 # =============================================================================
@@ -1038,3 +1038,140 @@ class TestBuildSelectorContextSectionTruncation:
             referenced_content=[ref],
         )
         assert "... (truncated, original: 6000 chars)" in result
+
+
+# ── Issue #187: prefetched_context テスト ─────────────────
+
+
+def _make_test_agent(name: str = "linter") -> AgentDefinition:
+    """テスト用 AgentDefinition を生成するヘルパー。"""
+    return AgentDefinition(  # type: ignore[call-arg]
+        name=name,
+        description="Test agent",
+        model="test",
+        output_schema="scored_issues",
+        system_prompt="system",
+        applicability=ApplicabilityRule(always=True),
+        phase=Phase.MAIN,
+    )
+
+
+class TestBuildPrefetchedSection:
+    """_build_prefetched_section のテスト。Issue #187。"""
+
+    def test_empty_context_returns_empty(self) -> None:
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext()
+        result = _build_prefetched_section(ctx)
+        assert result == ""
+
+    def test_issue_context_embedded(self) -> None:
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(issue_context="Issue #187 body text")
+        result = _build_prefetched_section(ctx)
+        assert "## Pre-fetched Context" in result
+        assert "### Issue Context" in result
+        assert "Issue #187 body text" in result
+
+    def test_pr_metadata_embedded(self) -> None:
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(pr_metadata="PR #185 title and body")
+        result = _build_prefetched_section(ctx)
+        assert "### PR Metadata" in result
+        assert "PR #185 title and body" in result
+
+    def test_project_conventions_embedded(self) -> None:
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(project_conventions="--- CLAUDE.md ---\n# Rules")
+        result = _build_prefetched_section(ctx)
+        assert "### Project Conventions" in result
+        assert "CLAUDE.md" in result
+
+    def test_code_fence_escalation_in_issue_context(self) -> None:
+        """issue_context に ``` が含まれる場合、フェンスがエスカレートすること。"""
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(issue_context="Some ```code``` in issue")
+        result = _build_prefetched_section(ctx)
+        assert "````" in result
+
+    def test_code_fence_escalation_in_pr_metadata(self) -> None:
+        """pr_metadata に ``` が含まれる場合、フェンスがエスカレートすること。"""
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(pr_metadata="PR with ```python\ncode\n``` block")
+        result = _build_prefetched_section(ctx)
+        assert "````" in result
+
+
+class TestBuildSelectorInstructionPrefetched:
+    """build_selector_instruction の prefetched_context テスト。Issue #187。"""
+
+    def test_none_prefetched_matches_original_behavior(self) -> None:
+        target = DiffTarget(base_branch="main", issue_number=42)
+        agents = [_make_test_agent()]
+
+        result_with_none = build_selector_instruction(
+            target, agents, _SAMPLE_DIFF, prefetched_context=None
+        )
+        result_without = build_selector_instruction(target, agents, _SAMPLE_DIFF)
+        assert result_with_none == result_without
+
+    def test_prefetched_context_section_included(self) -> None:
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        target = DiffTarget(base_branch="main", issue_number=187)
+        agents = [_make_test_agent()]
+        ctx = PrefetchedContext(issue_context="Issue 187 details")
+
+        result = build_selector_instruction(
+            target, agents, _SAMPLE_DIFF, prefetched_context=ctx
+        )
+        assert "## Pre-fetched Context" in result
+        assert "Issue 187 details" in result
+
+    def test_issue_hint_suppressed_when_prefetched(self) -> None:
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        target = DiffTarget(base_branch="main", issue_number=187)
+        agents = [_make_test_agent()]
+        ctx = PrefetchedContext(issue_context="Issue 187 body")
+
+        result = build_selector_instruction(
+            target, agents, _SAMPLE_DIFF, prefetched_context=ctx
+        )
+        assert "Use the run_gh tool" not in result
+
+    def test_issue_hint_present_when_no_prefetched_issue(self) -> None:
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        target = DiffTarget(base_branch="main", issue_number=187)
+        agents = [_make_test_agent()]
+        ctx = PrefetchedContext()  # issue_context is empty
+
+        result = build_selector_instruction(
+            target, agents, _SAMPLE_DIFF, prefetched_context=ctx
+        )
+        assert "Use the run_gh tool" in result
+
+    def test_empty_prefetched_produces_no_section(self) -> None:
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        target = DiffTarget(base_branch="main")
+        agents = [_make_test_agent()]
+        ctx = PrefetchedContext()
+
+        result = build_selector_instruction(
+            target, agents, _SAMPLE_DIFF, prefetched_context=ctx
+        )
+        assert "## Pre-fetched Context" not in result

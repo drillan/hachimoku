@@ -6,6 +6,7 @@ FR-RE-012: PR モードでの PR メタデータ注入指示。
 Issue #129: エンジンが事前解決したコンテンツをインストラクションに埋め込む。
 Issue #170: セレクター向け diff メタデータサマリー。
 Issue #172: referenced_content のサイズ上限と truncation。
+Issue #187: セレクター向け事前取得コンテキストの埋め込み。
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import DEFAULT_REFERENCED_CONTENT_MAX_CHARS
 
 if TYPE_CHECKING:
+    from hachimoku.engine._prefetch import PrefetchedContext
     from hachimoku.engine._selector import ReferencedContent
 
 # Issue #172: コードフェンス検出パターン（``` or ~~~、3文字以上）
@@ -197,7 +199,7 @@ def _format_diff_summary(entries: list[_FileDiffEntry]) -> str:
     parts.append("")
     parts.append(
         "Note: This is a summary for agent selection. "
-        "Use git_read tools to access the full diff if needed."
+        "Use the run_git tool to access the full diff if needed."
     )
 
     return "\n".join(parts)
@@ -231,29 +233,73 @@ def build_review_instruction(
     if target.issue_number is not None:
         parts.append(
             f"\nRelated Issue: #{target.issue_number}\n"
-            f"Use gh tools to fetch issue details for additional context."
+            f"Use the run_gh tool to fetch issue details for additional context."
         )
 
     return "\n".join(parts)
+
+
+def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
+    """PrefetchedContext からセレクター向けマークダウンセクションを構築する。
+
+    Issue #187: 事前取得されたコンテキストをインストラクションに埋め込む。
+    非空のフィールドのみ対応するサブセクションを出力する。
+    全て空の場合は空文字列を返す。
+
+    Args:
+        prefetched: 事前取得されたコンテキスト。
+
+    Returns:
+        マークダウン形式のセクション文字列。全て空の場合は空文字列。
+    """
+    subsections: list[str] = []
+
+    if prefetched.issue_context:
+        fence = "```"
+        while fence in prefetched.issue_context:
+            fence += "`"
+        subsections.append(
+            f"### Issue Context\n\n{fence}\n{prefetched.issue_context}\n{fence}"
+        )
+
+    if prefetched.pr_metadata:
+        fence = "```"
+        while fence in prefetched.pr_metadata:
+            fence += "`"
+        subsections.append(
+            f"### PR Metadata\n\n{fence}\n{prefetched.pr_metadata}\n{fence}"
+        )
+
+    if prefetched.project_conventions:
+        subsections.append(
+            f"### Project Conventions\n\n{prefetched.project_conventions}"
+        )
+
+    if not subsections:
+        return ""
+
+    return "## Pre-fetched Context\n\n" + "\n\n".join(subsections)
 
 
 def build_selector_instruction(
     target: DiffTarget | PRTarget | FileTarget,
     available_agents: Sequence[AgentDefinition],
     resolved_content: str,
+    prefetched_context: PrefetchedContext | None = None,
 ) -> str:
     """セレクターエージェント向けのユーザーメッセージを構築する。
 
     DiffTarget・PRTarget の場合、フル diff の代わりに差分メタデータ
     （ファイルリスト・変更行数・プレビュー）を含む。セレクターは
     エージェント選択に必要な情報のみを受け取り、必要に応じて
-    git_read ツールでフル diff を取得できる。
+    run_git ツールでフル diff を取得できる。
     FileTarget の場合はフルコンテンツをそのまま含む。
 
     Args:
         target: レビュー対象。
         available_agents: 利用可能なエージェント定義リスト。
         resolved_content: 事前解決されたコンテンツ。
+        prefetched_context: 事前取得されたコンテキスト（Issue #187）。
 
     Returns:
         セレクターエージェントに渡すユーザーメッセージ文字列。
@@ -269,21 +315,40 @@ def build_selector_instruction(
 
     parts: list[str] = [_build_mode_section(target, selector_content)]
 
-    if target.issue_number is not None:
+    # Issue #187: 事前取得済みの Issue コンテキストがある場合はツール使用指示を省略
+    has_prefetched_issue = (
+        prefetched_context is not None and prefetched_context.issue_context != ""
+    )
+    if target.issue_number is not None and not has_prefetched_issue:
         parts.append(
             f"\nRelated Issue: #{target.issue_number}\n"
-            f"Use gh tools to fetch issue details for additional context."
+            f"Use the run_gh tool to fetch issue details for additional context."
         )
 
     review_section = "\n".join(parts)
     agents_section = _build_agents_section(available_agents)
 
-    return (
-        f"{review_section}\n\n"
-        f"## Available Agents\n\n"
-        f"{agents_section}\n\n"
-        f"Select the agents that are most applicable for this review."
+    # Issue #187: 事前取得コンテキストセクションの埋め込み
+    prefetched_section = ""
+    if prefetched_context is not None:
+        prefetched_section = _build_prefetched_section(prefetched_context)
+
+    instruction_parts = [
+        review_section,
+        "",
+        f"## Available Agents\n\n{agents_section}",
+    ]
+
+    if prefetched_section:
+        instruction_parts.append("")
+        instruction_parts.append(prefetched_section)
+
+    instruction_parts.append("")
+    instruction_parts.append(
+        "Select the agents that are most applicable for this review."
     )
+
+    return "\n".join(instruction_parts)
 
 
 def _close_unclosed_fences(text: str) -> str:
@@ -416,8 +481,9 @@ def _build_mode_section(
     if isinstance(target, PRTarget):
         return (
             f"Review Pull Request #{target.pr_number}.\n"
-            f"Use `gh pr view {target.pr_number}` to get PR metadata "
-            f"(title, labels, linked issues).\n\n"
+            f"Use the run_gh tool with args "
+            f'["pr", "view", "{target.pr_number}"] '
+            f"to get PR metadata (title, labels, linked issues).\n\n"
             f"{resolved_content}"
         )
 

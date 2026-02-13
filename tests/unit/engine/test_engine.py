@@ -42,6 +42,7 @@ from hachimoku.engine._selector import (
     SelectorError,
     SelectorOutput,
 )
+from hachimoku.engine._prefetch import PrefetchedContext
 from hachimoku.models.config import AggregationConfig
 from hachimoku.engine._target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
@@ -56,6 +57,21 @@ from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.report import AggregatedReport, ReviewReport
 from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity
+
+
+@pytest.fixture(autouse=True)
+def _mock_prefetch() -> object:
+    """Step 3.7 の prefetch_selector_context をモジュール全体で自動モック化する。
+
+    run_review() を呼ぶ全テストで gh コマンド実行と CWD ファイル読み込みを防止する。
+    run_review() を呼ばないテスト（EngineResult モデル等）では無害。
+    """
+    with patch(
+        "hachimoku.engine._engine.prefetch_selector_context",
+        new_callable=AsyncMock,
+        return_value=PrefetchedContext(),
+    ) as mock:
+        yield mock
 
 
 def _make_agent(

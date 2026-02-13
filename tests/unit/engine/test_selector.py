@@ -1033,3 +1033,78 @@ class TestRunSelectorDefinitionIntegration:
 
         call_kwargs = mock_agent_cls.call_args
         assert call_kwargs.kwargs["model"] == "global-model"
+
+
+# =============================================================================
+# Issue #187: prefetched_context 伝播テスト
+# =============================================================================
+
+
+class TestRunSelectorPrefetched:
+    """run_selector の prefetched_context 伝播テスト。Issue #187。"""
+
+    @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.Agent")
+    @patch("hachimoku.engine._selector.resolve_tools", return_value=[])
+    async def test_prefetched_context_passed_to_instruction(
+        self,
+        _mock_tools: MagicMock,
+        mock_agent_cls: MagicMock,
+        _mock_resolve: MagicMock,
+    ) -> None:
+        """prefetched_context が build_selector_instruction に渡される。"""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_agent_cls.return_value.run = _make_mock_agent_run()
+        agents = [_make_agent()]
+        definition = _make_selector_definition()
+        config = _make_selector_config()
+        ctx = PrefetchedContext(issue_context="Prefetched issue body")
+
+        with patch(
+            "hachimoku.engine._selector.build_selector_instruction"
+        ) as mock_build:
+            mock_build.return_value = "test instruction"
+            await run_selector(
+                target=_make_target(),
+                available_agents=agents,
+                selector_definition=definition,
+                selector_config=config,
+                global_model="test-model",
+                global_timeout=300,
+                global_max_turns=10,
+                resolved_content="diff content",
+                prefetched_context=ctx,
+            )
+
+        mock_build.assert_called_once()
+        call_kwargs = mock_build.call_args
+        assert call_kwargs.kwargs["prefetched_context"] is ctx
+
+    @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.Agent")
+    @patch("hachimoku.engine._selector.resolve_tools", return_value=[])
+    async def test_none_prefetched_backwards_compatible(
+        self,
+        _mock_tools: MagicMock,
+        mock_agent_cls: MagicMock,
+        _mock_resolve: MagicMock,
+    ) -> None:
+        """prefetched_context=None でも正常に動作する（後方互換）。"""
+        mock_agent_cls.return_value.run = _make_mock_agent_run()
+        agents = [_make_agent()]
+        definition = _make_selector_definition()
+        config = _make_selector_config()
+
+        result = await run_selector(
+            target=_make_target(),
+            available_agents=agents,
+            selector_definition=definition,
+            selector_config=config,
+            global_model="test-model",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="diff content",
+        )
+
+        assert result.selected_agents == ["test-agent"]
