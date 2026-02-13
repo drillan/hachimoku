@@ -130,7 +130,7 @@ class TestSummarySection:
         report = _make_report(total_cost=cost)
         result = format_markdown(report)
         assert "Total Cost" in result
-        assert "$0.05" in result
+        assert "$0.0500" in result
         assert "1000" in result
         assert "500" in result
 

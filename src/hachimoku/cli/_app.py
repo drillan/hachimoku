@@ -4,6 +4,7 @@ FR-CLI-001: デュアルコマンド名。
 FR-CLI-002: 位置引数からの入力モード判定。
 FR-CLI-003: 終了コード。
 FR-CLI-004: stdout/stderr ストリーム分離。
+FR-CLI-005: 出力形式選択（--format）。
 FR-CLI-006: CLI オプション対応表。
 FR-CLI-009: ファイル・ディレクトリ・glob パターンの展開。
 FR-CLI-011: max_files_per_review 超過時の確認プロンプト。
@@ -19,7 +20,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, assert_never
 
 import click
 import typer
@@ -537,4 +538,6 @@ def _format_report(report: ReviewReport, output_format: OutputFormat) -> str:
     """レポートを指定形式の文字列に変換する。"""
     if output_format == OutputFormat.JSON:
         return report.model_dump_json(indent=2)
-    return format_markdown(report)
+    if output_format == OutputFormat.MARKDOWN:
+        return format_markdown(report)
+    assert_never(output_format)

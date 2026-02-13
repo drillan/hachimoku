@@ -1,12 +1,13 @@
 """ReviewReport の Markdown フォーマッタ。
 
 Issue #200: デフォルト出力形式を markdown にするための実装。
-007-output-format 仕様策定時に適切な配置へリファクタリング予定。
+TODO(007-output-format): 仕様策定時に適切な配置へリファクタリング予定。
 """
 
 from __future__ import annotations
 
 from itertools import groupby
+from typing import assert_never
 
 from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
@@ -80,7 +81,7 @@ def _format_summary(summary: ReviewSummary) -> str:
 
 
 def _format_cost_row(cost: CostInfo) -> str:
-    cost_display = f"${cost.total_cost}" if cost.total_cost is not None else "-"
+    cost_display = f"${cost.total_cost:.4f}" if cost.total_cost is not None else "-"
     return (
         f"| Total Cost | {cost_display} "
         f"(input: {cost.input_tokens}, output: {cost.output_tokens}) |"
@@ -174,6 +175,8 @@ def _format_agent_result_row(
             return f"| {agent_result.agent_name} | error | - | - |"
         case AgentTimeout():
             return f"| {agent_result.agent_name} | timeout ({agent_result.timeout_seconds:.0f}s) | - | - |"
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 # ── Aggregated Analysis ─────────────────────────────────
@@ -210,8 +213,10 @@ def _format_aggregated(aggregated: AggregatedReport) -> str:
 
 
 def _format_load_errors(load_errors: tuple[LoadError, ...]) -> str:
-    """Returns:
-    Markdown 文字列。load_errors が空の場合は空文字列。
+    """Load errors を Markdown に変換する。
+
+    Returns:
+        Markdown 文字列。load_errors が空の場合は空文字列。
     """
     if not load_errors:
         return ""
