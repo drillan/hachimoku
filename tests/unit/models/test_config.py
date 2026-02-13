@@ -172,7 +172,7 @@ class TestHachimokuConfigDefaults:
         assert HachimokuConfig().timeout == 600
 
     def test_default_max_turns(self) -> None:
-        assert HachimokuConfig().max_turns == 20
+        assert HachimokuConfig().max_turns == 30
 
     def test_default_parallel(self) -> None:
         """parallel のデフォルトが True であること。"""

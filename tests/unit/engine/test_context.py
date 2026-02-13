@@ -638,7 +638,7 @@ class TestBuildExecutionContextPhaseVariants:
         )
         assert ctx.model == "claudecode:claude-opus-4-6"
         assert ctx.timeout_seconds == 600
-        assert ctx.max_turns == 20
+        assert ctx.max_turns == 30
 
     def test_early_phase_propagated(self) -> None:
         """Phase.EARLY が正しく設定される。"""
