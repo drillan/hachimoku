@@ -11,6 +11,7 @@ from importlib.resources import as_file, files
 from pathlib import Path
 
 from hachimoku.models._base import HachimokuBaseModel
+from hachimoku.models.config import DEFAULT_MAX_TURNS
 
 
 class InitError(Exception):
@@ -46,7 +47,7 @@ _CONFIG_TEMPLATE: str = """\
 # timeout = 600
 
 # Maximum agent turns
-# max_turns = 20
+# max_turns = {max_turns}
 
 # Enable parallel execution
 # parallel = true
@@ -75,7 +76,7 @@ _CONFIG_TEMPLATE: str = """\
 # [selector]
 # model = "claudecode:claude-opus-4-6"
 # timeout = 600
-# max_turns = 20
+# max_turns = {max_turns}
 
 # --- Agent-Specific Settings ---
 # Override settings for individual agents.
@@ -85,7 +86,7 @@ _CONFIG_TEMPLATE: str = """\
 # enabled = true
 # model = "claudecode:claude-opus-4-6"
 # timeout = 600
-# max_turns = 20
+# max_turns = {max_turns}
 """
 
 
@@ -113,7 +114,7 @@ def _generate_config_template() -> str:
     Returns:
         テンプレート文字列。
     """
-    return _CONFIG_TEMPLATE
+    return _CONFIG_TEMPLATE.format(max_turns=DEFAULT_MAX_TURNS)
 
 
 def _copy_builtin_agents(
