@@ -21,7 +21,7 @@ from hachimoku.models.report import ReviewReport
 
 
 class HistoryWriteError(Exception):
-    """JSONL 書き込みエラー。ディレクトリ不在、I/O エラー等。"""
+    """JSONL 書き込みエラー。ディレクトリ作成失敗、I/O エラー等。"""
 
 
 class GitInfoError(Exception):
@@ -187,14 +187,16 @@ def save_review_history(
         書き込み先 JSONL ファイルのパス。
 
     Raises:
-        HistoryWriteError: ディレクトリ不在、I/O エラー時。
+        HistoryWriteError: ディレクトリ作成失敗、I/O エラー時。
         GitInfoError: git 情報取得失敗時（diff/PR モード）。
     """
-    if not reviews_dir.is_dir():
+    try:
+        reviews_dir.mkdir(exist_ok=True)
+    except OSError as exc:
         raise HistoryWriteError(
-            f"Reviews directory does not exist: {reviews_dir}\n"
-            "Run '8moku init' to initialize the project structure."
-        )
+            f"Failed to create reviews directory: {reviews_dir}: {exc}\n"
+            "Check directory permissions and available disk space."
+        ) from exc
 
     commit_hash = ""
     branch_name = ""

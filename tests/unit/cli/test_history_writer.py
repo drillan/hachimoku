@@ -323,16 +323,30 @@ class TestSaveReviewHistory:
             data = json.loads(line)
             assert data["review_mode"] == "diff"
 
-    def test_reviews_dir_not_exist_raises_history_write_error(
-        self, tmp_path: Path
-    ) -> None:
-        """reviews/ ディレクトリ不在で HistoryWriteError。"""
+    def test_reviews_dir_auto_created_when_not_exist(self, tmp_path: Path) -> None:
+        """reviews/ ディレクトリ不在で自動作成される。"""
         target = FileTarget(paths=("src/a.py",))
         report = _make_report()
-        nonexistent = tmp_path / "nonexistent"
+        reviews_dir = tmp_path / "reviews"
 
-        with pytest.raises(HistoryWriteError, match="does not exist"):
-            save_review_history(nonexistent, target, report)
+        result = save_review_history(reviews_dir, target, report)
+
+        assert reviews_dir.is_dir()
+        assert result == reviews_dir / "files.jsonl"
+        assert result.exists()
+
+    def test_reviews_dir_parent_not_exist_raises_history_write_error(
+        self, tmp_path: Path
+    ) -> None:
+        """親ディレクトリが存在しない場合は HistoryWriteError。"""
+        target = FileTarget(paths=("src/a.py",))
+        report = _make_report()
+        deep = tmp_path / "nonexistent" / "reviews"
+
+        with pytest.raises(
+            HistoryWriteError, match="Failed to create reviews directory"
+        ):
+            save_review_history(deep, target, report)
 
     @patch("hachimoku.cli._history_writer.subprocess.run")
     def test_jsonl_is_valid_json_per_line(
