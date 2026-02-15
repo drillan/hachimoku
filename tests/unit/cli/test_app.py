@@ -9,6 +9,7 @@ FR-CLI-007: .hachimoku/ ディレクトリ構造の初期化。
 FR-CLI-008: 既存ファイルのスキップと --force による上書き。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
+FR-CLI-015: --version フラグ。
 
 NOTE: Typer の CliRunner は stderr 分離パラメータを公開しないため、
 stderr 出力は result.output（stdout + stderr 混合出力）で検証する。

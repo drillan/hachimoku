@@ -11,6 +11,7 @@ FR-CLI-011: max_files_per_review 超過時の確認プロンプト。
 FR-CLI-012: agents サブコマンド。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
+FR-CLI-015: --version フラグ。
 """
 
 from __future__ import annotations
