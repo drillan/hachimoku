@@ -9,6 +9,7 @@ FR-CLI-007: .hachimoku/ ディレクトリ構造の初期化。
 FR-CLI-008: 既存ファイルのスキップと --force による上書き。
 FR-CLI-013: --help 対応。
 FR-CLI-014: エラーメッセージに解決方法を含む。
+FR-CLI-015: --version フラグ。
 
 NOTE: Typer の CliRunner は stderr 分離パラメータを公開しないため、
 stderr 出力は result.output（stdout + stderr 混合出力）で検証する。
@@ -68,6 +69,13 @@ class TestAppHelp:
         """--help にサブコマンド情報が含まれる。"""
         result = runner.invoke(app, ["--help"])
         assert "config" in result.output
+
+    def test_help_shows_review_modes(self) -> None:
+        """--help にレビューモード（diff/PR/file）の説明が含まれる。"""
+        result = runner.invoke(app, ["--help"])
+        assert "diff mode" in result.output
+        assert "PR mode" in result.output
+        assert "file mode" in result.output
 
 
 class TestReviewCallbackDiffMode:
@@ -1592,3 +1600,18 @@ class TestSaveReviewResult:
         result = runner.invoke(app)
         assert result.exit_code == 0
         assert "Unexpected error saving review history" in result.output
+
+
+class TestVersion:
+    """--version の動作を検証する。"""
+
+    def test_version_exits_with_zero(self) -> None:
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+
+    def test_version_shows_version_number(self) -> None:
+        import importlib.metadata
+
+        expected = importlib.metadata.version("hachimoku")
+        result = runner.invoke(app, ["--version"])
+        assert expected in result.output

@@ -56,6 +56,7 @@ hachimoku は `8moku` と `hachimoku` の2つのコマンド名を提供しま�
 | `--max-files INTEGER` | int (min: 1) | レビュー対象の最大ファイル数 |
 | `--issue INTEGER` | int (min: 1) | コンテキスト用 GitHub Issue 番号 |
 | `--no-confirm` | bool | 確認プロンプトをスキップ |
+| `--version` | - | バージョン番号を表示して終了 |
 | `--help` | - | ヘルプを表示 |
 
 設定ファイルでのデフォルト値については [設定](configuration.md) を参照してください。
