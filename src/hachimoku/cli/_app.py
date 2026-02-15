@@ -16,6 +16,7 @@ FR-CLI-014: エラーメッセージに解決方法を含む。
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import subprocess
 import sys
 import tomllib
@@ -122,10 +123,23 @@ class _ReviewGroup(TyperGroup):
 app = typer.Typer(
     name="8moku",
     cls=_ReviewGroup,
-    help="Multi-agent code review CLI tool.",
+    help=(
+        "Multi-agent code review CLI tool.\n\n"
+        "Review modes (determined by arguments):\n\n"
+        "  (no args)     diff mode - review current branch changes\n\n"
+        "  <integer>     PR mode   - review specified GitHub PR\n\n"
+        "  <path...>     file mode - review specified files/directories"
+    ),
     add_completion=False,
     invoke_without_command=True,
 )
+
+
+def _version_callback(value: bool) -> None:
+    """--version 指定時にバージョン番号を出力して終了する。"""
+    if value:
+        print(importlib.metadata.version("hachimoku"))
+        raise typer.Exit()
 
 
 def main() -> None:
@@ -139,6 +153,16 @@ def main() -> None:
 @app.callback()
 def review_callback(
     ctx: typer.Context,
+    # --version（FR-CLI-015 相当）
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            help="Show version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = None,
     # 設定上書きオプション（FR-CLI-006）
     model: Annotated[str | None, typer.Option(help="LLM model name.")] = None,
     timeout: Annotated[

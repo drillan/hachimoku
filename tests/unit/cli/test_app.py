@@ -69,6 +69,13 @@ class TestAppHelp:
         result = runner.invoke(app, ["--help"])
         assert "config" in result.output
 
+    def test_help_shows_review_modes(self) -> None:
+        """--help にレビューモード（diff/PR/file）の説明が含まれる。"""
+        result = runner.invoke(app, ["--help"])
+        assert "diff mode" in result.output
+        assert "PR mode" in result.output
+        assert "file mode" in result.output
+
 
 class TestReviewCallbackDiffMode:
     """引数なしで diff モード判定を検証する。"""
@@ -1592,3 +1599,18 @@ class TestSaveReviewResult:
         result = runner.invoke(app)
         assert result.exit_code == 0
         assert "Unexpected error saving review history" in result.output
+
+
+class TestVersion:
+    """--version の動作を検証する。"""
+
+    def test_version_exits_with_zero(self) -> None:
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+
+    def test_version_shows_version_number(self) -> None:
+        import importlib.metadata
+
+        expected = importlib.metadata.version("hachimoku")
+        result = runner.invoke(app, ["--version"])
+        assert expected in result.output
