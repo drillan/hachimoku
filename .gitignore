@@ -213,3 +213,6 @@ __marimo__/
 
 # hachimoku
 /.hachimoku/
+
+# issue-workflow
+/.issue-workflow/

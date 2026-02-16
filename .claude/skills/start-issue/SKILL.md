@@ -1,3 +1,8 @@
+---
+name: start-issue
+description: Load a GitHub Issue, create a branch, and develop an implementation plan.
+---
+
 # /start-issue
 
 Load a GitHub Issue, create a branch, and develop an implementation plan.
@@ -5,7 +10,7 @@ Load a GitHub Issue, create a branch, and develop an implementation plan.
 ## Usage
 
 ```
-/start-issue <issue-number> [--force]
+/start-issue <issue-number> [--force] [--current-branch]
 ```
 
 ## Arguments
@@ -13,7 +18,8 @@ Load a GitHub Issue, create a branch, and develop an implementation plan.
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `issue-number` | integer | Yes | GitHub Issue number |
-| `--force` | flag | No | Start implementation without confirmation |
+| `--force` | flag | No | Skip plan mode and all interactive confirmations (including TDD user approval) |
+| `--current-branch` | flag | No | Skip branch creation, use the current branch |
 
 ## Instructions
 
@@ -27,19 +33,9 @@ gh issue view <number> --json number,title,body,labels,state
 
 Verify the issue exists and is open. If not open, warn the user.
 
-#### Review Context の抽出
-
-Issue body から `## Review Context` セクションを抽出し、以下のフィールドを識別する:
-
-| フィールド | 用途 |
-|-----------|------|
-| 関連仕様 | Phase 1 で仕様ファイルを読み込む入力 |
-| 影響範囲 | Phase 2 の影響範囲分析の起点 |
-| 既存パターン参照 | 全フェーズで一貫性確保の指針 |
-
-フィールドが未記入の場合は、各 Phase で自動検出する。
-
 ### Step 2: Determine Branch Type
+
+**If `--current-branch` is specified, skip this step entirely.**
 
 Based on the issue labels and content, determine the appropriate branch prefix:
 
@@ -55,6 +51,16 @@ Based on the issue labels and content, determine the appropriate branch prefix:
 If no matching label, check title/body for keywords. Default to `feat/`.
 
 ### Step 3: Create Branch
+
+**If `--current-branch` is specified, skip branch creation.** Instead, display the current branch name:
+
+```bash
+git branch --show-current
+```
+
+If the result is empty (detached HEAD), display an error and abort.
+
+**Otherwise (default behavior):**
 
 Generate branch name: `<prefix>/<issue-number>-<normalized-title>`
 
@@ -72,7 +78,9 @@ If branch exists, checkout instead of create.
 
 ### Step 4: Plan Implementation
 
-Unless `--force` is specified, enter plan mode and create an implementation plan.
+Unless `--force` is specified, enter plan mode before proceeding. With `--force`, execute all phases directly without entering plan mode and without interactive confirmations.
+
+Regardless of `--force`, execute the following phases to create an implementation plan.
 
 First, read the workflow configuration:
 
@@ -87,15 +95,11 @@ Check `documentation.ddd.enabled` to determine if DDD workflow is active.
 1. Extract requirements from issue body
 2. Identify acceptance criteria
 3. Clarify any ambiguous requirements with user
-4. `関連仕様` に記載された specs/ ファイル・憲法 Article を読み込み、要件の背景を理解する
-5. `既存パターン参照` に記載された既存実装を読み込み、一貫性の基準を把握する
 
 #### Phase 2: Identify Impact Scope
 
 1. Identify affected code files
-2. `影響範囲` に記載されたファイル・設定を影響分析の起点として使用する
-3. 自動検出の結果と統合し、issue に記載がない影響も補完する
-4. Identify affected documentation using **doc-updater skill** detection patterns:
+2. Identify affected documentation using **doc-updater skill** detection patterns:
 
 | Change Type | Documentation Impact |
 |-------------|---------------------|
@@ -137,6 +141,23 @@ Based on the documented specification, design test cases using **tdd-workflow sk
 1. Identify test scenarios from documentation
 2. Define expected inputs and outputs
 3. Consider edge cases documented in Phase 3
+
+**If `--force` is specified:**
+
+Skip all TDD user confirmation steps and execute the Red-Green-Refactor cycle autonomously without user approval:
+
+- Do **not** ask "Do you want me to follow TDD workflow?" — assume yes
+- Do **not** wait for user approval of test cases — proceed directly to Red confirmation
+- Write tests → confirm failure (Red) → implement (Green) → refactor — all automatically
+- Still report test results at each phase, but do not pause for confirmation
+
+**If `--force` is not specified (default):**
+
+Follow the standard TDD workflow with user confirmation:
+
+- Ask the user if they want to follow TDD workflow
+- Present test cases and get user approval before proceeding
+- Wait for user confirmation at each TDD phase transition
 
 #### Phase 5: Create Implementation Plan
 
@@ -186,11 +207,6 @@ Post the plan as a comment on the issue using issue-reporter skill:
 2. [Step 2]
 ...
 
-### Review Context
-- **関連仕様**: [参照した仕様の一覧]
-- **影響範囲**: [issue 記載 + 自動検出の統合結果]
-- **既存パターン**: [一貫性を保つべき実装の参照]
-
 ### Verification
 [Verification steps]
 ```
@@ -204,6 +220,7 @@ Post the plan as a comment on the issue using issue-reporter skill:
 | gh not authenticated | Display `gh auth login` instruction |
 | Uncommitted changes | Ask user to commit or stash changes |
 | Branch creation failed | Display error details |
+| Detached HEAD with `--current-branch` | Display error: not on a branch, checkout a branch first |
 | `workflow-config.json` not found | Display error: "Run `/init` to create configuration." |
 | `documentation` section missing | Treat as DDD disabled, inform user |
 | `documentation.paths` missing or empty | Display warning about no documentation targets |
