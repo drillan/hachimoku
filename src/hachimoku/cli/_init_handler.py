@@ -9,6 +9,7 @@ from __future__ import annotations
 import shutil
 from importlib.resources import as_file, files
 from pathlib import Path
+from typing import Literal
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import DEFAULT_MAX_TURNS
@@ -106,6 +107,46 @@ def _ensure_git_repository(project_root: Path) -> None:
         )
 
 
+GITIGNORE_SECTION: str = "# hachimoku"
+"""gitignore に追加するセクションコメント。"""
+
+GITIGNORE_ENTRY: str = "/.hachimoku/"
+"""gitignore に追加するエントリ。"""
+
+
+def _ensure_gitignore(project_root: Path) -> Literal["created", "skipped"]:
+    """プロジェクトの .gitignore に /.hachimoku/ エントリを追加する。
+
+    既に /.hachimoku/ エントリが存在する場合はスキップする。
+    .gitignore が存在しない場合は新規作成する。
+
+    Args:
+        project_root: プロジェクトルートディレクトリ。
+
+    Returns:
+        "created": エントリを追加した場合。
+        "skipped": エントリが既に存在していた場合。
+    """
+    gitignore_path = project_root / ".gitignore"
+
+    if gitignore_path.exists():
+        content = gitignore_path.read_text(encoding="utf-8")
+        # 行単位で完全一致チェック
+        lines = content.splitlines()
+        if GITIGNORE_ENTRY in lines:
+            return "skipped"
+        # 末尾に改行がない場合は追加
+        if content and not content.endswith("\n"):
+            content += "\n"
+        content += f"{GITIGNORE_SECTION}\n{GITIGNORE_ENTRY}\n"
+        gitignore_path.write_text(content, encoding="utf-8")
+    else:
+        content = f"{GITIGNORE_SECTION}\n{GITIGNORE_ENTRY}\n"
+        gitignore_path.write_text(content, encoding="utf-8")
+
+    return "created"
+
+
 def _generate_config_template() -> str:
     """コメント付き config.toml テンプレートを生成する。
 
@@ -158,6 +199,7 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
     3. .hachimoku/config.toml 生成（コメント付きテンプレート）
     4. .hachimoku/agents/ にビルトインエージェント定義コピー
     5. .hachimoku/reviews/ ディレクトリ作成
+    6. .gitignore に /.hachimoku/ エントリを追加
 
     Args:
         project_root: プロジェクトルートディレクトリ。
@@ -196,6 +238,14 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
         agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
         created.extend(agent_created)
         skipped.extend(agent_skipped)
+
+        # .gitignore に /.hachimoku/ エントリを追加
+        gitignore_path = project_root / ".gitignore"
+        gitignore_result = _ensure_gitignore(project_root)
+        if gitignore_result == "created":
+            created.append(gitignore_path)
+        else:
+            skipped.append(gitignore_path)
     except OSError as e:
         raise InitError(
             f"Failed to initialize .hachimoku/: {e}\n"
