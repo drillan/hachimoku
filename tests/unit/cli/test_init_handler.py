@@ -13,10 +13,13 @@ import pytest
 from pydantic import ValidationError
 
 from hachimoku.cli._init_handler import (
+    GITIGNORE_ENTRY,
+    GITIGNORE_SECTION,
     InitError,
     InitResult,
     _copy_builtin_agents,
     _ensure_git_repository,
+    _ensure_gitignore,
     _generate_config_template,
     run_init,
 )
@@ -213,6 +216,90 @@ class TestGenerateConfigTemplate:
         assert "agents" in template
 
 
+# --- TestEnsureGitignore ---
+
+
+class TestEnsureGitignore:
+    """_ensure_gitignore の動作を検証する。"""
+
+    def test_creates_gitignore_when_missing(self, tmp_path: Path) -> None:
+        """.gitignore が存在しない場合、新規作成して /.hachimoku/ を追加する。"""
+        result = _ensure_gitignore(tmp_path)
+        gitignore = tmp_path / ".gitignore"
+        assert gitignore.is_file()
+        content = gitignore.read_text(encoding="utf-8")
+        assert GITIGNORE_ENTRY in content
+        assert result == "created"
+
+    def test_new_gitignore_contains_section_comment(self, tmp_path: Path) -> None:
+        """新規作成時にセクションコメント '# hachimoku' が付与される。"""
+        _ensure_gitignore(tmp_path)
+        content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+        assert GITIGNORE_SECTION in content
+
+    def test_appends_to_existing_gitignore(self, tmp_path: Path) -> None:
+        """.gitignore が存在し /.hachimoku/ が未登録の場合、末尾に追加する。"""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("node_modules/\n", encoding="utf-8")
+
+        result = _ensure_gitignore(tmp_path)
+        content = gitignore.read_text(encoding="utf-8")
+        assert content.startswith("node_modules/\n")
+        assert GITIGNORE_ENTRY in content
+        assert result == "created"
+
+    def test_preserves_existing_content(self, tmp_path: Path) -> None:
+        """既存 .gitignore の内容が破壊されない。"""
+        gitignore = tmp_path / ".gitignore"
+        original = "# my project\nnode_modules/\n*.pyc\n"
+        gitignore.write_text(original, encoding="utf-8")
+
+        _ensure_gitignore(tmp_path)
+        content = gitignore.read_text(encoding="utf-8")
+        assert content.startswith(original)
+
+    def test_skips_when_entry_already_exists(self, tmp_path: Path) -> None:
+        """.gitignore に /.hachimoku/ が既に存在する場合、スキップする。"""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text(
+            "node_modules/\n# hachimoku\n/.hachimoku/\n", encoding="utf-8"
+        )
+
+        result = _ensure_gitignore(tmp_path)
+        content = gitignore.read_text(encoding="utf-8")
+        # 重複追加されていないことを確認
+        assert content.count(GITIGNORE_ENTRY) == 1
+        assert result == "skipped"
+
+    def test_adds_even_with_partial_entry(self, tmp_path: Path) -> None:
+        """部分的エントリ（.hachimoku/reviews 等）がある場合でも /.hachimoku/ を追加する。"""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text(".hachimoku/reviews\n", encoding="utf-8")
+
+        result = _ensure_gitignore(tmp_path)
+        content = gitignore.read_text(encoding="utf-8")
+        assert GITIGNORE_ENTRY in content
+        assert result == "created"
+
+    def test_appends_newline_separator(self, tmp_path: Path) -> None:
+        """既存ファイル末尾に改行がない場合、改行を挟んで追加する。"""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("node_modules/", encoding="utf-8")  # 末尾改行なし
+
+        _ensure_gitignore(tmp_path)
+        content = gitignore.read_text(encoding="utf-8")
+        # 既存内容とセクションコメントの間に改行がある
+        assert "node_modules/\n" in content
+        assert GITIGNORE_SECTION in content
+
+    def test_new_gitignore_format(self, tmp_path: Path) -> None:
+        """新規作成時のフォーマットが仕様通りである。"""
+        _ensure_gitignore(tmp_path)
+        content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+        expected = f"{GITIGNORE_SECTION}\n{GITIGNORE_ENTRY}\n"
+        assert content == expected
+
+
 # --- TestCopyBuiltinAgents ---
 
 
@@ -313,12 +400,33 @@ class TestRunInit:
         run_init(tmp_path)
         assert (tmp_path / ".hachimoku" / "reviews").is_dir()
 
+    def test_creates_gitignore_entry(self, tmp_path: Path) -> None:
+        """.gitignore に /.hachimoku/ が追加される。"""
+        (tmp_path / ".git").mkdir()
+        run_init(tmp_path)
+        gitignore = tmp_path / ".gitignore"
+        assert gitignore.is_file()
+        content = gitignore.read_text(encoding="utf-8")
+        assert GITIGNORE_ENTRY in content
+
+    def test_gitignore_skipped_when_already_present(self, tmp_path: Path) -> None:
+        """.gitignore に /.hachimoku/ が既にある場合はスキップされる。"""
+        (tmp_path / ".git").mkdir()
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("# hachimoku\n/.hachimoku/\n", encoding="utf-8")
+
+        result = run_init(tmp_path)
+        assert gitignore in result.skipped
+        # 重複追加されていない
+        content = gitignore.read_text(encoding="utf-8")
+        assert content.count(GITIGNORE_ENTRY) == 1
+
     def test_result_created_contains_all_files(self, tmp_path: Path) -> None:
         """InitResult.created に作成した全ファイルパスが含まれる。"""
         (tmp_path / ".git").mkdir()
         result = run_init(tmp_path)
-        # config.toml + builtin agents
-        expected_count = 1 + len(BUILTIN_AGENT_NAMES)
+        # config.toml + builtin agents + .gitignore
+        expected_count = 1 + len(BUILTIN_AGENT_NAMES) + 1
         assert len(result.created) == expected_count
         assert result.skipped == ()
 
@@ -352,8 +460,8 @@ class TestRunInit:
         (agents_dir / "code-reviewer.toml").write_text("custom")
 
         result = run_init(tmp_path)
-        # config.toml + 7 agents (selector.toml, aggregator.toml 含む) = 8 created
-        assert len(result.created) == 8
+        # config.toml + 7 agents + .gitignore = 9 created
+        assert len(result.created) == 9
         # code-reviewer.toml は skipped
         assert len(result.skipped) == 1
 
@@ -368,11 +476,12 @@ class TestRunInit:
 
         # force で再実行
         result = run_init(tmp_path, force=True)
+        # config.toml + builtin agents = created, .gitignore は skipped（既に存在）
         expected_count = 1 + len(BUILTIN_AGENT_NAMES)
         assert len(result.created) == expected_count
-        assert result.skipped == ()
-        # テンプレートに上書きされている
-        assert config_path.read_text() != "# custom config"
+        # .gitignore は既に /.hachimoku/ エントリがあるので skipped
+        gitignore = tmp_path / ".gitignore"
+        assert gitignore in result.skipped
 
     def test_config_content_is_template(self, tmp_path: Path) -> None:
         """生成された config.toml がテンプレートと一致する。"""
