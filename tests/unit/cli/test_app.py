@@ -1602,6 +1602,58 @@ class TestSaveReviewResult:
         assert "Unexpected error saving review history" in result.output
 
 
+class TestCustomAgentsDirPassedToRunReview:
+    """run_review() に custom_agents_dir が正しく渡されることを検証する（Issue #220）。"""
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=Path("/mock/project"))
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_diff_mode_passes_custom_agents_dir(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        mock_find_root: MagicMock,
+    ) -> None:
+        """diff モード: project_root あり → .hachimoku/agents が渡される。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app)
+        actual = mock_run_review.call_args.kwargs["custom_agents_dir"]
+        assert actual == Path("/mock/project/.hachimoku/agents")
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_diff_mode_passes_none_when_no_project_root(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        mock_find_root: MagicMock,
+    ) -> None:
+        """diff モード: project_root なし → None が渡される。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app)
+        actual = mock_run_review.call_args.kwargs["custom_agents_dir"]
+        assert actual is None
+
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=Path("/mock/project"))
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_file_mode_passes_custom_agents_dir(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+        mock_find_root: MagicMock,
+    ) -> None:
+        """file モード: project_root あり → .hachimoku/agents が渡される。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/f.py",))
+        runner.invoke(app, ["src/f.py"])
+        actual = mock_run_review.call_args.kwargs["custom_agents_dir"]
+        assert actual == Path("/mock/project/.hachimoku/agents")
+
+
 class TestVersion:
     """--version の動作を検証する。"""
 
