@@ -222,7 +222,7 @@ async def run_selector(
     )
 
     try:
-        tools = resolve_tools(selector_definition.allowed_tools)
+        resolved_tools = resolve_tools(selector_definition.allowed_tools)
         user_message = build_selector_instruction(
             target,
             available_agents,
@@ -230,7 +230,11 @@ async def run_selector(
             prefetched_context=prefetched_context,
         )
 
-        resolved = resolve_model(model, allowed_builtin_tools=())
+        resolved = resolve_model(
+            model,
+            allowed_builtin_tools=(),
+            extra_builtin_tools=resolved_tools.claudecode_builtin_names,
+        )
         agent = Agent(
             model=resolved,
             output_type=SelectorOutput,
@@ -238,7 +242,8 @@ async def run_selector(
             # Tool[SelectorDeps] を要求するため型不整合が発生する。
             # TODO(#195): ツールが ctx.deps を使い始めた場合は resolve_tools を
             # TypeVar でジェネリック化して型安全性を回復すること。
-            tools=list(tools),  # type: ignore[arg-type]
+            tools=list(resolved_tools.tools),  # type: ignore[arg-type]
+            builtin_tools=list(resolved_tools.builtin_tools),
             system_prompt=selector_definition.system_prompt,
             deps_type=SelectorDeps,
             instructions=_prefetch_guardrail,

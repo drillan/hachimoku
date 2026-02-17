@@ -33,6 +33,7 @@ def resolve_model(
     model: str,
     *,
     allowed_builtin_tools: tuple[str, ...] | None = None,
+    extra_builtin_tools: tuple[str, ...] = (),
 ) -> str | Model:
     """モデル文字列のプレフィックスに基づきプロバイダーを解決する。
 
@@ -44,6 +45,10 @@ def resolve_model(
             デフォルトの ``_ALLOWED_BUILTIN_TOOLS``（Read, Grep, Glob）を使用する。
             空タプル ``()`` を渡すと CLI ビルトインツールを全て無効化する
             （Issue #198: セレクター向け）。anthropic プレフィックスでは無視される。
+        extra_builtin_tools: claudecode プレフィックス時に追加で許可する
+            ツール名のタプル。``allowed_builtin_tools`` の解決結果に追加される。
+            Issue #222: web_fetch カテゴリから解決された claudecode ビルトインツール名
+            （例: ``("WebFetch",)``）を渡す用途。anthropic プレフィックスでは無視される。
 
     Returns:
         claudecode の場合: ``claudecode:`` プレフィックスを除去し
@@ -68,6 +73,7 @@ def resolve_model(
             if allowed_builtin_tools is not None
             else _ALLOWED_BUILTIN_TOOLS
         )
+        tools.extend(extra_builtin_tools)
         return ClaudeCodeModel(
             model_name=bare_name,
             allowed_tools=tools,

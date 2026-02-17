@@ -572,3 +572,145 @@ class TestBuildExecutionContextPhaseVariants:
             resolved_tools=(),
         )
         assert ctx.phase == Phase.FINAL
+
+
+# =============================================================================
+# AgentExecutionContext — builtin_tools / claudecode_builtin_names（Issue #222）
+# =============================================================================
+
+
+class TestAgentExecutionContextBuiltinTools:
+    """AgentExecutionContext の builtin_tools / claudecode_builtin_names テスト。Issue #222。"""
+
+    def test_builtin_tools_default_empty(self) -> None:
+        """builtin_tools のデフォルトは空タプル。"""
+        agent = _make_agent()
+        ctx = AgentExecutionContext(
+            agent_name="test-agent",
+            model="sonnet",
+            system_prompt="prompt",
+            user_message="message",
+            output_schema=agent.resolved_schema,
+            tools=(),
+            timeout_seconds=300,
+            max_turns=10,
+            phase=Phase.MAIN,
+        )
+        assert ctx.builtin_tools == ()
+
+    def test_builtin_tools_accepts_web_fetch_tool(self) -> None:
+        """builtin_tools に WebFetchTool を設定できる。"""
+        from pydantic_ai.builtin_tools import WebFetchTool
+
+        agent = _make_agent()
+        wft = WebFetchTool()
+        ctx = AgentExecutionContext(
+            agent_name="test-agent",
+            model="sonnet",
+            system_prompt="prompt",
+            user_message="message",
+            output_schema=agent.resolved_schema,
+            tools=(),
+            builtin_tools=(wft,),
+            timeout_seconds=300,
+            max_turns=10,
+            phase=Phase.MAIN,
+        )
+        assert len(ctx.builtin_tools) == 1
+        assert isinstance(ctx.builtin_tools[0], WebFetchTool)
+
+    def test_claudecode_builtin_names_default_empty(self) -> None:
+        """claudecode_builtin_names のデフォルトは空タプル。"""
+        agent = _make_agent()
+        ctx = AgentExecutionContext(
+            agent_name="test-agent",
+            model="sonnet",
+            system_prompt="prompt",
+            user_message="message",
+            output_schema=agent.resolved_schema,
+            tools=(),
+            timeout_seconds=300,
+            max_turns=10,
+            phase=Phase.MAIN,
+        )
+        assert ctx.claudecode_builtin_names == ()
+
+    def test_claudecode_builtin_names_preserves_value(self) -> None:
+        """claudecode_builtin_names に設定した値が保持される。"""
+        agent = _make_agent()
+        ctx = AgentExecutionContext(
+            agent_name="test-agent",
+            model="sonnet",
+            system_prompt="prompt",
+            user_message="message",
+            output_schema=agent.resolved_schema,
+            tools=(),
+            claudecode_builtin_names=("WebFetch",),
+            timeout_seconds=300,
+            max_turns=10,
+            phase=Phase.MAIN,
+        )
+        assert ctx.claudecode_builtin_names == ("WebFetch",)
+
+
+# =============================================================================
+# build_execution_context — builtin_tools パススルー（Issue #222）
+# =============================================================================
+
+
+class TestBuildExecutionContextBuiltinTools:
+    """build_execution_context の builtin_tools / claudecode_builtin_names テスト。Issue #222。"""
+
+    def test_builtin_tools_default_empty(self) -> None:
+        """resolved_builtin_tools 省略時は空タプル。"""
+        agent = _make_agent()
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=HachimokuConfig(),
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.builtin_tools == ()
+
+    def test_builtin_tools_passthrough(self) -> None:
+        """resolved_builtin_tools がそのまま設定される。"""
+        from pydantic_ai.builtin_tools import WebFetchTool
+
+        agent = _make_agent()
+        wft = WebFetchTool()
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=HachimokuConfig(),
+            user_message="msg",
+            resolved_tools=(),
+            resolved_builtin_tools=(wft,),
+        )
+        assert len(ctx.builtin_tools) == 1
+        assert ctx.builtin_tools[0] is wft
+
+    def test_claudecode_builtin_names_default_empty(self) -> None:
+        """claudecode_builtin_names 省略時は空タプル。"""
+        agent = _make_agent()
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=HachimokuConfig(),
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.claudecode_builtin_names == ()
+
+    def test_claudecode_builtin_names_passthrough(self) -> None:
+        """claudecode_builtin_names がそのまま設定される。"""
+        agent = _make_agent()
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=None,
+            global_config=HachimokuConfig(),
+            user_message="msg",
+            resolved_tools=(),
+            claudecode_builtin_names=("WebFetch",),
+        )
+        assert ctx.claudecode_builtin_names == ("WebFetch",)

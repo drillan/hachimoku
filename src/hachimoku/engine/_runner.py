@@ -61,11 +61,15 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
     start_time = time.monotonic()
 
     try:
-        resolved = resolve_model(context.model)
+        resolved = resolve_model(
+            context.model,
+            extra_builtin_tools=context.claudecode_builtin_names,
+        )
         agent = Agent(
             model=resolved,
             output_type=context.output_schema,
             tools=list(context.tools),
+            builtin_tools=list(context.builtin_tools),
             system_prompt=context.system_prompt,
         )
         if isinstance(resolved, ClaudeCodeModel):

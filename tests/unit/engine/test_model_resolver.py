@@ -183,3 +183,73 @@ class TestResolveModelAllowedBuiltinToolsOverride:
             model_name="claude-opus-4-6",
             allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
         )
+
+
+# =============================================================================
+# resolve_model — extra_builtin_tools パラメータ（Issue #222）
+# =============================================================================
+
+
+class TestResolveModelExtraBuiltinTools:
+    """extra_builtin_tools パラメータのテスト。
+
+    Issue #222: web_fetch カテゴリから解決された claudecode ビルトインツール名を
+    ClaudeCodeModel の allowed_tools に追加する。
+    """
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_empty_extra_tools_no_change(self, mock_ccm_cls: MagicMock) -> None:
+        """extra_builtin_tools=() でデフォルトの allowed_tools のみ渡される。"""
+        resolve_model("claudecode:claude-opus-4-6", extra_builtin_tools=())
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
+        )
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_extra_tools_appended_to_default(self, mock_ccm_cls: MagicMock) -> None:
+        """extra_builtin_tools がデフォルトの allowed_tools に追加される。"""
+        resolve_model("claudecode:claude-opus-4-6", extra_builtin_tools=("WebFetch",))
+        expected = list(_ALLOWED_BUILTIN_TOOLS) + ["WebFetch"]
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=expected,
+        )
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_extra_tools_appended_to_custom_allowed(
+        self, mock_ccm_cls: MagicMock
+    ) -> None:
+        """allowed_builtin_tools と extra_builtin_tools が両方指定された場合、結合される。"""
+        resolve_model(
+            "claudecode:claude-opus-4-6",
+            allowed_builtin_tools=("Read",),
+            extra_builtin_tools=("WebFetch",),
+        )
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=["Read", "WebFetch"],
+        )
+
+    @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
+    def test_extra_tools_appended_to_empty_allowed(
+        self, mock_ccm_cls: MagicMock
+    ) -> None:
+        """allowed_builtin_tools=() + extra_builtin_tools で extra のみ渡される。"""
+        resolve_model(
+            "claudecode:claude-opus-4-6",
+            allowed_builtin_tools=(),
+            extra_builtin_tools=("WebFetch",),
+        )
+        mock_ccm_cls.assert_called_once_with(
+            model_name="claude-opus-4-6",
+            allowed_tools=["WebFetch"],
+        )
+
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
+    def test_anthropic_prefix_ignores_extra_tools(self) -> None:
+        """anthropic: プレフィックスでは extra_builtin_tools が無視される。"""
+        result = resolve_model(
+            "anthropic:claude-opus-4-6", extra_builtin_tools=("WebFetch",)
+        )
+        assert result == "anthropic:claude-opus-4-6"

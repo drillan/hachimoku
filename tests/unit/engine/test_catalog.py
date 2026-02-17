@@ -5,8 +5,71 @@ FR-RE-016: カテゴリベースのツール管理。
 
 import pytest
 from pydantic_ai import Tool
+from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
 
-from hachimoku.engine._catalog import resolve_tools, validate_categories
+from hachimoku.engine._catalog import (
+    BUILTIN_TOOL_CATALOG,
+    CLAUDECODE_BUILTIN_MAP,
+    ResolvedTools,
+    resolve_tools,
+    validate_categories,
+)
+
+
+# =============================================================================
+# ResolvedTools
+# =============================================================================
+
+
+class TestResolvedTools:
+    """ResolvedTools データクラスのテスト。"""
+
+    def test_frozen(self) -> None:
+        """イミュータブルである。"""
+        resolved = ResolvedTools(
+            tools=(), builtin_tools=(), claudecode_builtin_names=()
+        )
+        with pytest.raises(AttributeError):
+            resolved.tools = ()  # type: ignore[misc]
+
+    def test_holds_tools_and_builtin_tools(self) -> None:
+        """通常ツールとビルトインツールを保持する。"""
+        resolved = ResolvedTools(
+            tools=(),
+            builtin_tools=(WebFetchTool(),),
+            claudecode_builtin_names=("WebFetch",),
+        )
+        assert len(resolved.builtin_tools) == 1
+        assert isinstance(resolved.builtin_tools[0], WebFetchTool)
+        assert resolved.claudecode_builtin_names == ("WebFetch",)
+
+
+# =============================================================================
+# BUILTIN_TOOL_CATALOG / CLAUDECODE_BUILTIN_MAP
+# =============================================================================
+
+
+class TestBuiltinToolCatalog:
+    """BUILTIN_TOOL_CATALOG 定数のテスト。"""
+
+    def test_web_fetch_registered(self) -> None:
+        """web_fetch カテゴリが登録されている。"""
+        assert "web_fetch" in BUILTIN_TOOL_CATALOG
+
+    def test_web_fetch_contains_web_fetch_tool(self) -> None:
+        """web_fetch カテゴリに WebFetchTool が含まれる。"""
+        tools = BUILTIN_TOOL_CATALOG["web_fetch"]
+        assert len(tools) == 1
+        assert isinstance(tools[0], WebFetchTool)
+
+
+class TestClaudeCodeBuiltinMap:
+    """CLAUDECODE_BUILTIN_MAP 定数のテスト。"""
+
+    def test_web_fetch_maps_to_webfetch(self) -> None:
+        """web_fetch カテゴリが Claude Code の WebFetch にマッピングされる。"""
+        assert "web_fetch" in CLAUDECODE_BUILTIN_MAP
+        assert CLAUDECODE_BUILTIN_MAP["web_fetch"] == ("WebFetch",)
 
 
 # =============================================================================
@@ -19,31 +82,47 @@ class TestResolveTools:
 
     def test_resolves_git_read(self) -> None:
         """git_read カテゴリからツールを解決する。"""
-        tools = resolve_tools(("git_read",))
-        assert len(tools) > 0
-        assert all(isinstance(t, Tool) for t in tools)
+        resolved = resolve_tools(("git_read",))
+        assert len(resolved.tools) > 0
+        assert all(isinstance(t, Tool) for t in resolved.tools)
+        assert resolved.builtin_tools == ()
 
     def test_resolves_gh_read(self) -> None:
         """gh_read カテゴリからツールを解決する。"""
-        tools = resolve_tools(("gh_read",))
-        assert len(tools) > 0
+        resolved = resolve_tools(("gh_read",))
+        assert len(resolved.tools) > 0
 
     def test_resolves_file_read(self) -> None:
         """file_read カテゴリからツールを解決する。"""
-        tools = resolve_tools(("file_read",))
-        assert len(tools) > 0
+        resolved = resolve_tools(("file_read",))
+        assert len(resolved.tools) > 0
 
-    def test_resolves_multiple_categories(self) -> None:
-        """複数カテゴリのツールを統合して返す。"""
+    def test_resolves_web_fetch_as_builtin(self) -> None:
+        """web_fetch カテゴリをビルトインツールとして解決する。"""
+        resolved = resolve_tools(("web_fetch",))
+        assert resolved.tools == ()
+        assert len(resolved.builtin_tools) == 1
+        assert isinstance(resolved.builtin_tools[0], AbstractBuiltinTool)
+        assert resolved.claudecode_builtin_names == ("WebFetch",)
+
+    def test_resolves_mixed_regular_and_builtin(self) -> None:
+        """通常カテゴリとビルトインカテゴリを混在して解決する。"""
+        resolved = resolve_tools(("file_read", "web_fetch"))
+        assert len(resolved.tools) > 0
+        assert len(resolved.builtin_tools) == 1
+        assert resolved.claudecode_builtin_names == ("WebFetch",)
+
+    def test_resolves_multiple_regular_categories(self) -> None:
+        """複数の通常カテゴリのツールを統合して返す。"""
         single_git = resolve_tools(("git_read",))
         single_file = resolve_tools(("file_read",))
         combined = resolve_tools(("git_read", "file_read"))
-        assert len(combined) == len(single_git) + len(single_file)
+        assert len(combined.tools) == len(single_git.tools) + len(single_file.tools)
 
-    def test_returns_tuple(self) -> None:
-        """戻り値がタプルである。"""
-        tools = resolve_tools(("git_read",))
-        assert isinstance(tools, tuple)
+    def test_returns_resolved_tools_instance(self) -> None:
+        """戻り値が ResolvedTools インスタンスである。"""
+        resolved = resolve_tools(("git_read",))
+        assert isinstance(resolved, ResolvedTools)
 
     def test_unknown_category_raises_value_error(self) -> None:
         """不明なカテゴリで ValueError を送出する。"""
@@ -55,10 +134,12 @@ class TestResolveTools:
         with pytest.raises(ValueError, match="bad"):
             resolve_tools(("git_read", "bad"))
 
-    def test_empty_categories_returns_empty_tuple(self) -> None:
-        """空タプルで空タプルを返す。"""
-        tools = resolve_tools(())
-        assert tools == ()
+    def test_empty_categories_returns_empty(self) -> None:
+        """空タプルで空の ResolvedTools を返す。"""
+        resolved = resolve_tools(())
+        assert resolved.tools == ()
+        assert resolved.builtin_tools == ()
+        assert resolved.claudecode_builtin_names == ()
 
 
 # =============================================================================
@@ -71,7 +152,7 @@ class TestValidateCategories:
 
     def test_all_valid_returns_empty_list(self) -> None:
         """全カテゴリ有効時に空リストを返す。"""
-        invalid = validate_categories(("git_read", "gh_read", "file_read"))
+        invalid = validate_categories(("git_read", "gh_read", "file_read", "web_fetch"))
         assert invalid == []
 
     def test_single_invalid_returns_list(self) -> None:
@@ -93,3 +174,8 @@ class TestValidateCategories:
         """全て不正なカテゴリのリストを返す。"""
         invalid = validate_categories(("x", "y", "z"))
         assert set(invalid) == {"x", "y", "z"}
+
+    def test_web_fetch_is_valid(self) -> None:
+        """web_fetch は有効なカテゴリとして認識される。"""
+        invalid = validate_categories(("web_fetch",))
+        assert invalid == []

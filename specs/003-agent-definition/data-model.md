@@ -205,7 +205,7 @@ system_prompt = """
 """
 
 # オプションフィールド
-allowed_tools = ["git_read", "gh_read", "file_read"]  # デフォルト: []
+allowed_tools = ["git_read", "gh_read", "file_read"]  # デフォルト: []. "web_fetch" も利用可能
 phase = "main"                         # "early" | "main" | "final", デフォルト: "main"
 
 # オプション: 適用ルール（省略時は always = true）

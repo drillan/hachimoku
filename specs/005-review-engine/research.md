@@ -88,6 +88,7 @@
 - **git_read**: `run_git(args: list[str]) -> str` — 読み取り系 git コマンドを実行。許可されたサブコマンド（diff, log, show, status, merge-base, rev-parse, branch, ls-files）のホワイトリストで検証
 - **gh_read**: `run_gh(args: list[str]) -> str` — 読み取り系 gh コマンドを実行。許可されたサブコマンド（pr view, issue view, api）のホワイトリストで検証
 - **file_read**: `read_file(path: str) -> str` + `list_directory(path: str, pattern: str | None) -> str` — ファイル読み込みとディレクトリ一覧
+- **web_fetch**: pydantic-ai の `WebFetchTool` ビルトインを使用。`anthropic:` モデルでは Anthropic API の web fetch 機能を直接利用し、`claudecode:` モデルでは Claude Code のネイティブ `WebFetch` ツールにマッピングする。カスタムのツール関数は実装しない
 
 ホワイトリスト検証により、書き込み系コマンド（git commit, gh pr comment 等）の実行を防止する。
 
