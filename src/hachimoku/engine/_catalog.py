@@ -50,14 +50,20 @@ claudecode: モデル使用時に allowed_tools に追加するツール名。
 """
 
 _ALL_CATEGORIES: Final[frozenset[str]] = frozenset(
-    (*TOOL_CATALOG.keys(), *BUILTIN_TOOL_CATALOG.keys())
+    (*TOOL_CATALOG.keys(), *BUILTIN_TOOL_CATALOG.keys(), *CLAUDECODE_BUILTIN_MAP.keys())
 )
-"""全有効カテゴリ名。通常ツールとビルトインツールの両方を含む。"""
+"""全有効カテゴリ名。通常ツール、ビルトインツール、claudecode ビルトインの全カタログを含む。"""
 
 
 @dataclass(frozen=True)
 class ResolvedTools:
-    """カテゴリ解決結果。通常ツールとビルトインツールを分離して保持する。"""
+    """カテゴリ解決結果。通常ツールとビルトインツールを分離して保持する。
+
+    Attributes:
+        tools: pydantic-ai Tool[None] インスタンス（git_read, gh_read, file_read 用）。
+        builtin_tools: pydantic-ai AbstractBuiltinTool インスタンス（web_fetch 用の WebFetchTool 等）。
+        claudecode_builtin_names: claudecode: モデル使用時に allowed_tools に追加するツール名文字列。
+    """
 
     tools: tuple[Tool[None], ...]
     builtin_tools: tuple[AbstractBuiltinTool, ...]

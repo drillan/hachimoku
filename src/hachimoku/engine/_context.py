@@ -60,11 +60,17 @@ class AgentExecutionContext(HachimokuBaseModel):
 
     @model_validator(mode="after")
     def validate_tools(self) -> Self:
-        """tools タプルの各要素が Tool インスタンスであることを検証する。"""
+        """tools / builtin_tools タプルの各要素の型を検証する。"""
         for item in self.tools:
             if not isinstance(item, Tool):
                 raise ValueError(
                     f"tools must contain only Tool instances, got {type(item).__name__}"
+                )
+        for bt in self.builtin_tools:
+            if not isinstance(bt, AbstractBuiltinTool):
+                raise ValueError(
+                    f"builtin_tools must contain only AbstractBuiltinTool instances, "
+                    f"got {type(bt).__name__}"
                 )
         return self
 

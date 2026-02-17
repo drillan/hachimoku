@@ -652,6 +652,23 @@ class TestAgentExecutionContextBuiltinTools:
         )
         assert ctx.claudecode_builtin_names == ("WebFetch",)
 
+    def test_non_builtin_tool_in_builtin_tools_rejected(self) -> None:
+        """builtin_tools に AbstractBuiltinTool 以外の要素を含む場合 ValueError を送出する。"""
+        agent = _make_agent()
+        with pytest.raises(ValueError, match="AbstractBuiltinTool"):
+            AgentExecutionContext(
+                agent_name="test-agent",
+                model="sonnet",
+                system_prompt="prompt",
+                user_message="message",
+                output_schema=agent.resolved_schema,
+                tools=(),
+                builtin_tools=("not-a-builtin-tool",),  # type: ignore[arg-type]
+                timeout_seconds=300,
+                max_turns=10,
+                phase=Phase.MAIN,
+            )
+
 
 # =============================================================================
 # build_execution_context — builtin_tools パススルー（Issue #222）
