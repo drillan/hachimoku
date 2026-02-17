@@ -305,10 +305,20 @@ def review_callback(
     # 4. ReviewTarget 構築
     target = _build_target(resolved, config, issue)
 
+    # 4.5. カスタムエージェントディレクトリ解決
+    project_root = find_project_root(Path.cwd())
+    custom_agents_dir = (
+        (project_root / ".hachimoku" / "agents") if project_root else None
+    )
+
     # 5. run_review() 呼び出し
     try:
         result = asyncio.run(
-            run_review(target=target, config_overrides=config_overrides)
+            run_review(
+                target=target,
+                config_overrides=config_overrides,
+                custom_agents_dir=custom_agents_dir,
+            )
         )
     except (KeyboardInterrupt, SystemExit):
         raise
