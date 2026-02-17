@@ -8,20 +8,23 @@ from typing import TYPE_CHECKING, Self
 
 from pydantic import ConfigDict, Field, SkipValidation, model_validator
 from pydantic_ai import Tool
+from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
 from hachimoku.agents.models import AgentDefinition, Phase
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import AgentConfig, HachimokuConfig
 from hachimoku.models.schemas._base import BaseAgentOutput
 
-# pydantic-ai の Tool[None] は内部ジェネリック型 (ToolFuncEither[ToolAgentDepsT]) が
+# pydantic-ai の Tool[None] / AbstractBuiltinTool は内部ジェネリック型が
 # Pydantic のスキーマ生成と互換性がないため、TYPE_CHECKING ガードで型を分離する。
 # ランタイム: SkipValidation[tuple] → Pydantic のスキーマ生成をスキップ
-# 型チェッカー: SkipValidation[tuple[Tool[None], ...]] → 型安全性を維持
+# 型チェッカー: SkipValidation[tuple[...]] → 型安全性を維持
 if TYPE_CHECKING:
     _ToolsTuple = tuple[Tool[None], ...]
+    _BuiltinToolsTuple = tuple[AbstractBuiltinTool, ...]
 else:
     _ToolsTuple = tuple
+    _BuiltinToolsTuple = tuple
 
 
 class AgentExecutionContext(HachimokuBaseModel):
@@ -34,6 +37,8 @@ class AgentExecutionContext(HachimokuBaseModel):
         user_message: レビュー指示情報 + オプションコンテキスト。
         output_schema: 解決済み出力スキーマクラス。
         tools: 解決済み pydantic-ai ツールタプル。
+        builtin_tools: 解決済み pydantic-ai ビルトインツールタプル。
+        claudecode_builtin_names: claudecode モデル用のビルトインツール名。
         timeout_seconds: タイムアウト秒数（解決済み）。
         max_turns: 最大ターン数（解決済み）。
         phase: 実行フェーズ。
@@ -47,17 +52,25 @@ class AgentExecutionContext(HachimokuBaseModel):
     user_message: str
     output_schema: type[BaseAgentOutput]
     tools: SkipValidation[_ToolsTuple]
+    builtin_tools: SkipValidation[_BuiltinToolsTuple] = ()
+    claudecode_builtin_names: tuple[str, ...] = ()
     timeout_seconds: int = Field(gt=0)
     max_turns: int = Field(gt=0)
     phase: Phase
 
     @model_validator(mode="after")
     def validate_tools(self) -> Self:
-        """tools タプルの各要素が Tool インスタンスであることを検証する。"""
+        """tools / builtin_tools タプルの各要素の型を検証する。"""
         for item in self.tools:
             if not isinstance(item, Tool):
                 raise ValueError(
                     f"tools must contain only Tool instances, got {type(item).__name__}"
+                )
+        for bt in self.builtin_tools:
+            if not isinstance(bt, AbstractBuiltinTool):
+                raise ValueError(
+                    f"builtin_tools must contain only AbstractBuiltinTool instances, "
+                    f"got {type(bt).__name__}"
                 )
         return self
 
@@ -84,6 +97,8 @@ def build_execution_context(
     global_config: HachimokuConfig,
     user_message: str,
     resolved_tools: tuple[Tool[None], ...],
+    resolved_builtin_tools: tuple[AbstractBuiltinTool, ...] = (),
+    claudecode_builtin_names: tuple[str, ...] = (),
 ) -> AgentExecutionContext:
     """AgentDefinition と設定からエージェント実行コンテキストを構築する。
 
@@ -99,7 +114,9 @@ def build_execution_context(
         agent_config: エージェント個別設定（存在する場合）。
         global_config: グローバル設定。
         user_message: 構築済みユーザーメッセージ。
-        resolved_tools: 解決済みツールリスト。
+        resolved_tools: 解決済み pydantic-ai ツールリスト。
+        resolved_builtin_tools: 解決済み pydantic-ai ビルトインツールリスト。
+        claudecode_builtin_names: claudecode モデル用のビルトインツール名。
 
     Returns:
         構築された実行コンテキスト。
@@ -118,6 +135,8 @@ def build_execution_context(
         user_message=user_message,
         output_schema=agent_def.resolved_schema,
         tools=resolved_tools,
+        builtin_tools=resolved_builtin_tools,
+        claudecode_builtin_names=claudecode_builtin_names,
         timeout_seconds=_resolve_with_agent_def(
             agent_timeout, agent_def.timeout, global_config.timeout
         ),

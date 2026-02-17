@@ -7,10 +7,12 @@ R-004: カテゴリ→ツール解決のマッピング管理。
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
 
 from pydantic_ai import Tool
+from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
 
 from hachimoku.engine._tools._file import list_directory, read_file
 from hachimoku.engine._tools._gh import run_gh
@@ -28,15 +30,54 @@ TOOL_CATALOG: Final[Mapping[str, tuple[Tool[None], ...]]] = MappingProxyType(
 )
 """カテゴリ名から pydantic-ai Tool へのマッピング。"""
 
+BUILTIN_TOOL_CATALOG: Final[Mapping[str, tuple[AbstractBuiltinTool, ...]]] = (
+    MappingProxyType(
+        {
+            "web_fetch": (WebFetchTool(),),
+        }
+    )
+)
+"""カテゴリ名から pydantic-ai ビルトインツールへのマッピング。"""
 
-def resolve_tools(categories: tuple[str, ...]) -> tuple[Tool[None], ...]:
-    """カテゴリ名から pydantic-ai ツールリストを解決する。
+CLAUDECODE_BUILTIN_MAP: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "web_fetch": ("WebFetch",),
+    }
+)
+"""カテゴリ名から Claude Code ネイティブツール名へのマッピング。
+
+claudecode: モデル使用時に allowed_tools に追加するツール名。
+"""
+
+_ALL_CATEGORIES: Final[frozenset[str]] = frozenset(
+    (*TOOL_CATALOG.keys(), *BUILTIN_TOOL_CATALOG.keys(), *CLAUDECODE_BUILTIN_MAP.keys())
+)
+"""全有効カテゴリ名。通常ツール、ビルトインツール、claudecode ビルトインの全カタログを含む。"""
+
+
+@dataclass(frozen=True)
+class ResolvedTools:
+    """カテゴリ解決結果。通常ツールとビルトインツールを分離して保持する。
+
+    Attributes:
+        tools: pydantic-ai Tool[None] インスタンス（git_read, gh_read, file_read 用）。
+        builtin_tools: pydantic-ai AbstractBuiltinTool インスタンス（web_fetch 用の WebFetchTool 等）。
+        claudecode_builtin_names: claudecode: モデル使用時に allowed_tools に追加するツール名文字列。
+    """
+
+    tools: tuple[Tool[None], ...]
+    builtin_tools: tuple[AbstractBuiltinTool, ...]
+    claudecode_builtin_names: tuple[str, ...]
+
+
+def resolve_tools(categories: tuple[str, ...]) -> ResolvedTools:
+    """カテゴリ名からツールを解決する。通常ツールとビルトインツールを分離して返す。
 
     Args:
-        categories: ツールカテゴリ名のタプル（例: ("git_read", "file_read")）。
+        categories: ツールカテゴリ名のタプル（例: ("git_read", "web_fetch")）。
 
     Returns:
-        解決された pydantic-ai Tool オブジェクトのタプル。
+        ResolvedTools: 通常ツール、ビルトインツール、claudecode ビルトイン名を含む。
 
     Raises:
         ValueError: カタログに存在しないカテゴリ名が含まれている場合。
@@ -46,10 +87,22 @@ def resolve_tools(categories: tuple[str, ...]) -> tuple[Tool[None], ...]:
         raise ValueError(f"Unknown tool categories: {', '.join(invalid)}")
 
     tools: list[Tool[None]] = []
-    for category in categories:
-        tools.extend(TOOL_CATALOG[category])
+    builtin_tools: list[AbstractBuiltinTool] = []
+    claudecode_names: list[str] = []
 
-    return tuple(tools)
+    for category in categories:
+        if category in TOOL_CATALOG:
+            tools.extend(TOOL_CATALOG[category])
+        if category in BUILTIN_TOOL_CATALOG:
+            builtin_tools.extend(BUILTIN_TOOL_CATALOG[category])
+        if category in CLAUDECODE_BUILTIN_MAP:
+            claudecode_names.extend(CLAUDECODE_BUILTIN_MAP[category])
+
+    return ResolvedTools(
+        tools=tuple(tools),
+        builtin_tools=tuple(builtin_tools),
+        claudecode_builtin_names=tuple(claudecode_names),
+    )
 
 
 def validate_categories(categories: tuple[str, ...]) -> list[str]:
@@ -62,4 +115,4 @@ def validate_categories(categories: tuple[str, ...]) -> list[str]:
         カタログに存在しない不正なカテゴリ名のリスト。
         空リストの場合は全て有効。
     """
-    return [cat for cat in categories if cat not in TOOL_CATALOG]
+    return [cat for cat in categories if cat not in _ALL_CATEGORIES]

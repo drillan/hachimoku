@@ -21,9 +21,9 @@ class TestToolCategoryExport:
 class TestToolCategoryEnumValues:
     """ToolCategory 列挙値の定義を検証。"""
 
-    def test_has_three_members(self) -> None:
-        """3つの列挙値が定義されている。"""
-        assert len(ToolCategory) == 3
+    def test_has_four_members(self) -> None:
+        """4つの列挙値が定義されている。"""
+        assert len(ToolCategory) == 4
 
     def test_git_read_value(self) -> None:
         assert ToolCategory.GIT_READ == "git_read"
@@ -36,6 +36,10 @@ class TestToolCategoryEnumValues:
     def test_file_read_value(self) -> None:
         assert ToolCategory.FILE_READ == "file_read"
         assert ToolCategory.FILE_READ.value == "file_read"
+
+    def test_web_fetch_value(self) -> None:
+        assert ToolCategory.WEB_FETCH == "web_fetch"
+        assert ToolCategory.WEB_FETCH.value == "web_fetch"
 
 
 class TestToolCategoryIsStrEnum:

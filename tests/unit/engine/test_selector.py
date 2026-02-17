@@ -743,7 +743,9 @@ class TestRunSelectorResolveModel:
         )
 
         mock_resolve.assert_called_once_with(
-            "anthropic:claude-opus-4-6", allowed_builtin_tools=()
+            "anthropic:claude-opus-4-6",
+            allowed_builtin_tools=(),
+            extra_builtin_tools=(),
         )
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
 
@@ -1037,7 +1039,10 @@ class TestRunSelectorPrefetched:
 
     @patch("hachimoku.engine._selector.resolve_model")
     @patch("hachimoku.engine._selector.Agent")
-    @patch("hachimoku.engine._selector.resolve_tools", return_value=[])
+    @patch(
+        "hachimoku.engine._selector.resolve_tools",
+        return_value=MagicMock(tools=[], builtin_tools=[], claudecode_builtin_names=()),
+    )
     async def test_prefetched_context_passed_to_instruction(
         self,
         _mock_tools: MagicMock,
@@ -1075,7 +1080,10 @@ class TestRunSelectorPrefetched:
 
     @patch("hachimoku.engine._selector.resolve_model")
     @patch("hachimoku.engine._selector.Agent")
-    @patch("hachimoku.engine._selector.resolve_tools", return_value=[])
+    @patch(
+        "hachimoku.engine._selector.resolve_tools",
+        return_value=MagicMock(tools=[], builtin_tools=[], claudecode_builtin_names=()),
+    )
     async def test_none_prefetched_backwards_compatible(
         self,
         _mock_tools: MagicMock,
@@ -1334,3 +1342,67 @@ class TestRunSelectorDepsIntegration:
         deps = call_kwargs["deps"]
         assert isinstance(deps, SelectorDeps)
         assert deps.prefetched is None
+
+
+# =============================================================================
+# run_selector — builtin_tools 統合（Issue #222）
+# =============================================================================
+
+
+class TestRunSelectorBuiltinTools:
+    """run_selector が ResolvedTools を使用し builtin_tools を Agent に渡すテスト。Issue #222。"""
+
+    @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_builtin_tools_passed_to_agent(
+        self, mock_agent_cls: MagicMock, _: MagicMock
+    ) -> None:
+        """resolve_tools の builtin_tools が Agent(builtin_tools=...) に渡される。"""
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        await run_selector(
+            target=_make_target(),
+            available_agents=[_make_agent()],
+            selector_definition=_make_selector_definition(),
+            selector_config=_make_selector_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff",
+        )
+
+        call_kwargs = mock_agent_cls.call_args.kwargs
+        # デフォルトの allowed_tools には web_fetch を含まないため空リスト
+        assert call_kwargs["builtin_tools"] == []
+
+    @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.Agent")
+    async def test_extra_builtin_tools_passed_to_resolve_model(
+        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+    ) -> None:
+        """claudecode_builtin_names が resolve_model の extra_builtin_tools に渡される。"""
+        mock_resolve.return_value = "resolved-model"
+        mock_instance = MagicMock()
+        mock_instance.run = _make_mock_agent_run()
+        mock_agent_cls.return_value = mock_instance
+
+        await run_selector(
+            target=_make_target(),
+            available_agents=[_make_agent()],
+            selector_definition=_make_selector_definition(),
+            selector_config=_make_selector_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+            resolved_content="test diff",
+        )
+
+        # デフォルトの allowed_tools=(git_read, gh_read, file_read) では
+        # claudecode_builtin_names=() なので extra_builtin_tools=() が渡される
+        mock_resolve.assert_called_once_with(
+            "anthropic:claude-opus-4-6",
+            allowed_builtin_tools=(),
+            extra_builtin_tools=(),
+        )

@@ -13,7 +13,7 @@ from enum import StrEnum
 class ToolCategory(StrEnum):
     """エージェントに許可されるツールのカテゴリ。
 
-    読み取り専用の3カテゴリを定義する。
+    読み取り専用の4カテゴリを定義する。
     SelectorDefinition・AgentDefinition の allowed_tools バリデーション（FR-RE-016）と
     ToolCatalog のカテゴリ名解決での使用を想定。
     """
@@ -21,3 +21,4 @@ class ToolCategory(StrEnum):
     GIT_READ = "git_read"
     GH_READ = "gh_read"
     FILE_READ = "file_read"
+    WEB_FETCH = "web_fetch"

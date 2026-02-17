@@ -29,7 +29,7 @@
 - Q: セレクターエージェントの `allowed_tools` は固定か設定可能か？ → A: `[selector]` セクションに `allowed_tools` を含め設定可能とする。デフォルト値は `["git_read", "gh_read", "file_read"]`。セレクターは git/gh コマンドの実行が必要（差分調査・エージェント選択のため）であり、レビューエージェント（TOML 定義で管理）とはツール権限の管理方式が異なる。`file_read` を含む根拠: セレクターはディレクトリ構成やプロジェクト構成ファイル（例: `package.json`）を確認してプロジェクト特性を判断し、適切なエージェントを選択する場合がある。※ Issue #118 で `allowed_tools` を SelectorDefinition（TOML 定義）に移管。`[selector]` セクションからは削除
 - Q: セレクターの `allowed_tools` に無効なカテゴリ名が指定された場合、どの時点でエラーとするか？ → A: 004-configuration の設定バリデーション時（FR-CF-004）でエラーとする。fail-fast 原則により、レビュー実行前に問題を検出する。※ Issue #118 で SelectorDefinition の読み込みバリデーション時（005-review-engine FR-RE-016）に変更
 - Q: セレクターエージェント設定の Acceptance Scenario は US3 に含めるか独立させるか？ → A: 新しい US5「セレクターエージェント設定」として独立（P2）。セレクターはレビューエージェントとは管理方式・目的・セクション名がすべて異なるため、テストの分離性と仕様の明確さのために独立させる
-- Q: ツールカテゴリ名（git_read, gh_read, file_read）の正規の定義元はどこか？ → A: 002-domain-models にツールカテゴリ列挙型を定義し、004-configuration と 005-review-engine の両方が参照する。循環依存を回避しつつカテゴリ名を一元管理する
+- Q: ツールカテゴリ名（git_read, gh_read, file_read, web_fetch）の正規の定義元はどこか？ → A: 002-domain-models にツールカテゴリ列挙型を定義し、004-configuration と 005-review-engine の両方が参照する。循環依存を回避しつつカテゴリ名を一元管理する
 
 ## User Scenarios & Testing *(mandatory)*
 

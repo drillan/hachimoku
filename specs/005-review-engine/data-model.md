@@ -87,7 +87,7 @@ TOML ファイルから構築される。ビルトインの `selector.toml` か�
 | description | `str` | セレクターの説明 |
 | model | `str` | 使用する LLM モデル名 |
 | system_prompt | `str` | セレクターのシステムプロンプト |
-| allowed_tools | `tuple[str, ...]` | 許可するツールカテゴリ（デフォルト: 全3カテゴリ） |
+| allowed_tools | `tuple[str, ...]` | 許可するツールカテゴリ（デフォルト: `git_read`, `gh_read`, `file_read` の3カテゴリ。`web_fetch` は含まない） |
 
 - `HachimokuBaseModel` を継承（`extra="forbid"`, `frozen=True`）
 - `AgentDefinition` とは異なり、`output_schema`・`phase`・`applicability` を持たない。セレクターの出力は `SelectorOutput` に固定され、フェーズ・適用条件の概念はない

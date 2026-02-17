@@ -79,7 +79,7 @@
 - Q: エージェント選択（AgentSelector）をツール自律実行とどう整合させるか？ → A: AgentSelector 自体を pydantic-ai エージェントとして実行する。セレクターエージェントは入力情報（PR番号 / base_branch / ファイルパス）と利用可能なエージェント定義一覧をプロンプトで受け取り、git/gh ツールでレビュー対象を調査した上で、実行すべきエージェントリストを構造化出力で返す。003-agent-definition の `file_patterns` / `content_patterns` はセレクターエージェントの判断ガイダンスとして機能する（メカニカルなパターンマッチングではなくなる）。この変更は 003-agent-definition の AgentSelector 設計に波及する
 - Q: セレクターエージェントの allowed_tools の範囲は？ → A: 最小限とする。git/gh の読み取り系コマンドとファイル読み込みのみ。コード変更等の副作用を持つツールは除外する
 - Q: diff/file が空の場合の検出タイミングは？ → A: セレクターエージェントの責務とする。セレクターがレビュー対象を調査した結果、差分が空やファイルが0件の場合は空のエージェントリストを返し、エンジンは空リストを受けて正常終了する（終了コード 0）
-- Q: エージェントが使用できるツールのカタログと権限ポリシーは？ → A: カテゴリベースのツールカタログを定義する。利用可能なカテゴリは `git_read`（git 読み取り系コマンド）、`gh_read`（gh 読み取り系コマンド）、`file_read`（ファイル読み込み・ディレクトリ探索）の3種で、全て読み取り専用。書き込み系ツール（git commit/push、ファイル書き込み、gh pr comment 等）はカタログに含めない。エンジンがホワイトリストとしてガードレールを設け、TOML の `allowed_tools` で未登録のカテゴリ名を指定した場合はバリデーションエラーとする
+- Q: エージェントが使用できるツールのカタログと権限ポリシーは？ → A: カテゴリベースのツールカタログを定義する。利用可能なカテゴリは `git_read`（git 読み取り系コマンド）、`gh_read`（gh 読み取り系コマンド）、`file_read`（ファイル読み込み・ディレクトリ探索）、`web_fetch`（HTTP/HTTPS コンテンツ取得）の4種で、全て読み取り専用。書き込み系ツール（git commit/push、ファイル書き込み、gh pr comment 等）はカタログに含めない。エンジンがホワイトリストとしてガードレールを設け、TOML の `allowed_tools` で未登録のカテゴリ名を指定した場合はバリデーションエラーとする
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -315,6 +315,7 @@
   - **`git_read`**: git の読み取り系コマンド（diff, log, show, status, merge-base 等）。リポジトリの状態を変更するコマンドは含まない
   - **`gh_read`**: gh CLI の読み取り系コマンド（pr view, issue view, api での読み取りクエリ等）。PR コメント投稿等の副作用を持つコマンドは含まない
   - **`file_read`**: ファイル内容の読み込み、ディレクトリ一覧、glob パターンによるファイル検索。ファイルの書き込み・削除は含まない
+  - **`web_fetch`**: HTTP/HTTPS URL のコンテンツ取得（GET のみ）。リンク検証や Web 情報の参照に使用する。pydantic-ai の `WebFetchTool` ビルトインを活用し、`claudecode:` モデルでは Claude Code のネイティブ `WebFetch` ツールにマッピングする。書き込み系操作（POST/PUT/DELETE 等）は含まない
 
   全カテゴリは読み取り専用であり、書き込み系ツール（git commit/push、ファイル書き込み、gh pr comment 等）はカタログに存在しない。
 
@@ -354,7 +355,7 @@
 - **ReviewInstructionBuilder（レビュー指示構築）**: 入力モード（diff / PR / file）に応じてエージェントに渡すレビュー指示情報を構築する処理。diff モードでは base_branch 名とレビュー方針、PR モードでは PR 番号、file モードではファイルパスリストを含む指示を生成する。実際の差分取得・ファイル読み込み・PR 情報取得はエージェントが `allowed_tools` で自律的に行う
 - **SelectorDefinition（セレクター定義）**: セレクターエージェントの TOML 定義情報。名前（`"selector"` 固定）、説明、モデル名、システムプロンプト、許可ツールカテゴリリストを保持する。ビルトインの `selector.toml` から読み込まれ、カスタムの `selector.toml` で上書き可能。AgentDefinition と同様のデータ駆動型アーキテクチャに従い、コード変更なしでセレクターのプロンプトやツール設定を変更可能（Issue #118）
 - **SelectorAgent（セレクターエージェント）**: pydantic-ai エージェントとして実行されるエージェント選択処理。SelectorDefinition（TOML 定義）からシステムプロンプト・モデル・許可ツールを取得し、SelectorConfig（設定）によるオーバーライド（モデル・タイムアウト・ターン数）を適用する。レビュー指示情報と利用可能なエージェント定義一覧（名前・説明・適用ルール・フェーズ）をプロンプトで受け取り、SelectorDefinition.allowed_tools で許可されたツールでレビュー対象を調査した上で、実行すべきエージェント名のリストをフェーズ順で構造化出力として返す。003-agent-definition の `file_patterns` / `content_patterns` は判断ガイダンスとして機能する
-- **ToolCatalog（ツールカタログ）**: エージェントに許可されるツールのカテゴリ定義と、カテゴリ名から pydantic-ai ツールオブジェクトへのマッピングを管理する処理。読み取り専用の3カテゴリ（`git_read`, `gh_read`, `file_read`）のみを登録する。エージェント定義の `allowed_tools` バリデーション（ガードレール）と、実行時のツール解決を担当する
+- **ToolCatalog（ツールカタログ）**: エージェントに許可されるツールのカテゴリ定義と、カテゴリ名から pydantic-ai ツールオブジェクトへのマッピングを管理する処理。読み取り専用の4カテゴリ（`git_read`, `gh_read`, `file_read`, `web_fetch`）を登録する。`git_read`・`gh_read`・`file_read` は pydantic-ai の `Tool` として登録し、`web_fetch` は pydantic-ai の `WebFetchTool` ビルトインとして登録する。エージェント定義の `allowed_tools` バリデーション（ガードレール）と、実行時のツール解決を担当する
 - **AggregatorDefinition（集約エージェント定義）**: 集約エージェントの TOML 定義情報。SelectorDefinition と同じアーキテクチャパターンに従う。名前（`"aggregator"` 固定）、説明、モデル名、システムプロンプトを保持する。ビルトインの `aggregator.toml` から読み込まれ、カスタムの `aggregator.toml` で上書き可能。`allowed_tools` は持たない（Issue #152）
 - **AggregatedReport（集約レポート）**: 集約エージェントの構造化出力。重複排除された `issues`（`ReviewIssue`）、`strengths`（`list[str]`）、優先度付き `recommended_actions`（`list[RecommendedAction]`）、`agent_failures`（`list[str]`）を含む（Issue #152）
 - **RecommendedAction（推奨アクション）**: 集約エージェントが生成する対応推奨。`description: str`（推奨内容）と `priority: Priority`（high/medium/low）を持つ（Issue #152）
@@ -378,6 +379,6 @@
 - pydantic-ai はタイムアウト制御と最大ターン数の制御機能を提供する想定。pydantic-ai が直接サポートしない場合は、asyncio のタイムアウト機構で補完する
 - 並列実行には Python の asyncio を使用する。各エージェント実行は非同期タスクとして実行され、`asyncio.gather()` 等で同時実行される
 - レビュー対象コンテンツ（diff / PR 差分 / ファイル内容）はエンジンが subprocess（`asyncio.create_subprocess_exec`）で事前解決し、エージェントのプロンプトに埋め込む（Issue #129）。PR メタデータ取得等の補助的な情報取得は引き続きエージェントが `allowed_tools` 経由で自律的に実行する。`git` および `gh` コマンドがエンジン実行環境で利用可能であることを前提とする
-- `allowed_tools` はカテゴリベース（`git_read`, `gh_read`, `file_read`）で定義される。各カテゴリに属する個別の pydantic-ai ツール（関数）の登録は実装の責務とする。カテゴリ内のツール構成は pydantic-ai のツール登録機構に依存する
+- `allowed_tools` はカテゴリベース（`git_read`, `gh_read`, `file_read`, `web_fetch`）で定義される。`git_read`・`gh_read`・`file_read` は pydantic-ai の `Tool`（関数）として登録し、`web_fetch` は pydantic-ai の `WebFetchTool` ビルトインツールとして登録する。カテゴリ内のツール構成は pydantic-ai のツール登録機構に依存する
 - file モードでのファイル読み込み・ディレクトリ探索・循環参照検出もエージェントが `file_read` カテゴリのツールを通じて自律的に行う
 - エージェントのコスト情報は pydantic-ai の実行結果から取得可能な場合に記録する（オプショナル）

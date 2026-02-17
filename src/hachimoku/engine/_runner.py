@@ -41,7 +41,7 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
     この関数は例外を送出しない。
 
     実行フロー:
-        1. pydantic-ai Agent を構築（model, tools, system_prompt, output_type）
+        1. pydantic-ai Agent を構築（model, tools, builtin_tools, system_prompt, output_type）
         2. asyncio.timeout() でタイムアウト制御をラップ
         3. UsageLimits(request_limit=max_turns) でターン数制御
         4. agent.run() を実行
@@ -61,11 +61,15 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
     start_time = time.monotonic()
 
     try:
-        resolved = resolve_model(context.model)
+        resolved = resolve_model(
+            context.model,
+            extra_builtin_tools=context.claudecode_builtin_names,
+        )
         agent = Agent(
             model=resolved,
             output_type=context.output_schema,
             tools=list(context.tools),
+            builtin_tools=list(context.builtin_tools),
             system_prompt=context.system_prompt,
         )
         if isinstance(resolved, ClaudeCodeModel):

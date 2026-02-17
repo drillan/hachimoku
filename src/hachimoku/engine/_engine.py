@@ -135,6 +135,33 @@ async def _execute_with_shutdown_timeout(
         return collected_results
 
 
+def _build_context_with_resolved_tools(
+    agent: AgentDefinition,
+    config: HachimokuConfig,
+    target: DiffTarget | PRTarget | FileTarget,
+    base_user_message: str,
+    resolved_content: str,
+    selector_context: str,
+) -> AgentExecutionContext:
+    """エージェント定義からツールを解決し、実行コンテキストを構築する。"""
+    resolved = resolve_tools(agent.allowed_tools)
+    return build_execution_context(
+        agent_def=agent,
+        agent_config=config.agents.get(agent.name),
+        global_config=config,
+        user_message=_build_agent_user_message(
+            agent_def=agent,
+            target=target,
+            base_user_message=base_user_message,
+            resolved_content=resolved_content,
+            selector_context=selector_context,
+        ),
+        resolved_tools=resolved.tools,
+        resolved_builtin_tools=resolved.builtin_tools,
+        claudecode_builtin_names=resolved.claudecode_builtin_names,
+    )
+
+
 async def run_review(
     target: DiffTarget | PRTarget | FileTarget,
     config_overrides: dict[str, object] | None = None,
@@ -257,18 +284,13 @@ async def run_review(
         filtered_result.agents, selector_output.selected_agents
     )
     contexts = [
-        build_execution_context(
-            agent_def=agent,
-            agent_config=config.agents.get(agent.name),
-            global_config=config,
-            user_message=_build_agent_user_message(
-                agent_def=agent,
-                target=target,
-                base_user_message=base_user_message,
-                resolved_content=resolved_content,
-                selector_context=selector_context,
-            ),
-            resolved_tools=resolve_tools(agent.allowed_tools),
+        _build_context_with_resolved_tools(
+            agent,
+            config,
+            target,
+            base_user_message,
+            resolved_content,
+            selector_context,
         )
         for agent in selected_agents
     ]
