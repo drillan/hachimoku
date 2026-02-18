@@ -1,6 +1,6 @@
 name = "code-simplifier"
 description = "コードの簡潔化・改善提案"
-model = "anthropic:claude-opus-4-6"
+model = "claudecode:claude-opus-4-6"
 output_schema = "improvement_suggestions"
 phase = "final"
 allowed_tools = ["git_read", "gh_read", "file_read"]
