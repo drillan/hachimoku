@@ -38,7 +38,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 | `description` | `str` | Yes | セレクターの説明 |
 | `model` | `str` | Yes | 使用する LLM モデル名 |
 | `system_prompt` | `str` | Yes | セレクターのシステムプロンプト |
-| `allowed_tools` | `list[str]` | No | 許可するツールカテゴリ。デフォルト: 全3カテゴリ |
+| `allowed_tools` | `list[str]` | No | 許可するツールカテゴリ。デフォルト: `git_read`, `gh_read`, `file_read` の3カテゴリ（`web_fetch` は含まない） |
 
 レビューエージェントの `AgentDefinition` とは異なり、`output_schema`・`phase`・`applicability` フィールドはありません。
 セレクターの出力は常に `SelectorOutput`（選択されたエージェント名リストと理由）に固定されます。

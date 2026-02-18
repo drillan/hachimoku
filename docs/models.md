@@ -27,13 +27,14 @@ ReviewIssue の severity フィールドでは、大文字小文字を区別せ�
 ## ToolCategory（ツールカテゴリ）
 
 エージェントに許可されるツールの種類を定義する列挙型（StrEnum）です。
-読み取り専用の3カテゴリで構成されます。
+読み取り専用の4カテゴリで構成されます。
 
 | 値 | 文字列値 | 説明 |
 |----|---------|------|
 | `GIT_READ` | `"git_read"` | Git 読み取り操作（diff, log, show, status 等） |
 | `GH_READ` | `"gh_read"` | GitHub CLI 読み取り操作（pr view, issue view 等） |
 | `FILE_READ` | `"file_read"` | ファイル読み取り操作（read, ls 等） |
+| `WEB_FETCH` | `"web_fetch"` | Web コンテンツ取得操作 |
 
 ```{code-block} python
 from hachimoku.models import ToolCategory
