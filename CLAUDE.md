@@ -84,6 +84,12 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - Git ブランチ・コミット: `.claude/git-conventions.md` に従う
 - SpecKit ディレクトリ: `<3桁issue番号>-<name>`（例: `002-domain-models`）
 
+### ビルトインエージェント TOML の保護
+
+- `src/hachimoku/agents/_builtin/*.toml` は、当該ファイル自体が変更対象である場合にのみ修正する
+- リファクタリングや一括置換による巻き込み修正を行わない
+- `model` フィールドのプレフィックスは `claudecode:` を使用する（`anthropic:` は不可）
+
 <!-- MANUAL ADDITIONS START -->
 
 ## ドキュメント
