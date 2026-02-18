@@ -11,7 +11,7 @@ Sphinx + MyST-Parser (Markdown) + Mermaid でドキュメントをビルドし�
 ```bash
 # 推奨
 make -C docs html
-# Output: docs/_build/index.html
+# Output: docs/ja/_build/html/index.html
 
 # クリーンビルド
 make -C docs clean html
@@ -175,11 +175,16 @@ This is a note.
 
 ```
 docs/
-├── index.md              # Main landing page
-├── conf.py               # Sphinx 設定
-├── Makefile              # ビルドヘルパー
-├── _static/              # 静的ファイル
-└── _templates/           # カスタムテンプレート
+├── Makefile              # ビルドヘルパー（html-ja ターゲット）
+├── _examples/            # 共有サンプルファイル
+├── _static/              # 共有静的ファイル
+├── _templates/           # 共有カスタムテンプレート
+├── _redirect/            # GitHub Pages リダイレクト
+│   └── index.html        # ルート → ja/ リダイレクト
+└── ja/                   # 日本語ドキュメント
+    ├── conf.py           # Sphinx 設定 (language="ja")
+    ├── index.md          # ランディングページ
+    └── *.md              # 各ドキュメント
 ```
 
 ### Document Sections
@@ -226,7 +231,7 @@ MyST で別ファイルの特定セクションにリンクする場合、明示
 
 #### docs 外ファイルへのリンク
 
-Sphinx は `docs/` ディレクトリをルートとしてビルドするため、`docs/` 外のファイルへの相対パスは解決できない。
+Sphinx は `docs/ja/` ディレクトリをルートとしてビルドするため、`docs/ja/` 外のファイルへの相対パスは解決できない（`literalinclude` は `../` で `docs/` 配下の共有リソースを参照可能）。
 
 ```markdown
 # ❌ docs 外への相対パスは解決されない
@@ -341,7 +346,7 @@ make -C docs clean html
 
 ## Configuration
 
-Sphinx の設定は `docs/conf.py` に記述されています。
+Sphinx の設定は `docs/ja/conf.py` に記述されています。
 
 ```python
 project = "hachimoku"

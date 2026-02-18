@@ -94,8 +94,11 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 
 ## ドキュメント
 
-- ビルド: `make -C docs html`
+- ビルド: `make -C docs html`（`html-ja` のエイリアス）
+- 日本語のみビルド: `make -C docs html-ja`
 - ルール: `.claude/docs.md`
+- ソースディレクトリ: `docs/ja/`（日本語ドキュメント）
+- 共有リソース: `docs/_examples/`, `docs/_static/`, `docs/_templates/`
 
 ### GitHub Issue 作成ルール
 
@@ -107,7 +110,7 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
   - 影響範囲: diff 外で影響を受けるファイルパス（ファイル単位）+ 影響の種類
   - 既存パターン参照: 参照先ファイルパス + 具体的なパターン名
 - 空欄は許容される。不正確な情報よりも空欄の方が望ましい
-- 詳細ガイドライン: `docs/review-context.md`
+- 詳細ガイドライン: `docs/ja/review-context.md`
 - `gh issue create` 使用時は `--body` でテンプレートの全セクションを含める
 
 ### プランモード必須チェック（憲法 Art.2 準拠）

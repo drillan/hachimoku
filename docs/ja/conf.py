@@ -17,8 +17,9 @@ myst_enable_extensions = [
     "deflist",
 ]
 
-templates_path = ["_templates"]
+# 共有リソースは親ディレクトリ（docs/）に配置
+templates_path = ["../_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "shibuya"
-html_static_path = ["_static"]
+html_static_path = ["../_static"]

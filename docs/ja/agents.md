@@ -56,7 +56,7 @@ hachimoku のレビューエージェントは TOML ファイルで定義され�
 パッケージにはビルトインの `selector.toml` が同梱されています。
 カスタムの `selector.toml` を `.hachimoku/agents/selector.toml` に配置すると、ビルトインを上書きできます。
 
-```{literalinclude} ../src/hachimoku/agents/_builtin/selector.toml
+```{literalinclude} ../../src/hachimoku/agents/_builtin/selector.toml
 :language: toml
 :caption: selector.toml（ビルトイン）
 ```
@@ -76,7 +76,7 @@ print(definition.name)  # "selector"
 
 エージェント定義は以下の形式の TOML ファイルで記述します。
 
-```{literalinclude} ../src/hachimoku/agents/_builtin/code-reviewer.toml
+```{literalinclude} ../../src/hachimoku/agents/_builtin/code-reviewer.toml
 :language: toml
 :caption: code-reviewer.toml（ビルトイン）
 ```
@@ -220,7 +220,7 @@ for error in result.errors:
 1. `.hachimoku/agents/` ディレクトリを作成
 2. TOML 形式でエージェント定義ファイルを配置
 
-```{literalinclude} _examples/security-checker.toml
+```{literalinclude} ../_examples/security-checker.toml
 :language: toml
 :caption: .hachimoku/agents/security-checker.toml
 ```

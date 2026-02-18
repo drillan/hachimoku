@@ -1,20 +1,26 @@
-# Minimal makefile for Sphinx documentation
-#
+# Makefile for Sphinx documentation (i18n structure)
 
-# You can set these variables from the command line, and also
-# from the environment for the first two.
 SPHINXOPTS    ?=
 SPHINXBUILD   ?= uv run --group docs sphinx-build
-SOURCEDIR     = .
-BUILDDIR      = _build
 
-# Put it first so that "make" without argument is like "make help".
+# Language-specific targets
+html-ja:
+	@$(SPHINXBUILD) -M html "ja" "ja/_build" $(SPHINXOPTS) $(O)
+
+# html is alias for html-ja (default language)
+html: html-ja
+
+# Clean targets
+clean-ja:
+	@$(SPHINXBUILD) -M clean "ja" "ja/_build" $(SPHINXOPTS) $(O)
+
+clean: clean-ja
+
 help:
-	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	@echo "Available targets:"
+	@echo "  html       Build HTML docs (alias for html-ja)"
+	@echo "  html-ja    Build Japanese HTML docs"
+	@echo "  clean      Clean build artifacts"
+	@echo "  clean-ja   Clean Japanese build artifacts"
 
-.PHONY: help Makefile
-
-# Catch-all target: route all unknown targets to Sphinx using the new
-# "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
-%: Makefile
-	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+.PHONY: help html html-ja clean clean-ja
