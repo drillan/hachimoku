@@ -16,7 +16,7 @@ Agent definitions are managed via TOML files, allowing you to add and customize 
 - Choose between sequential and parallel execution
 - LLM-based result aggregation: deduplicates and merges findings from multiple agents, generating recommended actions
 - Cost efficiency: selector and aggregation use lightweight models, reviews use high-performance models to maintain accuracy
-- Flexible model configuration: resolved in config > definition > global priority order, can always fall back to Opus 4.6
+- Flexible model configuration: resolved in config > definition > global priority order, can always revert to Opus 4.6
 - Markdown / JSON output support (default: Markdown)
 - Automatic review result accumulation in JSONL format for review history analysis
 
