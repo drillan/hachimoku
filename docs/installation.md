@@ -42,6 +42,29 @@ uv tool install .
 - **利用者**: `uv tool install` でインストールすれば、任意のディレクトリから `8moku` コマンドを実行できます
 - **開発者**: `uv sync` でプロジェクトの仮想環境に依存関係を同期し、`uv run` 経由でコマンドを実行します
 
+## アップグレード
+
+### Git URL からインストールした場合
+
+```bash
+uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
+```
+
+### ローカルクローンからインストールした場合
+
+```bash
+cd hachimoku
+git pull
+uv tool install --reinstall .
+```
+
+```{note}
+`uv tool install` は既にインストール済みの場合、何も行いません。
+`--reinstall` フラグにより、全パッケージを強制的に再インストールします。
+このフラグは `--refresh`（キャッシュ無効化）を含意するため、
+リモートリポジトリから確実に最新のコードを取得します。
+```
+
 ## ソースからインストール（開発用）
 
 リポジトリをクローンして依存関係を同期します:
