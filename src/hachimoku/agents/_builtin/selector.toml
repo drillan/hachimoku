@@ -1,5 +1,5 @@
 name = "selector"
-description = "レビュー対象を分析し、最適なレビューエージェントを選択する"
+description = "Analyzes review targets and selects optimal review agents"
 model = "claudecode:claude-opus-4-6"
 allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """

@@ -1,5 +1,5 @@
 name = "code-simplifier"
-description = "コードの簡潔化・改善提案"
+description = "Code simplification and improvement suggestions"
 model = "claudecode:claude-opus-4-6"
 output_schema = "improvement_suggestions"
 phase = "final"
