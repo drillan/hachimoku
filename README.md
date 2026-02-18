@@ -1,32 +1,34 @@
 # hachimoku
 
+**English** | [日本語](README.ja.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/)
 
-hachimoku（8moku）は、複数の専門エージェントを用いてコードレビューを行う CLI ツールです。
-エージェントの定義は TOML ファイルで管理され、コード変更なしにレビュー観点を追加・カスタマイズできます。
+hachimoku (8moku) is a CLI tool that performs code reviews using multiple specialized agents.
+Agent definitions are managed via TOML files, allowing you to add and customize review perspectives without any code changes.
 
-## 主な特徴
+## Key Features
 
-- 3つのレビューモード: diff（ブランチ差分）、PR（GitHub PR）、file（指定ファイル）
-- ビルトインエージェント: コード品質、サイレント障害、テストカバレッジ、型安全性、コメント、簡潔化
-- TOML ベースのエージェント定義でカスタムエージェントを追加可能
-- 逐次実行・並列実行を選択可能
-- LLM ベース結果集約: 複数エージェントの指摘を重複排除・統合し、推奨アクションを生成
-- コスト効率化: セレクター・集約は軽量モデル、レビューは高性能モデルで精度を維持
-- 柔軟なモデル設定: config → definition → global の優先順位で解決、いつでも Opus 4.6 に戻せる
-- Markdown / JSON 出力対応（デフォルトは Markdown）
-- JSONL 形式でレビュー結果を自動蓄積し、レビュー履歴の解析・分析が可能
+- 3 review modes: diff (branch diff), PR (GitHub PR), file (specified files)
+- Built-in agents: code quality, silent failures, test coverage, type safety, comments, simplification
+- Add custom agents via TOML-based agent definitions
+- Choose between sequential and parallel execution
+- LLM-based result aggregation: deduplicates and merges findings from multiple agents, generating recommended actions
+- Cost efficiency: selector and aggregation use lightweight models, reviews use high-performance models to maintain accuracy
+- Flexible model configuration: resolved in config > definition > global priority order, can always fall back to Opus 4.6
+- Markdown / JSON output support (default: Markdown)
+- Automatic review result accumulation in JSONL format for review history analysis
 
-## インストール
+## Installation
 
-`uv tool install` でグローバルにインストールできます。
+Install globally with `uv tool install`:
 
 ```bash
 uv tool install git+https://github.com/drillan/hachimoku.git
 ```
 
-開発者向け（ソースからのセットアップ）:
+For developers (setup from source):
 
 ```bash
 git clone https://github.com/drillan/hachimoku.git
@@ -34,106 +36,106 @@ cd hachimoku
 uv sync
 ```
 
-詳細は [インストール](docs/installation.md) を参照してください。
+See [Installation](docs/installation.md) for details.
 
-## アップグレード
+## Upgrade
 
 ```bash
 uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
 ```
 
-> **Note**: `uv tool install` は既にインストール済みの場合、何も行いません。
-> `--reinstall` フラグにより、リモートリポジトリから最新のコードを取得して再インストールします。
+> **Note**: `uv tool install` does nothing if already installed.
+> The `--reinstall` flag fetches the latest code from the remote repository and reinstalls.
 
-## クイックスタート
+## Quick Start
 
-### 1. プロジェクトの初期化
+### 1. Initialize the Project
 
 ```bash
 8moku init
 ```
 
-`.hachimoku/` ディレクトリにデフォルトの設定ファイルとエージェント定義が作成されます。
+Default configuration files and agent definitions are created in the `.hachimoku/` directory.
 
-### 2. コードレビューの実行
+### 2. Run a Code Review
 
 ```bash
-# diff モード: 現在ブランチの変更差分をレビュー
+# diff mode: review changes in the current branch
 8moku
 
-# PR モード: GitHub PR をレビュー
+# PR mode: review a GitHub PR
 8moku 42
 
-# file モード: 指定ファイルをレビュー
+# file mode: review specified files
 8moku src/main.py tests/test_main.py
 ```
 
-### 3. エージェントの確認
+### 3. View Agents
 
 ```bash
-# エージェント一覧
+# List agents
 8moku agents
 
-# エージェント詳細
+# Agent details
 8moku agents code-reviewer
 ```
 
-## CLI コマンド
+## CLI Commands
 
-| コマンド | 説明 |
-|---------|------|
-| `8moku [OPTIONS] [ARGS]` | コードレビューを実行（デフォルト） |
-| `8moku init [--force]` | `.hachimoku/` ディレクトリを初期化 |
-| `8moku agents [NAME]` | エージェント定義の一覧・詳細表示 |
+| Command | Description |
+|---------|-------------|
+| `8moku [OPTIONS] [ARGS]` | Run a code review (default) |
+| `8moku init [--force]` | Initialize the `.hachimoku/` directory |
+| `8moku agents [NAME]` | List or show details of agent definitions |
 
-主なレビューオプション:
+Main review options:
 
-| オプション | 説明 |
-|-----------|------|
-| `--model TEXT` | LLM モデル名（プレフィックス付き: `claudecode:` or `anthropic:`） |
-| `--timeout INTEGER` | タイムアウト秒数 |
-| `--parallel / --no-parallel` | 並列実行の有効/無効 |
-| `--format FORMAT` | 出力形式（`markdown` / `json`、デフォルト: `markdown`） |
-| `--base-branch TEXT` | diff モードのベースブランチ |
-| `--issue INTEGER` | コンテキスト用 GitHub Issue 番号 |
-| `--no-confirm` | 確認プロンプトをスキップ |
+| Option | Description |
+|--------|-------------|
+| `--model TEXT` | LLM model name (with prefix: `claudecode:` or `anthropic:`) |
+| `--timeout INTEGER` | Timeout in seconds |
+| `--parallel / --no-parallel` | Enable/disable parallel execution |
+| `--format FORMAT` | Output format (`markdown` / `json`, default: `markdown`) |
+| `--base-branch TEXT` | Base branch for diff mode |
+| `--issue INTEGER` | GitHub Issue number for context |
+| `--no-confirm` | Skip confirmation prompts |
 
-## モデルプレフィックス
+## Model Prefixes
 
-hachimoku はモデル名のプレフィックスでプロバイダーを決定します:
+hachimoku determines the provider based on the model name prefix:
 
-| プレフィックス | 説明 | API キー | 例 |
-|--------------|------|---------|-----|
-| `claudecode:` | Claude Code 内蔵モデル（デフォルト） | 不要 | `claudecode:claude-opus-4-6` |
-| `anthropic:` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 | `anthropic:claude-opus-4-6` |
+| Prefix | Description | API Key | Example |
+|--------|-------------|---------|---------|
+| `claudecode:` | Claude Code built-in model (default) | Not required | `claudecode:claude-opus-4-6` |
+| `anthropic:` | Direct Anthropic API call | `ANTHROPIC_API_KEY` required | `anthropic:claude-opus-4-6` |
 
 ```bash
-# Anthropic API を使用する場合
+# Using the Anthropic API
 export ANTHROPIC_API_KEY="your-api-key"
 8moku --model "anthropic:claude-opus-4-6"
 ```
 
-## 設定
+## Configuration
 
-TOML ベースの階層的な設定をサポートします（優先度順）:
+Supports TOML-based hierarchical configuration (in priority order):
 
-1. CLI オプション
+1. CLI options
 2. `.hachimoku/config.toml`
 3. `pyproject.toml [tool.hachimoku]`
 4. `~/.config/hachimoku/config.toml`
-5. デフォルト値
+5. Default values
 
-## ドキュメント
+## Documentation
 
-詳細なドキュメントは [docs/](docs/) を参照してください。
+See [docs/](docs/) for detailed documentation.
 
-- [インストール](docs/installation.md)
-- [CLI リファレンス](docs/cli.md)
-- [エージェント定義](docs/agents.md)
-- [設定](docs/configuration.md)
-- [ドメインモデル](docs/models.md)
-- [Review Context ガイド](docs/review-context.md)
+- [Installation](docs/installation.md)
+- [CLI Reference](docs/cli.md)
+- [Agent Definitions](docs/agents.md)
+- [Configuration](docs/configuration.md)
+- [Domain Models](docs/models.md)
+- [Review Context Guide](docs/review-context.md)
 
-## ライセンス
+## License
 
 [MIT License](LICENSE)
