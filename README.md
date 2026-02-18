@@ -16,10 +16,11 @@ hachimoku（8moku）は、複数の専門エージェントを用いてコード
 - コスト効率化: セレクター・集約は軽量モデル、レビューは高性能モデルで精度を維持
 - 柔軟なモデル設定: config → definition → global の優先順位で解決、いつでも Opus 4.6 に戻せる
 - Markdown / JSON 出力対応（デフォルトは Markdown）
+- JSONL 形式でレビュー結果を自動蓄積し、レビュー履歴の解析・分析が可能
 
 ## インストール
 
-現在 PyPI には未公開です。`uv tool install` でグローバルにインストールできます。
+`uv tool install` でグローバルにインストールできます。
 
 ```bash
 uv tool install git+https://github.com/drillan/hachimoku.git
@@ -34,6 +35,15 @@ uv sync
 ```
 
 詳細は [インストール](docs/installation.md) を参照してください。
+
+## アップグレード
+
+```bash
+uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
+```
+
+> **Note**: `uv tool install` は既にインストール済みの場合、何も行いません。
+> `--reinstall` フラグにより、リモートリポジトリから最新のコードを取得して再インストールします。
 
 ## クイックスタート
 
