@@ -100,6 +100,7 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 - ルール: `.claude/docs.md`
 - ソースディレクトリ: `docs/ja/`（日本語ドキュメント）、`docs/en/`（英語ドキュメント）
 - 共有リソース: `docs/_examples/`, `docs/_static/`, `docs/_templates/`
+- `docs/_examples/` は英語で統一（ja/en 共通で literalinclude 参照するため言語別に分離しない）
 
 ### GitHub Issue 作成ルール
 
