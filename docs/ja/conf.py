@@ -1,7 +1,9 @@
+import importlib.metadata
+
 project = "hachimoku"
 copyright = "2026, driller"
 author = "driller"
-release = "0.0.1"
+release = importlib.metadata.version("hachimoku")
 language = "ja"
 
 extensions = [
