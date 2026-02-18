@@ -279,7 +279,7 @@
 - **FR-RE-006**: システムはデフォルトで同一フェーズ内のエージェントを並列に実行しなければならない（`parallel = true` がデフォルト）。フェーズ間は順序を保持する（early → main → final）。`parallel = false` が明示的に設定された場合はフェーズ順かつ名前辞書順で逐次実行する
 
 - **FR-RE-007**: システムは各エージェントの実行コンテキストを以下の情報から構築しなければならない:
-  - **モデル**: エージェント個別設定 > グローバル設定 > デフォルト値の優先順で解決
+  - **モデル**: エージェント個別設定 > エージェント定義 > グローバル設定 > デフォルト値の優先順で解決
   - **プロバイダー**: モデル名のプレフィックス（`claudecode:` / `anthropic:`）で決定する。Agent 構築直前に `resolve_model()` で pydantic-ai の `Model` オブジェクトに変換する。`claudecode:` プレフィックスは `ClaudeCodeModel`、`anthropic:` プレフィックスはモデル名文字列をそのまま使用する（Issue #125 で `provider` フィールド廃止、プレフィックスベースに統一）
   - **ツール**: エージェント定義の `allowed_tools` のカテゴリ名を ToolCatalog 経由で pydantic-ai ツールに解決（FR-RE-016）
   - **出力スキーマ**: エージェント定義の `output_schema` から SCHEMA_REGISTRY 経由で解決（002-domain-models）。pydantic-ai の `output_type` に設定する
