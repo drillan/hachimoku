@@ -1,5 +1,5 @@
 name = "pr-test-analyzer"
-description = "テストカバレッジの欠落・テスト品質の分析"
+description = "Analysis of test coverage gaps and test quality"
 model = "claudecode:claude-opus-4-6"
 output_schema = "test_gap_assessment"
 phase = "main"

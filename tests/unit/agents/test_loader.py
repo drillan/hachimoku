@@ -551,7 +551,10 @@ class TestLoadAgents:
         _write_toml(tmp_path, "code-reviewer.toml", 'name = "unclosed')
         result = load_agents(custom_dir=tmp_path)
         agent = _find_agent(result.agents, "code-reviewer")
-        assert agent.description == "コード品質・バグ・ベストプラクティスの総合レビュー"
+        assert (
+            agent.description
+            == "Comprehensive review of code quality, bugs, and best practices"
+        )
         assert len(result.errors) == 1
 
     def test_errors_merged(self, tmp_path: Path) -> None:

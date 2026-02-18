@@ -1,5 +1,5 @@
 name = "aggregator"
-description = "複数レビューエージェントの結果を統合し、重複排除・strengths 抽出・推奨アクション生成を行う"
+description = "Consolidates results from multiple review agents with deduplication, strengths extraction, and recommended action generation"
 model = "claudecode:claude-haiku-4-5"
 system_prompt = """
 You are a review result aggregator. Your role is to consolidate results from multiple independent review agents into a unified, actionable report.

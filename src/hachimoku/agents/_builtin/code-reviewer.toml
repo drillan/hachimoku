@@ -1,5 +1,5 @@
 name = "code-reviewer"
-description = "コード品質・バグ・ベストプラクティスの総合レビュー"
+description = "Comprehensive review of code quality, bugs, and best practices"
 model = "claudecode:claude-opus-4-6"
 output_schema = "scored_issues"
 phase = "main"

@@ -1,5 +1,5 @@
 name = "comment-analyzer"
-description = "コードコメントの正確性・品質の分析"
+description = "Analysis of code comment accuracy and quality"
 model = "claudecode:claude-opus-4-6"
 output_schema = "category_classification"
 phase = "final"

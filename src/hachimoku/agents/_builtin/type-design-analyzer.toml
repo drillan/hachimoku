@@ -1,5 +1,5 @@
 name = "type-design-analyzer"
-description = "型アノテーション・型安全性の実用分析"
+description = "Practical analysis of type annotations and type safety"
 model = "claudecode:claude-opus-4-6"
 output_schema = "multi_dimensional_analysis"
 phase = "main"

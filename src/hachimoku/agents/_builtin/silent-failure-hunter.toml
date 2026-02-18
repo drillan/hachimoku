@@ -1,5 +1,5 @@
 name = "silent-failure-hunter"
-description = "サイレント障害・エラーハンドリング不備の検出"
+description = "Detection of silent failures and inadequate error handling"
 model = "claudecode:claude-opus-4-6"
 output_schema = "severity_classified"
 phase = "main"
