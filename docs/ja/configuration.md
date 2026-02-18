@@ -30,7 +30,7 @@ hachimoku は TOML ベースの階層的な設定システムを提供します�
 
 ### .hachimoku/config.toml
 
-```{literalinclude} _examples/config.toml
+```{literalinclude} ../_examples/config.toml
 :language: toml
 :caption: .hachimoku/config.toml
 ```
