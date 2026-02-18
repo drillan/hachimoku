@@ -127,7 +127,9 @@ Supports TOML-based hierarchical configuration (in priority order):
 
 ## Documentation
 
-See [docs/](docs/) for detailed documentation. Available in [English](docs/en/) and [Japanese](docs/ja/).
+📖 **Online**: [English](https://drillan.github.io/hachimoku/en/) | [Japanese](https://drillan.github.io/hachimoku/ja/)
+
+Source files are in [docs/](docs/).
 
 - [Installation](docs/en/installation.md)
 - [CLI Reference](docs/en/cli.md)

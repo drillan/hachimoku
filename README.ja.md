@@ -127,7 +127,9 @@ TOML ベースの階層的な設定をサポートします（優先度順）:
 
 ## ドキュメント
 
-詳細なドキュメントは [docs/](docs/) を参照してください。[日本語](docs/ja/)・[English](docs/en/) で提供しています。
+📖 **オンライン**: [日本語](https://drillan.github.io/hachimoku/ja/) | [English](https://drillan.github.io/hachimoku/en/)
+
+ソースファイルは [docs/](docs/) にあります。
 
 - [インストール](docs/ja/installation.md)
 - [CLI リファレンス](docs/ja/cli.md)
