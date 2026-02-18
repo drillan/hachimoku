@@ -32,7 +32,7 @@ class AgentExecutionContext(HachimokuBaseModel):
 
     Attributes:
         agent_name: エージェント名。
-        model: 解決済みモデル名（個別設定 > グローバル > デフォルト）。
+        model: 解決済みモデル名（個別設定 > エージェント定義 > グローバル）。
         system_prompt: エージェント定義のシステムプロンプト。
         user_message: レビュー指示情報 + オプションコンテキスト。
         output_schema: 解決済み出力スキーマクラス。
@@ -123,8 +123,9 @@ def build_execution_context(
     agent_timeout = agent_config.timeout if agent_config is not None else None
     agent_max_turns = agent_config.max_turns if agent_config is not None else None
 
-    # model は str 型（非 None）のため、専用の3段階解決を行う。
-    # agent_config.model (str | None) > agent_def.model (str) > global_config.model (str)
+    # model は str 型（非 None）のため、専用の2段階解決を行う。
+    # agent_config.model (str | None) > agent_def.model (str)
+    # ※ agent_def.model は必須フィールドのため global_config.model には到達しない
     if agent_model is not None:
         resolved_model = agent_model
     else:

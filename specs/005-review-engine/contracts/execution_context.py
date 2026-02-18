@@ -53,13 +53,10 @@ def build_execution_context(
 ) -> AgentExecutionContext:
     """AgentDefinition と設定からエージェント実行コンテキストを構築する.
 
-    設定値の解決優先順（FR-RE-004）:
+    設定値の解決優先順（FR-RE-007）:
         1. エージェント個別設定（agents.<name>.model / timeout / max_turns）
-        2. グローバル設定（HachimokuConfig.model / timeout / max_turns）
-        3. デフォルト値（HachimokuConfig のフィールドデフォルト）
-
-    モデル名の解決:
-        AgentConfig.model > HachimokuConfig.model
+        2. エージェント定義（agent_def.model / timeout / max_turns）
+        3. グローバル設定（HachimokuConfig.model / timeout / max_turns）
 
     出力スキーマの解決:
         AgentDefinition.resolved_schema（003 で解決済み）

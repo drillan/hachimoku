@@ -363,7 +363,7 @@ class TestBuildExecutionContextModelResolution:
     @pytest.mark.parametrize(
         ("agent_def_model", "global_model", "agent_cfg_model", "expected"),
         [
-            # global のみ（agent_config なし、agent_def は意味のないデフォルト）
+            # agent_config なし → agent_def が使用される
             ("def-model", "global-model", _NO_AGENT_CONFIG, "def-model"),
             # agent_def が global を上書き（agent_config なし）
             (
