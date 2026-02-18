@@ -97,6 +97,8 @@ file モードでは以下の処理が行われます:
 
 - `.hachimoku/config.toml` - 設定ファイル（全オプションがコメントアウトされたテンプレート）
 - `.hachimoku/agents/*.toml` - ビルトインエージェント定義のコピー
+- `.hachimoku/reviews/` - レビュー結果の JSONL 蓄積ディレクトリ
+- `.gitignore` への `/.hachimoku/` エントリ自動追加（未登録の場合のみ）
 
 ## agents
 
