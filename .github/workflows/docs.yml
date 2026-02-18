@@ -35,10 +35,14 @@ jobs:
       - name: Build Japanese docs
         run: make -C docs html-ja
 
+      - name: Build English docs
+        run: make -C docs html-en
+
       - name: Prepare pages directory
         run: |
-          mkdir -p _site/ja
+          mkdir -p _site/ja _site/en
           cp -r docs/ja/_build/html/* _site/ja/
+          cp -r docs/en/_build/html/* _site/en/
           cp docs/_redirect/index.html _site/index.html
 
       - name: Upload artifact

@@ -36,7 +36,7 @@ cd hachimoku
 uv sync
 ```
 
-詳細は [インストール](docs/installation.md) を参照してください。
+詳細は [インストール](docs/ja/installation.md) を参照してください。
 
 ## アップグレード
 
@@ -127,14 +127,14 @@ TOML ベースの階層的な設定をサポートします（優先度順）:
 
 ## ドキュメント
 
-詳細なドキュメントは [docs/](docs/) を参照してください。
+詳細なドキュメントは [docs/](docs/) を参照してください。[日本語](docs/ja/)・[English](docs/en/) で提供しています。
 
-- [インストール](docs/installation.md)
-- [CLI リファレンス](docs/cli.md)
-- [エージェント定義](docs/agents.md)
-- [設定](docs/configuration.md)
-- [ドメインモデル](docs/models.md)
-- [Review Context ガイド](docs/review-context.md)
+- [インストール](docs/ja/installation.md)
+- [CLI リファレンス](docs/ja/cli.md)
+- [エージェント定義](docs/ja/agents.md)
+- [設定](docs/ja/configuration.md)
+- [ドメインモデル](docs/ja/models.md)
+- [Review Context ガイド](docs/ja/review-context.md)
 
 ## ライセンス
 

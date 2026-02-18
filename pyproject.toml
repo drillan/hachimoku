@@ -45,7 +45,7 @@ filterwarnings = [
 ]
 
 [tool.mypy]
-exclude = ["specs/"]
+exclude = ["specs/", "docs/"]
 
 [tool.uv.sources]
 claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }

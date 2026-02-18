@@ -1,5 +1,5 @@
 name = "security-checker"
-description = "セキュリティ脆弱性の検出"
+description = "Detect security vulnerabilities"
 model = "anthropic:claude-opus-4-6"
 output_schema = "scored_issues"
 allowed_tools = ["git_read", "gh_read", "file_read"]
