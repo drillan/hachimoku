@@ -20,12 +20,13 @@ def _make_agent(
     phase: Phase = Phase.MAIN,
     max_turns: int | None = None,
     timeout: int | None = None,
+    model: str = "test-model",
 ) -> AgentDefinition:
     """テスト用 AgentDefinition を生成するヘルパー。"""
     return AgentDefinition(  # type: ignore[call-arg]
         name=name,
         description="Test agent",
-        model="test-model",
+        model=model,
         output_schema="scored_issues",
         system_prompt="You are a test agent.",
         applicability=ApplicabilityRule(always=True),
@@ -350,12 +351,64 @@ class TestBuildExecutionContextBasic:
 # =============================================================================
 
 
-class TestBuildExecutionContextModelResolution:
-    """model フィールドの優先順解決を検証（FR-RE-004）。"""
+_NO_AGENT_CONFIG = "NO_AGENT_CONFIG"
 
-    def test_model_from_global_config_when_no_agent_config(self) -> None:
-        """agent_config=None の場合、global_config.model が使用される。"""
-        agent = _make_agent()
+
+class TestBuildExecutionContextModelResolution:
+    """model フィールドの3段階優先順解決を検証（FR-RE-007, Issue #217）。
+
+    優先順: agent_config > agent_def > global_config。
+    """
+
+    @pytest.mark.parametrize(
+        ("agent_def_model", "global_model", "agent_cfg_model", "expected"),
+        [
+            # global のみ（agent_config なし、agent_def は意味のないデフォルト）
+            ("def-model", "global-model", _NO_AGENT_CONFIG, "def-model"),
+            # agent_def が global を上書き（agent_config なし）
+            (
+                "anthropic:claude-opus-4-6",
+                "global-model",
+                _NO_AGENT_CONFIG,
+                "anthropic:claude-opus-4-6",
+            ),
+            # agent_config=None の場合、agent_def が使用される
+            ("def-model", "global-model", None, "def-model"),
+            # agent_config が agent_def と global を上書き
+            ("def-model", "global-model", "config-model", "config-model"),
+            # agent_def が global と同じ場合、agent_config が上書き
+            ("global-model", "global-model", "config-model", "config-model"),
+        ],
+    )
+    def test_model_priority_resolution(
+        self,
+        agent_def_model: str,
+        global_model: str,
+        agent_cfg_model: str | None,
+        expected: str,
+    ) -> None:
+        """model の優先順を検証: agent_config > agent_def > global_config。"""
+        agent = _make_agent(model=agent_def_model)
+        config = HachimokuConfig(model=global_model)
+        agent_cfg = (
+            None
+            if agent_cfg_model == _NO_AGENT_CONFIG
+            else AgentConfig(model=agent_cfg_model)
+        )
+        ctx = build_execution_context(
+            agent_def=agent,
+            agent_config=agent_cfg,
+            global_config=config,
+            user_message="msg",
+            resolved_tools=(),
+        )
+        assert ctx.model == expected
+
+    def test_model_from_global_when_no_agent_config_and_no_agent_def_override(
+        self,
+    ) -> None:
+        """agent_config=None かつ agent_def.model と global が同じ場合、global 値が使用される。"""
+        agent = _make_agent(model="global-model")
         config = HachimokuConfig(model="global-model")
         ctx = build_execution_context(
             agent_def=agent,
@@ -366,41 +419,10 @@ class TestBuildExecutionContextModelResolution:
         )
         assert ctx.model == "global-model"
 
-    def test_model_from_global_config_when_agent_model_is_none(self) -> None:
-        """agent_config.model=None の場合、global_config.model が使用される。"""
-        agent = _make_agent()
-        config = HachimokuConfig(model="global-model")
-        agent_cfg = AgentConfig(model=None)
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.model == "global-model"
-
-    def test_model_from_agent_config_overrides_global(self) -> None:
-        """agent_config.model が global_config.model を上書きする。"""
-        agent = _make_agent()
-        config = HachimokuConfig(model="global-model")
-        agent_cfg = AgentConfig(model="agent-model")
-        ctx = build_execution_context(
-            agent_def=agent,
-            agent_config=agent_cfg,
-            global_config=config,
-            user_message="msg",
-            resolved_tools=(),
-        )
-        assert ctx.model == "agent-model"
-
 
 # =============================================================================
 # build_execution_context — timeout 優先順解決
 # =============================================================================
-
-
-_NO_AGENT_CONFIG = "NO_AGENT_CONFIG"
 
 
 class TestBuildExecutionContextTimeoutResolution:
@@ -511,8 +533,8 @@ class TestBuildExecutionContextPartialOverride:
         assert ctx.max_turns == 20
 
     def test_partial_agent_config_timeout_and_max_turns_only(self) -> None:
-        """timeout と max_turns のみ設定し、model はグローバル値が使用される。"""
-        agent = _make_agent()
+        """timeout と max_turns のみ設定し、model は agent_def 値が使用される。"""
+        agent = _make_agent(model="def-model")
         config = HachimokuConfig(model="global-model", timeout=600, max_turns=20)
         agent_cfg = AgentConfig(timeout=60, max_turns=5)
         ctx = build_execution_context(
@@ -522,7 +544,7 @@ class TestBuildExecutionContextPartialOverride:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.model == "global-model"
+        assert ctx.model == "def-model"
         assert ctx.timeout_seconds == 60
         assert ctx.max_turns == 5
 
@@ -537,7 +559,7 @@ class TestBuildExecutionContextPhaseVariants:
 
     def test_defaults_from_hachimoku_config(self) -> None:
         """HachimokuConfig のデフォルト値がコンテキストに正しく伝播する。"""
-        agent = _make_agent()
+        agent = _make_agent(model="claudecode:claude-opus-4-6")
         ctx = build_execution_context(
             agent_def=agent,
             agent_config=None,

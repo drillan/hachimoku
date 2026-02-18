@@ -102,12 +102,10 @@ def build_execution_context(
 ) -> AgentExecutionContext:
     """AgentDefinition と設定からエージェント実行コンテキストを構築する。
 
-    設定値の解決優先順（FR-RE-004）:
-        1. エージェント個別設定（agents.<name>.timeout / max_turns）
-        2. エージェント定義（agent_def.timeout / max_turns）
-        3. グローバル設定（HachimokuConfig.timeout / max_turns）
-
-    model は従来通り 2 段階（エージェント個別設定 > グローバル設定）。
+    設定値の解決優先順（FR-RE-007）:
+        1. エージェント個別設定（agents.<name>.model / timeout / max_turns）
+        2. エージェント定義（agent_def.model / timeout / max_turns）
+        3. グローバル設定（HachimokuConfig.model / timeout / max_turns）
 
     Args:
         agent_def: エージェント定義。
@@ -121,16 +119,20 @@ def build_execution_context(
     Returns:
         構築された実行コンテキスト。
     """
+    agent_model = agent_config.model if agent_config is not None else None
     agent_timeout = agent_config.timeout if agent_config is not None else None
     agent_max_turns = agent_config.max_turns if agent_config is not None else None
 
+    # model は str 型（非 None）のため、専用の3段階解決を行う。
+    # agent_config.model (str | None) > agent_def.model (str) > global_config.model (str)
+    if agent_model is not None:
+        resolved_model = agent_model
+    else:
+        resolved_model = agent_def.model
+
     return AgentExecutionContext(
         agent_name=agent_def.name,
-        model=(
-            agent_config.model
-            if agent_config is not None and agent_config.model is not None
-            else global_config.model
-        ),
+        model=resolved_model,
         system_prompt=agent_def.system_prompt,
         user_message=user_message,
         output_schema=agent_def.resolved_schema,
