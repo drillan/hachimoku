@@ -94,11 +94,13 @@ uv --directory $PROJECT_ROOT run mypy .          # 型チェック
 
 ## ドキュメント
 
-- ビルド: `make -C docs html`（`html-ja` のエイリアス）
+- ビルド: `make -C docs html`（全言語ビルド）
 - 日本語のみビルド: `make -C docs html-ja`
+- 英語のみビルド: `make -C docs html-en`
 - ルール: `.claude/docs.md`
-- ソースディレクトリ: `docs/ja/`（日本語ドキュメント）
+- ソースディレクトリ: `docs/ja/`（日本語ドキュメント）、`docs/en/`（英語ドキュメント）
 - 共有リソース: `docs/_examples/`, `docs/_static/`, `docs/_templates/`
+- `docs/_examples/` は英語で統一（ja/en 共通で literalinclude 参照するため言語別に分離しない）
 
 ### GitHub Issue 作成ルール
 

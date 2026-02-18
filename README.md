@@ -36,7 +36,7 @@ cd hachimoku
 uv sync
 ```
 
-See [Installation](docs/installation.md) for details.
+See [Installation](docs/en/installation.md) for details.
 
 ## Upgrade
 
@@ -127,14 +127,14 @@ Supports TOML-based hierarchical configuration (in priority order):
 
 ## Documentation
 
-See [docs/](docs/) for detailed documentation.
+See [docs/](docs/) for detailed documentation. Available in [English](docs/en/) and [Japanese](docs/ja/).
 
-- [Installation](docs/installation.md)
-- [CLI Reference](docs/cli.md)
-- [Agent Definitions](docs/agents.md)
-- [Configuration](docs/configuration.md)
-- [Domain Models](docs/models.md)
-- [Review Context Guide](docs/review-context.md)
+- [Installation](docs/en/installation.md)
+- [CLI Reference](docs/en/cli.md)
+- [Agent Definitions](docs/en/agents.md)
+- [Configuration](docs/en/configuration.md)
+- [Domain Models](docs/en/models.md)
+- [Review Context Guide](docs/en/review-context.md)
 
 ## License
 

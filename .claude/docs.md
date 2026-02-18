@@ -9,9 +9,15 @@ Sphinx + MyST-Parser (Markdown) + Mermaid でドキュメントをビルドし�
 ### Building Docs
 
 ```bash
-# 推奨
+# 推奨（全言語ビルド）
 make -C docs html
-# Output: docs/ja/_build/html/index.html
+# Output: docs/ja/_build/html/index.html, docs/en/_build/html/index.html
+
+# 日本語のみ
+make -C docs html-ja
+
+# 英語のみ
+make -C docs html-en
 
 # クリーンビルド
 make -C docs clean html
@@ -175,12 +181,16 @@ This is a note.
 
 ```
 docs/
-├── Makefile              # ビルドヘルパー（html-ja ターゲット）
+├── Makefile              # ビルドヘルパー（html-ja, html-en ターゲット）
 ├── _examples/            # 共有サンプルファイル
 ├── _static/              # 共有静的ファイル
 ├── _templates/           # 共有カスタムテンプレート
 ├── _redirect/            # GitHub Pages リダイレクト
-│   └── index.html        # ルート → ja/ リダイレクト
+│   └── index.html        # ルート → en/ リダイレクト
+├── en/                   # 英語ドキュメント
+│   ├── conf.py           # Sphinx 設定 (language="en")
+│   ├── index.md          # Landing page
+│   └── *.md              # Document files
 └── ja/                   # 日本語ドキュメント
     ├── conf.py           # Sphinx 設定 (language="ja")
     ├── index.md          # ランディングページ
@@ -346,11 +356,11 @@ make -C docs clean html
 
 ## Configuration
 
-Sphinx の設定は `docs/ja/conf.py` に記述されています。
+Sphinx の設定は各言語ディレクトリの `conf.py` に記述されています（`docs/ja/conf.py`, `docs/en/conf.py`）。
 
 ```python
 project = "hachimoku"
-language = "ja"
+language = "ja"  # or "en"
 
 extensions = [
     "myst_parser",
