@@ -241,6 +241,20 @@ class TestLoadBuiltinAgents:
         for agent in builtin_agents:
             assert isinstance(agent, AgentDefinition)
 
+    def test_all_builtin_agents_use_claudecode_provider(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        """全ビルトインエージェントの model が claudecode: プレフィックスを使用する。
+
+        Issue #231: ビルトインエージェントのデフォルトプロバイダーは
+        claudecode:（HachimokuConfig.model のデフォルトと一致）でなければならない。
+        """
+        for agent in builtin_agents:
+            assert agent.model.startswith("claudecode:"), (
+                f"Agent '{agent.name}' uses model '{agent.model}', "
+                f"expected 'claudecode:' prefix"
+            )
+
 
 # =============================================================================
 # T014: load_builtin_agents — エラー収集パスの検証

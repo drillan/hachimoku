@@ -1,6 +1,6 @@
 name = "silent-failure-hunter"
 description = "サイレント障害・エラーハンドリング不備の検出"
-model = "anthropic:claude-opus-4-6"
+model = "claudecode:claude-opus-4-6"
 output_schema = "severity_classified"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

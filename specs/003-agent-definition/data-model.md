@@ -198,7 +198,7 @@ always = true
 # 必須フィールド
 name = "agent-name"                    # ^[a-z0-9-]+$
 description = "エージェントの説明"
-model = "anthropic:claude-opus-4-6"
+model = "claudecode:claude-opus-4-6"
 output_schema = "scored_issues"        # SCHEMA_REGISTRY 登録名
 system_prompt = """
 システムプロンプトの内容

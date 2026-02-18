@@ -1,6 +1,6 @@
 name = "type-design-analyzer"
 description = "型アノテーション・型安全性の実用分析"
-model = "anthropic:claude-opus-4-6"
+model = "claudecode:claude-opus-4-6"
 output_schema = "multi_dimensional_analysis"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]
