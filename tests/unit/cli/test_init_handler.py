@@ -299,6 +299,23 @@ class TestEnsureGitignore:
         expected = f"{GITIGNORE_SECTION}\n{GITIGNORE_ENTRY}\n"
         assert content == expected
 
+    def test_non_utf8_gitignore_raises_init_error(self, tmp_path: Path) -> None:
+        """非 UTF-8 エンコーディングの .gitignore で InitError が送出される。"""
+        gitignore = tmp_path / ".gitignore"
+        # Shift_JIS でエンコードされた日本語コメントを含む .gitignore
+        gitignore.write_bytes("# プロジェクト設定\nnode_modules/\n".encode("shift_jis"))
+
+        with pytest.raises(InitError):
+            _ensure_gitignore(tmp_path)
+
+    def test_non_utf8_gitignore_error_contains_hint(self, tmp_path: Path) -> None:
+        """非 UTF-8 .gitignore のエラーメッセージに解決方法ヒントが含まれる。"""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_bytes("# プロジェクト設定\n".encode("shift_jis"))
+
+        with pytest.raises(InitError, match=r"\.gitignore"):
+            _ensure_gitignore(tmp_path)
+
 
 # --- TestCopyBuiltinAgents ---
 
@@ -522,3 +539,16 @@ class TestRunInit:
                 run_init(project)
         finally:
             project.chmod(0o755)
+
+    def test_non_utf8_gitignore_raises_init_error(self, tmp_path: Path) -> None:
+        """非 UTF-8 .gitignore が存在する場合、InitError が送出される。
+
+        UnicodeDecodeError は ValueError のサブクラスであり OSError ではないため、
+        明示的に InitError に変換する必要がある（Issue #247）。
+        """
+        (tmp_path / ".git").mkdir()
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_bytes("# プロジェクト設定\n".encode("shift_jis"))
+
+        with pytest.raises(InitError, match=r"\.gitignore"):
+            run_init(tmp_path)
