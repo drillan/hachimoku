@@ -529,8 +529,9 @@ def _build_target(
         return DiffTarget(base_branch=config.base_branch, issue_number=issue)
     if isinstance(resolved, PRInput):
         return PRTarget(pr_number=resolved.pr_number, issue_number=issue)
-    # FileInput
-    return FileTarget(paths=resolved.paths, issue_number=issue)
+    if isinstance(resolved, FileInput):
+        return FileTarget(paths=resolved.paths, issue_number=issue)
+    assert_never(resolved)
 
 
 def _save_review_result(
