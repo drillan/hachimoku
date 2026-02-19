@@ -16,6 +16,7 @@ from hachimoku.cli._file_resolver import (
     _expand_single_path,
     _is_binary_file,
     _is_glob_pattern,
+    _resolve_if_text,
     resolve_files,
 )
 
@@ -345,7 +346,7 @@ class TestResolveFiles:
         """単一ファイルの解決。"""
         f = tmp_path / "a.py"
         f.write_text("a")
-        result = resolve_files((str(f),))
+        result, _ = resolve_files((str(f),))
         assert result is not None
         assert len(result.paths) == 1
         assert result.paths[0] == str(f.resolve())
@@ -356,7 +357,7 @@ class TestResolveFiles:
         f2 = tmp_path / "b.py"
         f1.write_text("a")
         f2.write_text("b")
-        result = resolve_files((str(f1), str(f2)))
+        result, _ = resolve_files((str(f1), str(f2)))
         assert result is not None
         assert len(result.paths) == 2
 
@@ -364,7 +365,7 @@ class TestResolveFiles:
         """ディレクトリの解決。"""
         (tmp_path / "x.py").write_text("x")
         (tmp_path / "y.py").write_text("y")
-        result = resolve_files((str(tmp_path),))
+        result, _ = resolve_files((str(tmp_path),))
         assert result is not None
         assert len(result.paths) == 2
 
@@ -375,7 +376,7 @@ class TestResolveFiles:
         monkeypatch.chdir(tmp_path)
         (tmp_path / "a.py").write_text("a")
         (tmp_path / "b.txt").write_text("b")
-        result = resolve_files(("*.py",))
+        result, _ = resolve_files(("*.py",))
         assert result is not None
         assert len(result.paths) == 1
 
@@ -386,7 +387,7 @@ class TestResolveFiles:
         f = tmp_path / "standalone.py"
         f.write_text("standalone")
         (sub / "nested.py").write_text("nested")
-        result = resolve_files((str(f), str(sub)))
+        result, _ = resolve_files((str(f), str(sub)))
         assert result is not None
         assert len(result.paths) == 2
 
@@ -395,7 +396,7 @@ class TestResolveFiles:
         (tmp_path / "z.py").write_text("z")
         (tmp_path / "a.py").write_text("a")
         (tmp_path / "m.py").write_text("m")
-        result = resolve_files((str(tmp_path),))
+        result, _ = resolve_files((str(tmp_path),))
         assert result is not None
         assert list(result.paths) == sorted(result.paths)
 
@@ -403,7 +404,7 @@ class TestResolveFiles:
         """同一ファイルの重複排除。"""
         f = tmp_path / "a.py"
         f.write_text("a")
-        result = resolve_files((str(f), str(f)))
+        result, _ = resolve_files((str(f), str(f)))
         assert result is not None
         assert len(result.paths) == 1
 
@@ -418,7 +419,7 @@ class TestResolveFiles:
         """相対パスは cwd から解決。"""
         monkeypatch.chdir(tmp_path)
         (tmp_path / "rel.py").write_text("rel")
-        result = resolve_files(("rel.py",))
+        result, _ = resolve_files(("rel.py",))
         assert result is not None
         assert Path(result.paths[0]).is_absolute()
 
@@ -426,7 +427,7 @@ class TestResolveFiles:
         """絶対パスを受け入れる。"""
         f = tmp_path / "abs.py"
         f.write_text("abs")
-        result = resolve_files((str(f.resolve()),))
+        result, _ = resolve_files((str(f.resolve()),))
         assert result is not None
         assert len(result.paths) == 1
 
@@ -436,9 +437,8 @@ class TestResolveFiles:
         dir_a.mkdir()
         (dir_a / "file.py").write_text("content")
         (dir_a / "loop").symlink_to(dir_a)
-        result = resolve_files((str(dir_a),))
-        assert result is not None
-        assert len(result.warnings) > 0
+        _, warnings = resolve_files((str(dir_a),))
+        assert len(warnings) > 0
 
     def test_all_empty_returns_none(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -446,14 +446,14 @@ class TestResolveFiles:
         """全パスが空結果 → None。"""
         monkeypatch.chdir(tmp_path)
         # glob パターンでマッチなし → 空
-        result = resolve_files(("*.nonexistent_extension",))
+        result, _ = resolve_files(("*.nonexistent_extension",))
         assert result is None
 
     def test_empty_directory_returns_none(self, tmp_path: Path) -> None:
         """空ディレクトリのみ → None。"""
         empty = tmp_path / "empty"
         empty.mkdir()
-        result = resolve_files((str(empty),))
+        result, _ = resolve_files((str(empty),))
         assert result is None
 
     def test_duplicate_directory_across_paths_not_skipped(self, tmp_path: Path) -> None:
@@ -462,12 +462,12 @@ class TestResolveFiles:
         sub.mkdir()
         (sub / "file.py").write_text("content")
         # sub を直接パスで2回指定
-        result = resolve_files((str(sub), str(sub)))
+        result, warnings = resolve_files((str(sub), str(sub)))
         assert result is not None
         # 重複排除で1ファイル
         assert len(result.paths) == 1
         # 循環参照の警告は出ない（重複排除で処理される）
-        assert not any("symlink cycle" in w.lower() for w in result.warnings)
+        assert not any("symlink cycle" in w.lower() for w in warnings)
 
 
 # --- _is_binary_file ---
@@ -591,7 +591,7 @@ class TestResolveFilesBinary:
         """ディレクトリモードでバイナリが除外される。"""
         (tmp_path / "valid.py").write_text("code")
         (tmp_path / "binary.so").write_bytes(b"\x7fELF" + b"\x00" * 100)
-        result = resolve_files((str(tmp_path),))
+        result, _ = resolve_files((str(tmp_path),))
         assert result is not None
         assert len(result.paths) == 1
         assert result.paths[0].endswith("valid.py")
@@ -600,14 +600,73 @@ class TestResolveFilesBinary:
         """バイナリスキップの警告が結果に含まれる。"""
         (tmp_path / "code.py").write_text("code")
         (tmp_path / "image.bin").write_bytes(b"\xff\xfe" + b"\x00" * 50)
-        result = resolve_files((str(tmp_path),))
-        assert result is not None
-        assert len(result.warnings) > 0
-        assert any("binary file" in w.lower() for w in result.warnings)
+        _, warnings = resolve_files((str(tmp_path),))
+        assert len(warnings) > 0
+        assert any("binary file" in w.lower() for w in warnings)
 
     def test_all_binary_files_returns_none(self, tmp_path: Path) -> None:
         """全ファイルがバイナリ → None。"""
         (tmp_path / "a.pyc").write_bytes(b"\x00\x01\x02")
         (tmp_path / "b.so").write_bytes(b"\x7fELF\x00")
-        result = resolve_files((str(tmp_path),))
+        result, _ = resolve_files((str(tmp_path),))
         assert result is None
+
+    def test_all_binary_warnings_preserved_on_none(self, tmp_path: Path) -> None:
+        """全バイナリで None 時も警告が保存される。"""
+        (tmp_path / "a.pyc").write_bytes(b"\x00\x01\x02")
+        (tmp_path / "b.so").write_bytes(b"\x7fELF\x00")
+        result, warnings = resolve_files((str(tmp_path),))
+        assert result is None
+        assert len(warnings) == 2
+        assert all("binary file" in w.lower() for w in warnings)
+
+
+# --- _resolve_if_text: OSError ハンドリング ---
+
+
+class TestResolveIfText:
+    """_resolve_if_text() のテスト。"""
+
+    def test_text_file_returns_path(self, tmp_path: Path) -> None:
+        """テキストファイル → (パス, None)。"""
+        f = tmp_path / "text.py"
+        f.write_text("# code")
+        path_str, warning = _resolve_if_text(f)
+        assert path_str == str(f.resolve())
+        assert warning is None
+
+    def test_binary_file_returns_warning(self, tmp_path: Path) -> None:
+        """バイナリファイル → (None, 警告)。"""
+        f = tmp_path / "binary.dat"
+        f.write_bytes(b"\x00data")
+        path_str, warning = _resolve_if_text(f)
+        assert path_str is None
+        assert warning is not None
+        assert "binary file" in warning.lower()
+
+    def test_unreadable_file_returns_warning(self, tmp_path: Path) -> None:
+        """読み取り権限なしのファイル → (None, 警告)。"""
+        f = tmp_path / "no_read.py"
+        f.write_text("content")
+        f.chmod(0o000)
+        try:
+            path_str, warning = _resolve_if_text(f)
+            assert path_str is None
+            assert warning is not None
+            assert "unreadable file" in warning.lower()
+        finally:
+            f.chmod(0o644)
+
+    def test_unreadable_file_skipped_in_directory(self, tmp_path: Path) -> None:
+        """ディレクトリ内の読み取り不可ファイルがスキップされる。"""
+        (tmp_path / "readable.py").write_text("content")
+        no_read = tmp_path / "no_read.py"
+        no_read.write_text("secret")
+        no_read.chmod(0o000)
+        try:
+            paths, warnings = _expand_single_path(str(tmp_path), set())
+            assert len(paths) == 1
+            assert Path(paths[0]).name == "readable.py"
+            assert any("unreadable file" in w.lower() for w in warnings)
+        finally:
+            no_read.chmod(0o644)

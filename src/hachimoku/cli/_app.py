@@ -274,10 +274,13 @@ def review_callback(
     # 3.6. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
     if isinstance(resolved, FileInput):
         try:
-            resolved_files = resolve_files(resolved.paths)
+            resolved_files, file_warnings = resolve_files(resolved.paths)
         except FileResolutionError as e:
             print(f"Error: {e}", file=sys.stderr)
             raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+
+        for warning in file_warnings:
+            print(f"Warning: {warning}", file=sys.stderr)
 
         if resolved_files is None:
             print(
@@ -285,9 +288,6 @@ def review_callback(
                 file=sys.stderr,
             )
             raise typer.Exit(code=ExitCode.SUCCESS)
-
-        for warning in resolved_files.warnings:
-            print(f"Warning: {warning}", file=sys.stderr)
 
         file_count = len(resolved_files.paths)
         if file_count > config.max_files_per_review and not no_confirm:

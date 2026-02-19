@@ -34,6 +34,26 @@ def _is_binary_file(file_path: Path) -> bool:
     return b"\x00" in chunk
 
 
+def _resolve_if_text(file_path: Path) -> tuple[str | None, str | None]:
+    """ファイルを解決し、テキストファイルならパスを返す。
+
+    バイナリファイルまたは読み取り不可ファイルの場合は警告を返す。
+
+    Args:
+        file_path: チェック対象のファイルパス。
+
+    Returns:
+        (解決済み絶対パス, None) または (None, 警告メッセージ)。
+    """
+    resolved = str(file_path.resolve())
+    try:
+        if _is_binary_file(file_path):
+            return None, f"Skipping binary file: {resolved}"
+    except OSError:
+        return None, f"Skipping unreadable file: {resolved}"
+    return resolved, None
+
+
 class ResolvedFiles(HachimokuBaseModel):
     """ファイル解決結果。
 
@@ -72,7 +92,7 @@ def _expand_directory(
     dir_path: Path,
     seen_real_dirs: set[Path],
 ) -> tuple[list[str], list[str]]:
-    """ディレクトリを再帰探索する。シンボリックリンク循環参照を検出する。
+    """ディレクトリを再帰探索する。バイナリファイルを除外し、循環参照を検出する。
 
     rglob("*") ではなく iterdir() + 手動再帰を使用する。
     rglob はシンボリックリンクを自動追従するため、循環参照で無限ループのリスクがある。
@@ -102,10 +122,11 @@ def _expand_directory(
 
     for entry in entries:
         if entry.is_file():
-            if _is_binary_file(entry):
-                warnings.append(f"Skipping binary file: {entry.resolve()}")
-            else:
-                file_paths.append(str(entry.resolve()))
+            path_str, warning = _resolve_if_text(entry)
+            if warning:
+                warnings.append(warning)
+            elif path_str:
+                file_paths.append(path_str)
         elif entry.is_dir():
             sub_files, sub_warnings = _expand_directory(entry, seen_real_dirs)
             file_paths.extend(sub_files)
@@ -118,12 +139,14 @@ def _expand_single_path(
     raw_path: str,
     seen_real_dirs: set[Path],
 ) -> tuple[list[str], list[str]]:
-    """単一パスを展開する。
+    """単一パスを展開する。バイナリファイルは警告付きでスキップする。
 
     ディスパッチ順序:
     1. glob パターン → glob.glob() で展開
     2. 存在確認 → ファイル or ディレクトリ
     3. 不存在 → FileResolutionError
+
+    各ファイルについてバイナリ判定を行い、バイナリファイルは警告付きでスキップする。
 
     Args:
         raw_path: 未展開のパス文字列。
@@ -143,10 +166,11 @@ def _expand_single_path(
         for m in matched:
             p = Path(m)
             if p.is_file():
-                if _is_binary_file(p):
-                    warnings.append(f"Skipping binary file: {p.resolve()}")
-                else:
-                    files.append(str(p.resolve()))
+                path_str, warning = _resolve_if_text(p)
+                if warning:
+                    warnings.append(warning)
+                elif path_str:
+                    files.append(path_str)
             elif p.is_dir():
                 sub_files, sub_warnings = _expand_directory(p, seen_real_dirs)
                 files.extend(sub_files)
@@ -163,11 +187,13 @@ def _expand_single_path(
 
     resolved = path.resolve()
 
-    # 3. ファイル → 解決済み絶対パス（バイナリはスキップ）
+    # 3. ファイル → 解決済み絶対パス（バイナリ・読み取り不可はスキップ）
     if resolved.is_file():
-        if _is_binary_file(resolved):
-            return [], [f"Skipping binary file: {resolved}"]
-        return [str(resolved)], []
+        path_str, warning = _resolve_if_text(resolved)
+        if warning:
+            return [], [warning]
+        assert path_str is not None
+        return [path_str], []
 
     # 4. ディレクトリ → 再帰探索
     if resolved.is_dir():
@@ -180,14 +206,18 @@ def _expand_single_path(
     )
 
 
-def resolve_files(raw_paths: tuple[str, ...]) -> ResolvedFiles | None:
+def resolve_files(
+    raw_paths: tuple[str, ...],
+) -> tuple[ResolvedFiles | None, tuple[str, ...]]:
     """入力パス群を具体的なファイルパスリストに展開する。
 
     Args:
         raw_paths: 未展開のパス文字列タプル。
 
     Returns:
-        ResolvedFiles: 展開済みファイルパスと警告。空結果の場合は None。
+        (ResolvedFiles | None, warnings): 展開済みファイルパスと警告のタプル。
+        ファイルが見つからない場合は (None, warnings) を返す。
+        警告は結果の有無にかかわらず常に返される。
 
     Raises:
         FileResolutionError: 指定パスが存在しない場合。
@@ -202,11 +232,12 @@ def resolve_files(raw_paths: tuple[str, ...]) -> ResolvedFiles | None:
         all_warnings.extend(warnings)
 
     unique_files = sorted(set(all_files))
+    warnings_tuple = tuple(all_warnings)
 
     if not unique_files:
-        return None
+        return None, warnings_tuple
 
     return ResolvedFiles(
         paths=tuple(unique_files),
-        warnings=tuple(all_warnings),
-    )
+        warnings=warnings_tuple,
+    ), warnings_tuple
