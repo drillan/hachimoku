@@ -4,6 +4,7 @@ T003: OutputFormat enum
 T004: AgentConfig model
 T005: HachimokuConfig model
 T006: SelectorConfig model (US5, FR-CF-010)
+T007: _OverridableExecutionConfig base class (Issue #261)
 """
 
 import pytest
@@ -15,6 +16,7 @@ from hachimoku.models.config import (
     HachimokuConfig,
     OutputFormat,
     SelectorConfig,
+    _OverridableExecutionConfig,
 )
 
 
@@ -551,3 +553,99 @@ class TestHachimokuConfigAggregation:
         """aggregation.model を指定できること。"""
         config = HachimokuConfig(aggregation={"model": "opus"})  # type: ignore[arg-type]
         assert config.aggregation.model == "opus"
+
+
+# =============================================================================
+# T007: _OverridableExecutionConfig (Issue #261)
+# =============================================================================
+
+
+class TestOverridableExecutionConfigInheritance:
+    """3クラスが _OverridableExecutionConfig を継承していること。"""
+
+    def test_selector_config_inherits(self) -> None:
+        """SelectorConfig が _OverridableExecutionConfig のサブクラスであること。"""
+        assert issubclass(SelectorConfig, _OverridableExecutionConfig)
+
+    def test_agent_config_inherits(self) -> None:
+        """AgentConfig が _OverridableExecutionConfig のサブクラスであること。"""
+        assert issubclass(AgentConfig, _OverridableExecutionConfig)
+
+    def test_aggregation_config_inherits(self) -> None:
+        """AggregationConfig が _OverridableExecutionConfig のサブクラスであること。"""
+        assert issubclass(AggregationConfig, _OverridableExecutionConfig)
+
+
+class TestOverridableExecutionConfigFields:
+    """_OverridableExecutionConfig が共通フィールドを定義していること。"""
+
+    def test_model_field_defined(self) -> None:
+        """model フィールドが基底クラスで定義されていること。"""
+        assert "model" in _OverridableExecutionConfig.model_fields
+
+    def test_timeout_field_defined(self) -> None:
+        """timeout フィールドが基底クラスで定義されていること。"""
+        assert "timeout" in _OverridableExecutionConfig.model_fields
+
+    def test_max_turns_field_defined(self) -> None:
+        """max_turns フィールドが基底クラスで定義されていること。"""
+        assert "max_turns" in _OverridableExecutionConfig.model_fields
+
+    def test_field_count(self) -> None:
+        """基底クラス固有のフィールドが3つであること。"""
+        assert len(_OverridableExecutionConfig.model_fields) == 3
+
+    def test_model_default_none(self) -> None:
+        """model のデフォルトが None であること。"""
+        field = _OverridableExecutionConfig.model_fields["model"]
+        assert field.default is None
+
+    def test_timeout_default_none(self) -> None:
+        """timeout のデフォルトが None であること。"""
+        field = _OverridableExecutionConfig.model_fields["timeout"]
+        assert field.default is None
+
+    def test_max_turns_default_none(self) -> None:
+        """max_turns のデフォルトが None であること。"""
+        field = _OverridableExecutionConfig.model_fields["max_turns"]
+        assert field.default is None
+
+
+class TestOverridableExecutionConfigNotInChildFields:
+    """子クラスが共通フィールドを独自に再定義していないこと。"""
+
+    def test_selector_model_from_parent(self) -> None:
+        """SelectorConfig.model が親クラスから継承されていること。"""
+        assert "model" not in SelectorConfig.__annotations__
+
+    def test_agent_model_from_parent(self) -> None:
+        """AgentConfig.model が親クラスから継承されていること。"""
+        assert "model" not in AgentConfig.__annotations__
+
+    def test_aggregation_model_from_parent(self) -> None:
+        """AggregationConfig.model が親クラスから継承されていること。"""
+        assert "model" not in AggregationConfig.__annotations__
+
+    def test_selector_timeout_from_parent(self) -> None:
+        """SelectorConfig.timeout が親クラスから継承されていること。"""
+        assert "timeout" not in SelectorConfig.__annotations__
+
+    def test_agent_timeout_from_parent(self) -> None:
+        """AgentConfig.timeout が親クラスから継承されていること。"""
+        assert "timeout" not in AgentConfig.__annotations__
+
+    def test_aggregation_timeout_from_parent(self) -> None:
+        """AggregationConfig.timeout が親クラスから継承されていること。"""
+        assert "timeout" not in AggregationConfig.__annotations__
+
+    def test_selector_max_turns_from_parent(self) -> None:
+        """SelectorConfig.max_turns が親クラスから継承されていること。"""
+        assert "max_turns" not in SelectorConfig.__annotations__
+
+    def test_agent_max_turns_from_parent(self) -> None:
+        """AgentConfig.max_turns が親クラスから継承されていること。"""
+        assert "max_turns" not in AgentConfig.__annotations__
+
+    def test_aggregation_max_turns_from_parent(self) -> None:
+        """AggregationConfig.max_turns が親クラスから継承されていること。"""
+        assert "max_turns" not in AggregationConfig.__annotations__
