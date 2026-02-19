@@ -14,6 +14,24 @@ from pydantic import Field
 from hachimoku.models._base import HachimokuBaseModel
 
 _GLOB_SPECIAL_CHARS = frozenset("*?[")
+_BINARY_CHECK_SIZE = 8192  # 8KB — git と同じヒューリスティクス
+
+
+def _is_binary_file(file_path: Path) -> bool:
+    """ファイルがバイナリかどうかを判定する。
+
+    ファイル先頭の 8KB を読み込み、NULL バイト（0x00）が含まれていれば
+    バイナリと判定する（git と同じヒューリスティクス）。
+
+    Args:
+        file_path: チェック対象のファイルパス。
+
+    Returns:
+        バイナリファイルの場合 True。
+    """
+    with file_path.open("rb") as f:
+        chunk = f.read(_BINARY_CHECK_SIZE)
+    return b"\x00" in chunk
 
 
 class ResolvedFiles(HachimokuBaseModel):
@@ -84,7 +102,10 @@ def _expand_directory(
 
     for entry in entries:
         if entry.is_file():
-            file_paths.append(str(entry.resolve()))
+            if _is_binary_file(entry):
+                warnings.append(f"Skipping binary file: {entry.resolve()}")
+            else:
+                file_paths.append(str(entry.resolve()))
         elif entry.is_dir():
             sub_files, sub_warnings = _expand_directory(entry, seen_real_dirs)
             file_paths.extend(sub_files)
@@ -122,7 +143,10 @@ def _expand_single_path(
         for m in matched:
             p = Path(m)
             if p.is_file():
-                files.append(str(p.resolve()))
+                if _is_binary_file(p):
+                    warnings.append(f"Skipping binary file: {p.resolve()}")
+                else:
+                    files.append(str(p.resolve()))
             elif p.is_dir():
                 sub_files, sub_warnings = _expand_directory(p, seen_real_dirs)
                 files.extend(sub_files)
@@ -139,8 +163,10 @@ def _expand_single_path(
 
     resolved = path.resolve()
 
-    # 3. ファイル → 解決済み絶対パス
+    # 3. ファイル → 解決済み絶対パス（バイナリはスキップ）
     if resolved.is_file():
+        if _is_binary_file(resolved):
+            return [], [f"Skipping binary file: {resolved}"]
         return [str(resolved)], []
 
     # 4. ディレクトリ → 再帰探索

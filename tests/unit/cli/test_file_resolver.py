@@ -14,6 +14,7 @@ from hachimoku.cli._file_resolver import (
     FileResolutionError,
     ResolvedFiles,
     _expand_single_path,
+    _is_binary_file,
     _is_glob_pattern,
     resolve_files,
 )
@@ -467,3 +468,146 @@ class TestResolveFiles:
         assert len(result.paths) == 1
         # 循環参照の警告は出ない（重複排除で処理される）
         assert not any("symlink cycle" in w.lower() for w in result.warnings)
+
+
+# --- _is_binary_file ---
+
+
+class TestIsBinaryFile:
+    """_is_binary_file() ヘルパーを検証する。"""
+
+    def test_text_file_returns_false(self, tmp_path: Path) -> None:
+        """テキストファイル → False。"""
+        f = tmp_path / "text.py"
+        f.write_text("# Python code\nprint('hello')")
+        assert _is_binary_file(f) is False
+
+    def test_binary_file_with_null_bytes_returns_true(self, tmp_path: Path) -> None:
+        """NULL バイトを含むファイル → True。"""
+        f = tmp_path / "binary.dat"
+        f.write_bytes(b"some\x00data")
+        assert _is_binary_file(f) is True
+
+    def test_empty_file_returns_false(self, tmp_path: Path) -> None:
+        """空ファイル → False（有効なテキストファイル）。"""
+        f = tmp_path / "empty.txt"
+        f.write_bytes(b"")
+        assert _is_binary_file(f) is False
+
+    def test_null_byte_at_start_returns_true(self, tmp_path: Path) -> None:
+        """先頭が NULL バイト → True。"""
+        f = tmp_path / "null_start.bin"
+        f.write_bytes(b"\x00rest of file")
+        assert _is_binary_file(f) is True
+
+    def test_null_byte_within_check_size_returns_true(self, tmp_path: Path) -> None:
+        """チェックサイズ内の NULL バイト → True。"""
+        f = tmp_path / "within.dat"
+        f.write_bytes(b"a" * 8191 + b"\x00")
+        assert _is_binary_file(f) is True
+
+    def test_null_byte_beyond_check_size_returns_false(self, tmp_path: Path) -> None:
+        """チェックサイズ（8KB）超過位置の NULL バイト → False。"""
+        f = tmp_path / "beyond.dat"
+        f.write_bytes(b"a" * 8192 + b"\x00")
+        assert _is_binary_file(f) is False
+
+    def test_pyc_like_content_detected(self, tmp_path: Path) -> None:
+        """.pyc 風コンテンツ（NULL バイト含む）→ True。"""
+        f = tmp_path / "module.pyc"
+        f.write_bytes(b"\x3f\r\r\n" + b"\x00" * 100)
+        assert _is_binary_file(f) is True
+
+
+# --- _expand_single_path: バイナリファイル ---
+
+
+class TestExpandSinglePathBinary:
+    """_expand_single_path() のバイナリファイル除外を検証する。"""
+
+    def test_single_binary_file_returns_empty_with_warning(
+        self, tmp_path: Path
+    ) -> None:
+        """単一バイナリファイル指定 → 空結果 + 警告。"""
+        binary_file = tmp_path / "data.bin"
+        binary_file.write_bytes(b"\xff\xfe\x00\x01")
+        paths, warnings = _expand_single_path(str(binary_file), set())
+        assert paths == []
+        assert len(warnings) == 1
+
+    def test_binary_file_warning_contains_path(self, tmp_path: Path) -> None:
+        """バイナリスキップの警告にパス情報を含む。"""
+        binary_file = tmp_path / "module.pyc"
+        binary_file.write_bytes(b"\x00" * 10)
+        _, warnings = _expand_single_path(str(binary_file), set())
+        assert any("binary file" in w.lower() for w in warnings)
+        assert any(str(binary_file.resolve()) in w for w in warnings)
+
+    def test_directory_with_mixed_text_and_binary(self, tmp_path: Path) -> None:
+        """ディレクトリ内にテキスト + バイナリ混在 → テキストのみ返す。"""
+        (tmp_path / "code.py").write_text("# Python")
+        (tmp_path / "module.pyc").write_bytes(b"\x00\x01\x02")
+        (tmp_path / "data.txt").write_text("data")
+        paths, warnings = _expand_single_path(str(tmp_path), set())
+        assert len(paths) == 2
+        path_names = {Path(p).name for p in paths}
+        assert path_names == {"code.py", "data.txt"}
+        assert len(warnings) == 1
+        assert "binary file" in warnings[0].lower()
+
+    def test_nested_pycache_skips_pyc(self, tmp_path: Path) -> None:
+        """__pycache__/*.pyc ファイルがスキップされる。"""
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        pycache = src_dir / "__pycache__"
+        pycache.mkdir()
+        (src_dir / "module.py").write_text("# module")
+        (pycache / "module.cpython-313.pyc").write_bytes(b"\x00" * 50)
+        paths, warnings = _expand_single_path(str(src_dir), set())
+        assert len(paths) == 1
+        assert paths[0].endswith("module.py")
+        assert len(warnings) == 1
+
+    def test_glob_pattern_skips_binary_matches(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """glob パターンでバイナリファイルがスキップされる。"""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "script.py").write_text("print('hi')")
+        (tmp_path / "data.bin").write_bytes(b"\x00\xff")
+        paths, warnings = _expand_single_path("*", set())
+        assert len(paths) == 1
+        assert Path(paths[0]).name == "script.py"
+        assert len(warnings) == 1
+
+
+# --- resolve_files: バイナリファイル ---
+
+
+class TestResolveFilesBinary:
+    """resolve_files() のバイナリファイル関連統合テスト。"""
+
+    def test_directory_excludes_binary_from_result(self, tmp_path: Path) -> None:
+        """ディレクトリモードでバイナリが除外される。"""
+        (tmp_path / "valid.py").write_text("code")
+        (tmp_path / "binary.so").write_bytes(b"\x7fELF" + b"\x00" * 100)
+        result = resolve_files((str(tmp_path),))
+        assert result is not None
+        assert len(result.paths) == 1
+        assert result.paths[0].endswith("valid.py")
+
+    def test_binary_warning_in_result(self, tmp_path: Path) -> None:
+        """バイナリスキップの警告が結果に含まれる。"""
+        (tmp_path / "code.py").write_text("code")
+        (tmp_path / "image.bin").write_bytes(b"\xff\xfe" + b"\x00" * 50)
+        result = resolve_files((str(tmp_path),))
+        assert result is not None
+        assert len(result.warnings) > 0
+        assert any("binary file" in w.lower() for w in result.warnings)
+
+    def test_all_binary_files_returns_none(self, tmp_path: Path) -> None:
+        """全ファイルがバイナリ → None。"""
+        (tmp_path / "a.pyc").write_bytes(b"\x00\x01\x02")
+        (tmp_path / "b.so").write_bytes(b"\x7fELF\x00")
+        result = resolve_files((str(tmp_path),))
+        assert result is None

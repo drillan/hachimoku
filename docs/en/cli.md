@@ -67,6 +67,7 @@ In file mode, the following processing is performed:
 
 - Expansion of glob patterns (`*`, `?`, `[`)
 - Recursive file collection for directory specifications
+- Automatic exclusion of binary files (NULL byte detection in the first 8KB)
 - Symlink loop detection
 - Results are a sorted, deduplicated list of absolute paths
 
