@@ -8,6 +8,7 @@ import io
 import pytest
 from rich.console import Console
 
+from hachimoku.agents.models import Phase
 from hachimoku.engine._live_progress import RichProgressReporter, RichSelectorSpinner
 from hachimoku.models.agent_result import (
     AgentError,
@@ -40,20 +41,20 @@ class TestOnAgentPending:
     def test_registers_agent(self) -> None:
         """pending 状態のエージェントが内部に登録される。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("security-reviewer", "main")
+        reporter.on_agent_pending("security-reviewer", Phase.MAIN)
         assert "security-reviewer" in reporter.agents
 
     def test_pending_status(self) -> None:
         """登録されたエージェントは pending ステータスを持つ。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("security-reviewer", "main")
+        reporter.on_agent_pending("security-reviewer", Phase.MAIN)
         assert reporter.agents["security-reviewer"].status == "pending"
 
     def test_phase_recorded(self) -> None:
         """登録されたエージェントにフェーズが記録される。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("security-reviewer", "main")
-        assert reporter.agents["security-reviewer"].phase == "main"
+        reporter.on_agent_pending("security-reviewer", Phase.MAIN)
+        assert reporter.agents["security-reviewer"].phase == Phase.MAIN
 
 
 # =============================================================================
@@ -67,7 +68,7 @@ class TestOnAgentStart:
     def test_updates_status_to_running(self) -> None:
         """start でステータスが running に更新される。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test-agent", "main")
+        reporter.on_agent_pending("test-agent", Phase.MAIN)
         reporter.on_agent_start("test-agent")
         assert reporter.agents["test-agent"].status == "running"
 
@@ -83,7 +84,7 @@ class TestOnAgentComplete:
     def test_success_status(self) -> None:
         """成功完了時のステータス文字列を検証。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         result = AgentSuccess(agent_name="test", issues=[], elapsed_time=1.0)
         reporter.on_agent_complete("test", result)
         assert "✓" in reporter.agents["test"].status
@@ -95,7 +96,7 @@ class TestOnAgentComplete:
         from hachimoku.models.severity import Severity
 
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         issues = [
             ReviewIssue(
                 agent_name="test", severity=Severity.IMPORTANT, description="Issue"
@@ -111,7 +112,7 @@ class TestOnAgentComplete:
     def test_error_status(self) -> None:
         """エラー完了時のステータス文字列を検証。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         result = AgentError(agent_name="test", error_message="Connection failed")
         reporter.on_agent_complete("test", result)
         assert "✗" in reporter.agents["test"].status
@@ -119,7 +120,7 @@ class TestOnAgentComplete:
     def test_timeout_status(self) -> None:
         """タイムアウト完了時のステータス文字列を検証。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         result = AgentTimeout(agent_name="test", timeout_seconds=30.0)
         reporter.on_agent_complete("test", result)
         assert "⏱" in reporter.agents["test"].status
@@ -127,7 +128,7 @@ class TestOnAgentComplete:
     def test_truncated_status(self) -> None:
         """切り詰め完了時のステータス文字列を検証。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         result = AgentTruncated(
             agent_name="test", issues=[], elapsed_time=5.0, turns_consumed=10
         )
@@ -137,7 +138,7 @@ class TestOnAgentComplete:
     def test_unknown_result_type_raises_type_error(self) -> None:
         """未知の result 型で TypeError を送出する。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         with pytest.raises(TypeError, match="Unknown result type"):
             reporter.on_agent_complete("test", "not_a_result")  # type: ignore[arg-type]
 
@@ -153,10 +154,10 @@ class TestBuildTable:
     def test_row_ordering_by_phase_then_name(self) -> None:
         """行が phase 順 → 名前順でソートされる。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("z-reviewer", "main")
-        reporter.on_agent_pending("a-reviewer", "main")
-        reporter.on_agent_pending("early-agent", "early")
-        reporter.on_agent_pending("final-agent", "final")
+        reporter.on_agent_pending("z-reviewer", Phase.MAIN)
+        reporter.on_agent_pending("a-reviewer", Phase.MAIN)
+        reporter.on_agent_pending("early-agent", Phase.EARLY)
+        reporter.on_agent_pending("final-agent", Phase.FINAL)
 
         table = reporter.build_table()
         assert table.row_count == 4
@@ -169,10 +170,15 @@ class TestBuildTable:
             "final-agent",
         ]
 
+    def test_unknown_phase_rejected_by_enum(self) -> None:
+        """未知の phase 文字列は Phase enum で ValueError を送出する。"""
+        with pytest.raises(ValueError, match="unknown_phase"):
+            Phase("unknown_phase")
+
     def test_table_has_correct_columns(self) -> None:
         """テーブルに Agent, Phase, Status 列が存在する。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
 
         table = reporter.build_table()
         column_names = [col.header for col in table.columns]
@@ -192,7 +198,7 @@ class TestLifecycle:
     def test_start_stop_no_exception(self) -> None:
         """start/stop が例外なく動作する。"""
         reporter, _ = _make_reporter()
-        reporter.on_agent_pending("test", "main")
+        reporter.on_agent_pending("test", Phase.MAIN)
         reporter.start()
         reporter.stop()
 
@@ -204,7 +210,7 @@ class TestLifecycle:
     def test_output_goes_to_console(self) -> None:
         """テーブル出力が Console の file に書き込まれる。"""
         reporter, buf = _make_reporter()
-        reporter.on_agent_pending("test-agent", "main")
+        reporter.on_agent_pending("test-agent", Phase.MAIN)
         reporter.start()
         reporter.stop()
         output = buf.getvalue()

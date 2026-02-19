@@ -302,7 +302,7 @@ async def run_review(
     # FR-CLI-015: 進捗レポーター生成（TTY → Rich / 非 TTY → Plain）
     reporter = create_progress_reporter()
     for ctx in contexts:
-        reporter.on_agent_pending(ctx.agent_name, ctx.phase.value)
+        reporter.on_agent_pending(ctx.agent_name, ctx.phase)
 
     try:
         install_signal_handlers(shutdown_event, loop)
