@@ -145,7 +145,10 @@ class TestReviewCallbackFileMode:
     ) -> None:
         """パスライク引数 → file モード → 正常終了。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
 
@@ -160,7 +163,10 @@ class TestReviewCallbackFileMode:
     ) -> None:
         """パスライク引数 → FileTarget で run_review が呼ばれる。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
         runner.invoke(app, ["src/auth.py"])
         mock_run_review.assert_called_once()
         target = mock_run_review.call_args.kwargs["target"]
@@ -250,7 +256,10 @@ class TestReviewExecution:
     ) -> None:
         """パスライク引数 → FileTarget で run_review が呼ばれる。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
         target = mock_run_review.call_args.kwargs["target"]
@@ -542,7 +551,10 @@ class TestReviewIssueOption:
     ) -> None:
         """file モード + --issue → FileTarget.issue_number に設定される。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
         # NOTE: --issue は位置引数より前に配置する（上記同様の理由）。
         runner.invoke(app, ["--issue", "50", "src/auth.py"])
         target = mock_run_review.call_args.kwargs["target"]
@@ -740,7 +752,7 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """file モードで resolve_files が呼ばれる。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/tmp/a.py",))
+        mock_resolve_files.return_value = (ResolvedFiles(paths=("/tmp/a.py",)), ())
         runner.invoke(app, ["src/auth.py"])
         mock_resolve_files.assert_called_once()
 
@@ -755,7 +767,10 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """resolve_files の結果が FileTarget.paths に渡される。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
         runner.invoke(app, ["src/auth.py"])
         target = mock_run_review.call_args.kwargs["target"]
         assert isinstance(target, FileTarget)
@@ -792,7 +807,7 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """resolve_files が None → exit code 0。"""
         mock_config.return_value = HachimokuConfig()
-        mock_resolve_files.return_value = None
+        mock_resolve_files.return_value = (None, ())
         result = runner.invoke(app, ["src/"])
         assert result.exit_code == ExitCode.SUCCESS
 
@@ -803,7 +818,7 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """empty result → "No files found" メッセージ。"""
         mock_config.return_value = HachimokuConfig()
-        mock_resolve_files.return_value = None
+        mock_resolve_files.return_value = (None, ())
         result = runner.invoke(app, ["src/"])
         assert "no files found" in result.output.lower()
 
@@ -818,9 +833,12 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """resolve_files の warnings が出力される。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(
-            paths=("/tmp/a.py",),
-            warnings=("Skipping symlink cycle: /x -> /y",),
+        mock_resolve_files.return_value = (
+            ResolvedFiles(
+                paths=("/tmp/a.py",),
+                warnings=("Skipping symlink cycle: /x -> /y",),
+            ),
+            ("Skipping symlink cycle: /x -> /y",),
         )
         result = runner.invoke(app, ["src/"])
         assert "Skipping symlink cycle" in result.output
@@ -837,8 +855,9 @@ class TestReviewCallbackFileModeResolution:
         """--no-confirm + max_files 超過 → 確認なしで続行。"""
         mock_config.return_value = HachimokuConfig(max_files_per_review=1)
         mock_run_review.return_value = make_engine_result()
-        mock_resolve_files.return_value = ResolvedFiles(
-            paths=("/tmp/a.py", "/tmp/b.py")
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/tmp/a.py", "/tmp/b.py")),
+            (),
         )
         result = runner.invoke(app, ["--no-confirm", "src/"])
         assert result.exit_code == 0
@@ -851,8 +870,9 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """max_files 超過 + ユーザー拒否 → exit code 0。"""
         mock_config.return_value = HachimokuConfig(max_files_per_review=1)
-        mock_resolve_files.return_value = ResolvedFiles(
-            paths=("/tmp/a.py", "/tmp/b.py")
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/tmp/a.py", "/tmp/b.py")),
+            (),
         )
         result = runner.invoke(app, ["src/"], input="n\n")
         assert result.exit_code == 0
@@ -869,8 +889,9 @@ class TestReviewCallbackFileModeResolution:
         """max_files 超過 + ユーザー承認 → レビュー続行。"""
         mock_config.return_value = HachimokuConfig(max_files_per_review=1)
         mock_run_review.return_value = make_engine_result()
-        mock_resolve_files.return_value = ResolvedFiles(
-            paths=("/tmp/a.py", "/tmp/b.py")
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/tmp/a.py", "/tmp/b.py")),
+            (),
         )
         result = runner.invoke(app, ["src/"], input="y\n")
         assert result.exit_code == 0
@@ -883,8 +904,9 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """確認プロンプトにファイル数と上限値が含まれる。"""
         mock_config.return_value = HachimokuConfig(max_files_per_review=5)
-        mock_resolve_files.return_value = ResolvedFiles(
-            paths=tuple(f"/tmp/f{i}.py" for i in range(10))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=tuple(f"/tmp/f{i}.py" for i in range(10))),
+            (),
         )
         result = runner.invoke(app, ["src/"], input="n\n")
         assert "10 files found" in result.output
@@ -901,7 +923,7 @@ class TestReviewCallbackFileModeResolution:
     ) -> None:
         """max_files 未超過 → プロンプトなしで続行。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/tmp/a.py",))
+        mock_resolve_files.return_value = (ResolvedFiles(paths=("/tmp/a.py",)), ())
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
         mock_run_review.assert_called_once()
@@ -1375,7 +1397,7 @@ class TestEdgeCases:
     ) -> None:
         """'./init' 引数はパスライク文字列として file モードになる。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/init",))
+        mock_resolve_files.return_value = (ResolvedFiles(paths=("/abs/init",)), ())
         result = runner.invoke(app, ["./init"])
         assert result.exit_code == 0
         target = mock_run_review.call_args.kwargs["target"]
@@ -1410,7 +1432,7 @@ class TestEdgeCases:
     ) -> None:
         """'./agents' 引数はパスライク文字列として file モードになる。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/agents",))
+        mock_resolve_files.return_value = (ResolvedFiles(paths=("/abs/agents",)), ())
         result = runner.invoke(app, ["./agents"])
         assert result.exit_code == 0
         target = mock_run_review.call_args.kwargs["target"]
@@ -1487,7 +1509,10 @@ class TestEdgeCases:
     ) -> None:
         """file モードは Git リポジトリ外でも正常終了する。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/src/auth.py",))
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
         result = runner.invoke(app, ["src/auth.py"])
         assert result.exit_code == 0
         mock_run_review.assert_called_once()
@@ -1648,7 +1673,7 @@ class TestCustomAgentsDirPassedToRunReview:
     ) -> None:
         """file モード: project_root あり → .hachimoku/agents が渡される。"""
         setup_mocks(mock_config, mock_run_review)
-        mock_resolve_files.return_value = ResolvedFiles(paths=("/abs/f.py",))
+        mock_resolve_files.return_value = (ResolvedFiles(paths=("/abs/f.py",)), ())
         runner.invoke(app, ["src/f.py"])
         actual = mock_run_review.call_args.kwargs["custom_agents_dir"]
         assert actual == Path("/mock/project/.hachimoku/agents")
