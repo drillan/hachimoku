@@ -14,6 +14,7 @@ from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AggregatorDefinition
+from hachimoku.engine._context import _resolve_with_agent_def
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.models.agent_result import (
     AgentError,
@@ -127,22 +128,12 @@ async def run_aggregator(
         AggregatorError: 集約エージェントの実行に失敗した場合。
     """
     # 3層モデル解決: config > definition > global
-    if aggregation_config.model is not None:
-        model = aggregation_config.model
-    elif aggregator_definition.model is not None:
-        model = aggregator_definition.model
-    else:
-        model = global_model
-
-    timeout = (
-        aggregation_config.timeout
-        if aggregation_config.timeout is not None
-        else global_timeout
+    model = _resolve_with_agent_def(
+        aggregation_config.model, aggregator_definition.model, global_model
     )
-    max_turns = (
-        aggregation_config.max_turns
-        if aggregation_config.max_turns is not None
-        else global_max_turns
+    timeout = _resolve_with_agent_def(aggregation_config.timeout, None, global_timeout)
+    max_turns = _resolve_with_agent_def(
+        aggregation_config.max_turns, None, global_max_turns
     )
 
     try:

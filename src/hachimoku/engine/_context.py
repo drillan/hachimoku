@@ -4,7 +4,7 @@ FR-RE-007: エージェント定義・設定・レビュー対象から実行コ
 FR-RE-004: タイムアウト・ターン数の優先順解決。
 """
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, TypeVar
 
 from pydantic import ConfigDict, Field, SkipValidation, model_validator
 from pydantic_ai import Tool
@@ -75,14 +75,19 @@ class AgentExecutionContext(HachimokuBaseModel):
         return self
 
 
+_T = TypeVar("_T")
+
+
 def _resolve_with_agent_def(
-    agent_config_value: int | None,
-    agent_def_value: int | None,
-    global_value: int,
-) -> int:
+    agent_config_value: _T | None,
+    agent_def_value: _T | None,
+    global_value: _T,
+) -> _T:
     """3 段階優先順で設定値を解決する。
 
     優先順: agent_config > agent_def > global_config。
+    int（timeout, max_turns）と str（model）の両方に対応。
+    2 層解決が必要な場合は agent_def_value=None を渡す。
     """
     if agent_config_value is not None:
         return agent_config_value
@@ -123,13 +128,8 @@ def build_execution_context(
     agent_timeout = agent_config.timeout if agent_config is not None else None
     agent_max_turns = agent_config.max_turns if agent_config is not None else None
 
-    # model は str 型（非 None）のため、専用の2段階解決を行う。
-    # agent_config.model (str | None) > agent_def.model (str)
-    # ※ agent_def.model は必須フィールドのため global_config.model には到達しない
-    if agent_model is not None:
-        resolved_model = agent_model
-    else:
-        resolved_model = agent_def.model
+    # agent_def.model は必須フィールドのため agent_def_value=None で2層解決
+    resolved_model = _resolve_with_agent_def(agent_model, None, agent_def.model)
 
     return AgentExecutionContext(
         agent_name=agent_def.name,
