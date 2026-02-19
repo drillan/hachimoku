@@ -200,6 +200,39 @@ class TestResolveContentDiff:
         diff_call = calls[1]
         assert diff_call == ("git", "diff", "abc123")
 
+    async def test_cancelled_error_kills_process(self) -> None:
+        """CancelledError 時にプロセスが kill される。"""
+        target = DiffTarget(base_branch="main")
+
+        mock_proc = AsyncMock()
+        mock_proc.kill = MagicMock()  # kill() は同期メソッド
+        mock_proc.communicate.side_effect = asyncio.CancelledError()
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(asyncio.CancelledError):
+                await resolve_content(target)
+
+        mock_proc.kill.assert_called_once()
+        mock_proc.wait.assert_called_once()
+
+    async def test_cancelled_error_propagates(self) -> None:
+        """CancelledError が抑制されずに再送出される。"""
+        target = PRTarget(pr_number=42)
+
+        mock_proc = AsyncMock()
+        mock_proc.kill = MagicMock()
+        mock_proc.communicate.side_effect = asyncio.CancelledError()
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(asyncio.CancelledError):
+                await resolve_content(target)
+
     async def test_non_utf8_stdout_raises_error(self) -> None:
         """stdout に非 UTF-8 バイトが含まれる場合 ContentResolveError を送出する。"""
         target = PRTarget(pr_number=42)
