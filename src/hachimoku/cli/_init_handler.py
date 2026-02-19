@@ -130,7 +130,14 @@ def _ensure_gitignore(project_root: Path) -> Literal["created", "skipped"]:
     gitignore_path = project_root / ".gitignore"
 
     if gitignore_path.exists():
-        content = gitignore_path.read_text(encoding="utf-8")
+        try:
+            content = gitignore_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as e:
+            raise InitError(
+                f"Failed to read .gitignore: {e}\n"
+                "The file is not valid UTF-8. "
+                "Convert .gitignore to UTF-8 encoding and try again."
+            ) from e
         # 行単位で完全一致チェック
         lines = content.splitlines()
         if GITIGNORE_ENTRY in lines:
