@@ -1692,3 +1692,19 @@ class TestVersion:
         expected = importlib.metadata.version("hachimoku")
         result = runner.invoke(app, ["--version"])
         assert expected in result.output
+
+
+class TestBuildTargetExhaustiveness:
+    """_build_target の assert_never 網羅性ガードを検証する（Issue #246）。"""
+
+    def test_unknown_resolved_input_raises_assertion_error(self) -> None:
+        """ResolvedInput 以外の型 → AssertionError が発生する。"""
+        from hachimoku.cli._app import _build_target
+        from hachimoku.models.schemas._base import HachimokuBaseModel
+
+        class UnknownInput(HachimokuBaseModel):
+            mode: str = "unknown"
+
+        config = HachimokuConfig()
+        with pytest.raises(AssertionError):
+            _build_target(UnknownInput(), config, issue=None)  # type: ignore[arg-type]
