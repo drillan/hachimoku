@@ -16,6 +16,7 @@ from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 
+from hachimoku.agents.models import PHASE_ORDER, Phase
 from hachimoku.engine._progress import SELECTOR_START_MESSAGE
 from hachimoku.models.agent_result import (
     AgentError,
@@ -24,9 +25,6 @@ from hachimoku.models.agent_result import (
     AgentTimeout,
     AgentTruncated,
 )
-
-PHASE_ORDER: Final[dict[str, int]] = {"early": 0, "main": 1, "final": 2}
-"""フェーズのソート順序。"""
 
 SELECTOR_SPINNER_STYLE: Final[str] = "dots"
 """セレクタースピナーのアニメーションスタイル。"""
@@ -97,7 +95,7 @@ class RichProgressReporter:
 
         sorted_agents = sorted(
             self.agents.items(),
-            key=lambda item: (PHASE_ORDER.get(item[1].phase, 99), item[0]),
+            key=lambda item: (PHASE_ORDER[Phase(item[1].phase)], item[0]),
         )
 
         for name, row in sorted_agents:

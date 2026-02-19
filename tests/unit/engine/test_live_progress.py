@@ -169,6 +169,13 @@ class TestBuildTable:
             "final-agent",
         ]
 
+    def test_unknown_phase_raises_value_error(self) -> None:
+        """未知の phase 文字列で build_table() が ValueError を送出する。"""
+        reporter, _ = _make_reporter()
+        reporter.on_agent_pending("test-agent", "unknown_phase")
+        with pytest.raises(ValueError, match="unknown_phase"):
+            reporter.build_table()
+
     def test_table_has_correct_columns(self) -> None:
         """テーブルに Agent, Phase, Status 列が存在する。"""
         reporter, _ = _make_reporter()
