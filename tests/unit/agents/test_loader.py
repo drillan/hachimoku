@@ -140,11 +140,11 @@ content_patterns = ["class\\\\s+\\\\w+"]
         """allowed_tools がタプルとして保持される。"""
         toml_content = VALID_TOML.replace(
             'system_prompt = "You are a test agent."',
-            'system_prompt = "You are a test agent."\nallowed_tools = ["tool1", "tool2"]',
+            'system_prompt = "You are a test agent."\nallowed_tools = ["git_read", "file_read"]',
         )
         path = _write_toml(tmp_path, "with-tools.toml", toml_content)
         agent = _load_single_agent(path)
-        assert agent.allowed_tools == ("tool1", "tool2")
+        assert agent.allowed_tools == ("git_read", "file_read")
 
     def test_default_applicability_always_true(self, tmp_path: Path) -> None:
         """applicability 未指定時はデフォルトで always=True。"""
