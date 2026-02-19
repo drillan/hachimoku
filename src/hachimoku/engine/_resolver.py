@@ -105,20 +105,26 @@ async def _run_subprocess(*args: str) -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=_SUBPROCESS_TIMEOUT_SECONDS
-        )
     except FileNotFoundError as exc:
         raise ContentResolveError(
             f"Command not found: {args[0]}. "
             f"Ensure {args[0]} is installed and available in PATH."
         ) from exc
+
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=_SUBPROCESS_TIMEOUT_SECONDS
+        )
     except TimeoutError as exc:
         proc.kill()
         await proc.wait()
         raise ContentResolveError(
             f"Command timed out after {_SUBPROCESS_TIMEOUT_SECONDS}s: {cmd_display}"
         ) from exc
+    except BaseException:
+        proc.kill()
+        await proc.wait()
+        raise
 
     if proc.returncode != 0:
         stderr_text = stderr.decode(errors="replace").strip()
