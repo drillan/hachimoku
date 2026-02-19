@@ -9,7 +9,11 @@ from pydantic import ValidationError
 from pydantic_ai import Tool
 
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule, Phase
-from hachimoku.engine._context import AgentExecutionContext, build_execution_context
+from hachimoku.engine._context import (
+    AgentExecutionContext,
+    _resolve_with_agent_def,
+    build_execution_context,
+)
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import AgentConfig, HachimokuConfig
 from hachimoku.models.schemas._base import BaseAgentOutput
@@ -261,6 +265,73 @@ class TestAgentExecutionContextConstraints:
             phase=Phase.MAIN,
         )
         assert len(ctx.tools) == 2
+
+
+# =============================================================================
+# _resolve_with_agent_def — 直接テスト
+# =============================================================================
+
+
+class TestResolveWithAgentDef:
+    """_resolve_with_agent_def の3層/2層解決を直接検証。"""
+
+    # --- str 型: 3層解決 ---
+
+    def test_str_agent_config_wins(self) -> None:
+        """str 型: agent_config 値が最優先。"""
+        result = _resolve_with_agent_def("config-model", "def-model", "global-model")
+        assert result == "config-model"
+
+    def test_str_agent_def_wins_when_config_none(self) -> None:
+        """str 型: agent_config=None の場合、agent_def が使用される。"""
+        result = _resolve_with_agent_def(None, "def-model", "global-model")
+        assert result == "def-model"
+
+    def test_str_global_wins_when_both_none(self) -> None:
+        """str 型: agent_config=None かつ agent_def=None の場合、global が使用される。"""
+        result = _resolve_with_agent_def(None, None, "global-model")
+        assert result == "global-model"
+
+    # --- str 型: 2層解決 (agent_def_value=None) ---
+
+    def test_str_two_layer_config_wins(self) -> None:
+        """str 型 2層: agent_config 値が最優先。"""
+        result = _resolve_with_agent_def("config-model", None, "global-model")
+        assert result == "config-model"
+
+    def test_str_two_layer_global_wins(self) -> None:
+        """str 型 2層: agent_config=None の場合、global が使用される。"""
+        result = _resolve_with_agent_def(None, None, "global-model")
+        assert result == "global-model"
+
+    # --- int 型: 3層解決 ---
+
+    def test_int_agent_config_wins(self) -> None:
+        """int 型: agent_config 値が最優先。"""
+        result = _resolve_with_agent_def(60, 300, 600)
+        assert result == 60
+
+    def test_int_agent_def_wins_when_config_none(self) -> None:
+        """int 型: agent_config=None の場合、agent_def が使用される。"""
+        result = _resolve_with_agent_def(None, 300, 600)
+        assert result == 300
+
+    def test_int_global_wins_when_both_none(self) -> None:
+        """int 型: agent_config=None かつ agent_def=None の場合、global が使用される。"""
+        result = _resolve_with_agent_def(None, None, 600)
+        assert result == 600
+
+    # --- int 型: 2層解決 (agent_def_value=None) ---
+
+    def test_int_two_layer_config_wins(self) -> None:
+        """int 型 2層: agent_config 値が最優先。"""
+        result = _resolve_with_agent_def(60, None, 600)
+        assert result == 60
+
+    def test_int_two_layer_global_wins(self) -> None:
+        """int 型 2層: agent_config=None の場合、global が使用される。"""
+        result = _resolve_with_agent_def(None, None, 600)
+        assert result == 600
 
 
 # =============================================================================

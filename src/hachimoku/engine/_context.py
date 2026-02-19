@@ -128,13 +128,8 @@ def build_execution_context(
     agent_timeout = agent_config.timeout if agent_config is not None else None
     agent_max_turns = agent_config.max_turns if agent_config is not None else None
 
-    # model は str 型（非 None）のため、専用の2段階解決を行う。
-    # agent_config.model (str | None) > agent_def.model (str)
-    # ※ agent_def.model は必須フィールドのため global_config.model には到達しない
-    if agent_model is not None:
-        resolved_model = agent_model
-    else:
-        resolved_model = agent_def.model
+    # agent_def.model は必須フィールドのため agent_def_value=None で2層解決
+    resolved_model = _resolve_with_agent_def(agent_model, None, agent_def.model)
 
     return AgentExecutionContext(
         agent_name=agent_def.name,
