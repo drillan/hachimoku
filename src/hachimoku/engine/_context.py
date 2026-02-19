@@ -4,7 +4,7 @@ FR-RE-007: エージェント定義・設定・レビュー対象から実行コ
 FR-RE-004: タイムアウト・ターン数の優先順解決。
 """
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, TypeVar
 
 from pydantic import ConfigDict, Field, SkipValidation, model_validator
 from pydantic_ai import Tool
@@ -75,14 +75,19 @@ class AgentExecutionContext(HachimokuBaseModel):
         return self
 
 
+_T = TypeVar("_T")
+
+
 def _resolve_with_agent_def(
-    agent_config_value: int | None,
-    agent_def_value: int | None,
-    global_value: int,
-) -> int:
+    agent_config_value: _T | None,
+    agent_def_value: _T | None,
+    global_value: _T,
+) -> _T:
     """3 段階優先順で設定値を解決する。
 
     優先順: agent_config > agent_def > global_config。
+    int（timeout, max_turns）と str（model）の両方に対応。
+    2 層解決が必要な場合は agent_def_value=None を渡す。
     """
     if agent_config_value is not None:
         return agent_config_value

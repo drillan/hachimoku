@@ -1056,6 +1056,39 @@ def _make_test_agent(name: str = "linter") -> AgentDefinition:
     )
 
 
+# =============================================================================
+# _safe_fence（Issue #258）
+# =============================================================================
+
+
+class TestSafeFence:
+    """_safe_fence() のテスト。Issue #258: safe-fence 生成パターンの DRY 統合。"""
+
+    def test_no_backticks_returns_triple(self) -> None:
+        """コンテンツにバッククォートフェンスがない場合、``` を返す。"""
+        from hachimoku.engine._instruction import _safe_fence
+
+        assert _safe_fence("plain text without fences") == "```"
+
+    def test_triple_backticks_escalates(self) -> None:
+        """コンテンツに ``` がある場合、```` を返す。"""
+        from hachimoku.engine._instruction import _safe_fence
+
+        assert _safe_fence("some ```code``` here") == "````"
+
+    def test_quadruple_backticks_escalates(self) -> None:
+        """コンテンツに ```` がある場合、````` を返す。"""
+        from hachimoku.engine._instruction import _safe_fence
+
+        assert _safe_fence("some ````code```` here") == "`````"
+
+    def test_empty_content_returns_triple(self) -> None:
+        """空コンテンツでは ``` を返す。"""
+        from hachimoku.engine._instruction import _safe_fence
+
+        assert _safe_fence("") == "```"
+
+
 class TestBuildPrefetchedSection:
     """_build_prefetched_section のテスト。Issue #187。"""
 

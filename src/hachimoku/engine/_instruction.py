@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Final, TypedDict
 
 from hachimoku.agents.models import AgentDefinition
+from hachimoku.engine._diff_filter import _DIFF_SECTION_RE, _FILE_PATH_RE
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import DEFAULT_REFERENCED_CONTENT_MAX_CHARS
 
@@ -26,8 +27,24 @@ if TYPE_CHECKING:
 # Issue #172: コードフェンス検出パターン（``` or ~~~、3文字以上）
 _FENCE_PATTERN: re.Pattern[str] = re.compile(r"^(`{3,}|~{3,})", re.MULTILINE)
 
-# Issue #170: diff セクション区切りパターン
-_DIFF_SECTION_RE: re.Pattern[str] = re.compile(r"^diff --git ", re.MULTILINE)
+
+def _safe_fence(content: str) -> str:
+    """コンテンツ内の既存フェンスと衝突しない backtick フェンスを生成する。
+
+    最短の backtick フェンス（```）から始め、コンテンツ内に同一フェンスが
+    存在する場合は backtick を1文字ずつ追加してエスカレートする。
+
+    Args:
+        content: フェンスで囲む対象のテキスト。
+
+    Returns:
+        コンテンツ内に存在しない最短の backtick フェンス文字列。
+    """
+    fence = "```"
+    while fence in content:
+        fence += "`"
+    return fence
+
 
 _SELECTOR_PREVIEW_LINES: Final[int] = 5
 """セレクター向け diff サマリーのファイルごとのプレビュー行数。"""
@@ -97,7 +114,7 @@ def _parse_diff_section(
     first_line = lines[0]
 
     # ファイルパス抽出: "diff --git a/old b/new"
-    path_match = re.match(r"diff --git a/.+ b/(.+)", first_line)
+    path_match = _FILE_PATH_RE.match(first_line)
     path: str = path_match.group(1) if path_match else ""
 
     status = "modified"
@@ -255,17 +272,13 @@ def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
     subsections: list[str] = []
 
     if prefetched.issue_context:
-        fence = "```"
-        while fence in prefetched.issue_context:
-            fence += "`"
+        fence = _safe_fence(prefetched.issue_context)
         subsections.append(
             f"### Issue Context\n\n{fence}\n{prefetched.issue_context}\n{fence}"
         )
 
     if prefetched.pr_metadata:
-        fence = "```"
-        while fence in prefetched.pr_metadata:
-            fence += "`"
+        fence = _safe_fence(prefetched.pr_metadata)
         subsections.append(
             f"### PR Metadata\n\n{fence}\n{prefetched.pr_metadata}\n{fence}"
         )
@@ -446,9 +459,7 @@ def build_selector_context_section(
         ref_parts: list[str] = []
         for ref in referenced_content:
             content = _truncate_content(ref.content, max_referenced_content_chars)
-            fence = "```"
-            while fence in content:
-                fence += "`"
+            fence = _safe_fence(content)
             ref_parts.append(
                 f"#### [{ref.reference_type}] {ref.reference_id}\n"
                 f"{fence}\n{content}\n{fence}"

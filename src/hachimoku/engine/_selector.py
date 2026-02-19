@@ -22,6 +22,7 @@ from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition, SelectorDefinition
 from hachimoku.engine._catalog import resolve_tools
+from hachimoku.engine._context import _resolve_with_agent_def
 from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
@@ -203,22 +204,12 @@ async def run_selector(
         SelectorError: セレクターエージェントの実行に失敗した場合。
     """
     # 3層モデル解決: config > definition > global
-    if selector_config.model is not None:
-        model = selector_config.model
-    elif selector_definition.model is not None:
-        model = selector_definition.model
-    else:
-        model = global_model
-
-    timeout = (
-        selector_config.timeout
-        if selector_config.timeout is not None
-        else global_timeout
+    model = _resolve_with_agent_def(
+        selector_config.model, selector_definition.model, global_model
     )
-    max_turns = (
-        selector_config.max_turns
-        if selector_config.max_turns is not None
-        else global_max_turns
+    timeout = _resolve_with_agent_def(selector_config.timeout, None, global_timeout)
+    max_turns = _resolve_with_agent_def(
+        selector_config.max_turns, None, global_max_turns
     )
 
     try:
