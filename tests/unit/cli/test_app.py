@@ -641,6 +641,20 @@ class TestReviewConfigError:
         result = runner.invoke(app)
         assert result.exit_code == 4
 
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_type_error_exits_with_4(self, mock_config: MagicMock) -> None:
+        """resolve_config が TypeError → exit_code 4（INPUT_ERROR）(#253)。"""
+        mock_config.side_effect = TypeError("'agents' must be a dict, got bool")
+        result = runner.invoke(app)
+        assert result.exit_code == 4
+
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_type_error_shows_config_hint(self, mock_config: MagicMock) -> None:
+        """TypeError 時に config.toml の案内が出力される (#253)。"""
+        mock_config.side_effect = TypeError("'agents' must be a dict, got bool")
+        result = runner.invoke(app)
+        assert "config.toml" in result.output
+
 
 # --- US3 テスト ---
 
