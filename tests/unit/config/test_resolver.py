@@ -8,6 +8,7 @@ T040: merge_config_layers — selector セクションのフィールド単位�
 T041: resolve_config — セレクター設定の統合テスト (US5, FR-CF-010)
 T042: merge_config_layers — aggregation セクションのフィールド単位マージ (#252)
 T043: resolve_config — aggregation 設定のマルチソースマージ (#252)
+T044: resolve_config — 非 dict セクション値による TypeError 伝播 (#253)
 """
 
 from __future__ import annotations
@@ -1123,3 +1124,41 @@ class TestResolveConfigAggregationFieldLevelMergeMultiSource:
             config = resolve_config(start_dir=tmp_path)
         assert config.aggregation.model == "haiku"
         assert config.aggregation.enabled is False
+
+
+# ---------------------------------------------------------------------------
+# T044: resolve_config — 非 dict セクション値による TypeError 伝播 (#253)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveConfigTypeErrorAgentsNotDict:
+    """config.toml で agents がスカラー値 → TypeError 伝播 (#253)。"""
+
+    def test_agents_scalar_raises_type_error(self, tmp_path: Path) -> None:
+        """agents = false → TypeError('agents' must be a dict)。"""
+        _create_config_toml(tmp_path, "agents = false\n")
+        with _nonexistent_user_config(tmp_path):
+            with pytest.raises(TypeError, match="'agents' must be a dict"):
+                resolve_config(start_dir=tmp_path)
+
+
+class TestResolveConfigTypeErrorSelectorNotDict:
+    """config.toml で selector がスカラー値 → TypeError 伝播 (#253)。"""
+
+    def test_selector_scalar_raises_type_error(self, tmp_path: Path) -> None:
+        """selector = "invalid" → TypeError('selector' must be a dict)。"""
+        _create_config_toml(tmp_path, 'selector = "invalid"\n')
+        with _nonexistent_user_config(tmp_path):
+            with pytest.raises(TypeError, match="'selector' must be a dict"):
+                resolve_config(start_dir=tmp_path)
+
+
+class TestResolveConfigTypeErrorAggregationNotDict:
+    """config.toml で aggregation がスカラー値 → TypeError 伝播 (#253)。"""
+
+    def test_aggregation_scalar_raises_type_error(self, tmp_path: Path) -> None:
+        """aggregation = 42 → TypeError('aggregation' must be a dict)。"""
+        _create_config_toml(tmp_path, "aggregation = 42\n")
+        with _nonexistent_user_config(tmp_path):
+            with pytest.raises(TypeError, match="'aggregation' must be a dict"):
+                resolve_config(start_dir=tmp_path)

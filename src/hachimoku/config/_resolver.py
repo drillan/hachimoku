@@ -99,6 +99,9 @@ def merge_config_layers(
 
     Returns:
         マージ済みの設定辞書。
+
+    Raises:
+        TypeError: agents, selector, aggregation セクションの値が dict でない場合。
     """
     result: dict[str, object] = {}
     for layer in layers:
@@ -176,6 +179,7 @@ def resolve_config(
         pydantic.ValidationError: マージ後の設定が不正な場合。
         tomllib.TOMLDecodeError: 設定ファイルの TOML 構文が不正な場合。
         PermissionError: 設定ファイルの読み取り権限がない場合。
+        TypeError: agents, selector, aggregation セクションの値が dict でない場合。
     """
     effective_start = start_dir if start_dir is not None else Path.cwd()
 

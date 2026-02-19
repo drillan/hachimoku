@@ -245,7 +245,7 @@ def review_callback(
     # 3. config 解決（DiffTarget の base_branch 取得用）
     try:
         config = resolve_config(cli_overrides=config_overrides)
-    except (ValidationError, tomllib.TOMLDecodeError) as e:
+    except (ValidationError, tomllib.TOMLDecodeError, TypeError) as e:
         print(
             f"Error: Invalid configuration: {e}\n"
             "Check .hachimoku/config.toml for syntax errors or invalid values.",
