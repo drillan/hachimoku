@@ -6,6 +6,8 @@ T027: resolve_config — 5層統合, デフォルト値, 優先順位, エラー
 T033: resolve_config — エージェント個別設定の統合テスト (US3)
 T040: merge_config_layers — selector セクションのフィールド単位マージ
 T041: resolve_config — セレクター設定の統合テスト (US5, FR-CF-010)
+T042: merge_config_layers — aggregation セクションのフィールド単位マージ (#252)
+T043: resolve_config — aggregation 設定のマルチソースマージ (#252)
 """
 
 from __future__ import annotations
@@ -21,12 +23,13 @@ from pydantic import ValidationError
 
 from hachimoku.config._resolver import (
     _AGENTS_KEY,
+    _AGGREGATION_KEY,
     _SELECTOR_KEY,
     filter_cli_overrides,
     merge_config_layers,
     resolve_config,
 )
-from hachimoku.models.config import HachimokuConfig, SelectorConfig
+from hachimoku.models.config import AggregationConfig, HachimokuConfig, SelectorConfig
 
 
 # ---------------------------------------------------------------------------
@@ -946,3 +949,177 @@ class TestResolveConfigSelectorFieldLevelMergeMultiSource:
             config = resolve_config(start_dir=tmp_path)
         assert config.selector.model == "haiku"
         assert config.selector.timeout == 60
+
+
+# ---------------------------------------------------------------------------
+# T042: merge_config_layers — aggregation セクションのフィールド単位マージ (#252)
+# ---------------------------------------------------------------------------
+
+
+class TestMergeConfigLayersAggregationMerge:
+    """aggregation セクションのフィールド単位マージ (FR-CF-007, #252)。"""
+
+    def test_aggregation_field_level_merge(self) -> None:
+        """同一 aggregation の異なるフィールドがマージされる。"""
+        layer1: dict[str, object] = {
+            _AGGREGATION_KEY: {"enabled": False},
+        }
+        layer2: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "haiku"},
+        }
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            _AGGREGATION_KEY: {"enabled": False, "model": "haiku"},
+        }
+
+    def test_aggregation_field_override(self) -> None:
+        """同一 aggregation の同一フィールドは上位レイヤーで上書き。"""
+        layer1: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "sonnet", "timeout": 60},
+        }
+        layer2: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "haiku"},
+        }
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            _AGGREGATION_KEY: {"model": "haiku", "timeout": 60},
+        }
+
+    def test_aggregation_only_in_lower_layer(self) -> None:
+        """下位レイヤーのみに aggregation がある場合はそのまま保持。"""
+        layer1: dict[str, object] = {
+            _AGGREGATION_KEY: {"enabled": False},
+        }
+        layer2: dict[str, object] = {"timeout": 600}
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            _AGGREGATION_KEY: {"enabled": False},
+            "timeout": 600,
+        }
+
+    def test_aggregation_only_in_upper_layer(self) -> None:
+        """上位レイヤーのみに aggregation がある場合はそのまま採用。"""
+        layer1: dict[str, object] = {"timeout": 600}
+        layer2: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "opus"},
+        }
+        result = merge_config_layers(layer1, layer2)
+        assert result == {
+            "timeout": 600,
+            _AGGREGATION_KEY: {"model": "opus"},
+        }
+
+    def test_three_layers_aggregation_progressive_merge(self) -> None:
+        """3レイヤーで aggregation が段階的にマージされる。"""
+        layer1: dict[str, object] = {
+            _AGGREGATION_KEY: {"timeout": 60},
+        }
+        layer2: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "haiku"},
+        }
+        layer3: dict[str, object] = {
+            _AGGREGATION_KEY: {"enabled": False},
+        }
+        result = merge_config_layers(layer1, layer2, layer3)
+        assert result == {
+            _AGGREGATION_KEY: {
+                "timeout": 60,
+                "model": "haiku",
+                "enabled": False,
+            },
+        }
+
+
+class TestMergeConfigLayersAggregationTypeError:
+    """aggregation セクションの非 dict 値に対する TypeError。"""
+
+    def test_aggregation_value_not_dict_raises_type_error(self) -> None:
+        """aggregation キーの値が dict でない場合は TypeError。"""
+        layer: dict[str, object] = {_AGGREGATION_KEY: "invalid"}
+        with pytest.raises(TypeError, match="'aggregation' must be a dict"):
+            merge_config_layers(layer)
+
+
+class TestMergeConfigLayersAggregationDoesNotMutateInput:
+    """aggregation を含む入力辞書が変更されないことを保証する。"""
+
+    def test_input_dicts_not_mutated(self) -> None:
+        """マージ後も入力辞書は元の値のまま。"""
+        layer1: dict[str, object] = {
+            _AGGREGATION_KEY: {"enabled": False},
+        }
+        layer2: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "haiku"},
+        }
+        layer1_copy: dict[str, object] = {
+            _AGGREGATION_KEY: {"enabled": False},
+        }
+        layer2_copy: dict[str, object] = {
+            _AGGREGATION_KEY: {"model": "haiku"},
+        }
+        merge_config_layers(layer1, layer2)
+        assert layer1 == layer1_copy
+        assert layer2 == layer2_copy
+
+
+# ---------------------------------------------------------------------------
+# T043: resolve_config — aggregation 設定のマルチソースマージ (#252)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveConfigAggregationDefault:
+    """[aggregation] セクション未指定 → デフォルト値。"""
+
+    def test_aggregation_defaults_when_absent(self, tmp_path: Path) -> None:
+        """[aggregation] セクションなしでもデフォルトの AggregationConfig が設定される。"""
+        _create_config_toml(tmp_path, 'model = "opus"\n')
+        with _nonexistent_user_config(tmp_path):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.aggregation == AggregationConfig()
+
+
+class TestResolveConfigAggregationFieldLevelMergeMultiSource:
+    """複数ソースの aggregation 設定がフィールド単位マージ (#252 の再現テスト)。"""
+
+    def test_different_fields_merged(self, tmp_path: Path) -> None:
+        """異なるフィールドが両ソースからマージされる。
+
+        user global: aggregation の enabled=false
+        config.toml: aggregation の model="foo"
+        → 結果: enabled=false, model="foo" の両方が反映
+        """
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            "[aggregation]\nenabled = false\n",
+        )
+        _create_config_toml(
+            tmp_path,
+            '[aggregation]\nmodel = "foo"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.aggregation.model == "foo"
+        assert config.aggregation.enabled is False
+
+    def test_same_field_upper_wins(self, tmp_path: Path) -> None:
+        """同一フィールドは上位ソース（config.toml）が優先される。"""
+        user_config_dir = tmp_path / "user_home" / ".config" / "hachimoku"
+        _write_toml(
+            user_config_dir / "config.toml",
+            '[aggregation]\nmodel = "sonnet"\nenabled = false\n',
+        )
+        _create_config_toml(
+            tmp_path,
+            '[aggregation]\nmodel = "haiku"\n',
+        )
+        with patch(
+            "hachimoku.config._resolver.get_user_config_path",
+            return_value=user_config_dir / "config.toml",
+        ):
+            config = resolve_config(start_dir=tmp_path)
+        assert config.aggregation.model == "haiku"
+        assert config.aggregation.enabled is False
