@@ -102,6 +102,26 @@ class LoadError(HachimokuBaseModel):
 AGENT_NAME_PATTERN: Final[str] = r"^[a-z0-9-]+$"
 
 
+def _validate_tool_categories(
+    v: tuple[str, ...] | list[str],
+) -> tuple[str, ...] | list[str]:
+    """allowed_tools の各値が ToolCategory に存在することを検証する。
+
+    AgentDefinition と SelectorDefinition の共通バリデーションロジック。
+    """
+    from hachimoku.models.tool_category import ToolCategory
+
+    valid_values = {tc.value for tc in ToolCategory}
+    for tool in v:
+        if tool not in valid_values:
+            msg = (
+                f"Invalid tool category: '{tool}'. "
+                f"Valid categories: {sorted(valid_values)}"
+            )
+            raise ValueError(msg)
+    return v
+
+
 class AgentDefinition(HachimokuBaseModel):
     """レビューエージェントの全構成情報。TOML 定義ファイルから構築される。
 
@@ -132,6 +152,15 @@ class AgentDefinition(HachimokuBaseModel):
     phase: Phase = Phase.MAIN
     max_turns: int | None = Field(default=None, gt=0)
     timeout: int | None = Field(default=None, gt=0)
+
+    @field_validator("allowed_tools", mode="before")
+    @classmethod
+    def _validate_allowed_tools(
+        cls,
+        v: tuple[str, ...] | list[str],
+    ) -> tuple[str, ...] | list[str]:
+        """allowed_tools の各値が ToolCategory に存在することを検証する。"""
+        return _validate_tool_categories(v)
 
     @model_validator(mode="before")
     @classmethod
@@ -183,17 +212,7 @@ class SelectorDefinition(HachimokuBaseModel):
         v: tuple[str, ...] | list[str],
     ) -> tuple[str, ...] | list[str]:
         """allowed_tools の各値が ToolCategory に存在することを検証する。"""
-        from hachimoku.models.tool_category import ToolCategory
-
-        valid_values = {tc.value for tc in ToolCategory}
-        for tool in v:
-            if tool not in valid_values:
-                msg = (
-                    f"Invalid tool category: '{tool}'. "
-                    f"Valid categories: {sorted(valid_values)}"
-                )
-                raise ValueError(msg)
-        return v
+        return _validate_tool_categories(v)
 
 
 # =============================================================================

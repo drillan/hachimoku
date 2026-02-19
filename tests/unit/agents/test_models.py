@@ -310,9 +310,9 @@ class TestAgentDefinitionValid:
     def test_explicit_allowed_tools(self) -> None:
         """allowed_tools を明示指定できる。"""
         agent = AgentDefinition.model_validate(
-            _valid_agent_data(allowed_tools=["tool1", "tool2"])
+            _valid_agent_data(allowed_tools=["git_read", "file_read"])
         )
-        assert agent.allowed_tools == ("tool1", "tool2")
+        assert agent.allowed_tools == ("git_read", "file_read")
 
     def test_resolved_schema_excluded_from_serialization(self) -> None:
         """resolved_schema が model_dump() から除外される。"""
@@ -459,6 +459,13 @@ class TestAgentDefinitionConstraints:
         """定義外フィールドがバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="extra_forbidden"):
             AgentDefinition.model_validate(_valid_agent_data(unknown="x"))
+
+    def test_invalid_allowed_tools_rejected(self) -> None:
+        """ToolCategory に存在しないツール名がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="allowed_tools"):
+            AgentDefinition.model_validate(
+                _valid_agent_data(allowed_tools=["nonexistent"])
+            )
 
     def test_agent_name_pattern_is_exported(self) -> None:
         """AGENT_NAME_PATTERN 定数がエクスポートされている。"""
