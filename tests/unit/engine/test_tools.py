@@ -199,6 +199,66 @@ class TestRunGhApiMethodValidation:
         with pytest.raises(ValueError, match="missing value"):
             run_gh(["api", "repos/owner/repo", "-X"])
 
+    # --- Bypass 1: --method=VALUE 形式 (#255) ---
+
+    def test_api_method_equals_post_rejected(self) -> None:
+        """--method=POST 形式が拒否される。"""
+        with pytest.raises(ValueError, match="GET"):
+            run_gh(["api", "--method=POST", "repos/owner/repo"])
+
+    def test_api_method_equals_delete_rejected(self) -> None:
+        """--method=DELETE 形式が拒否される。"""
+        with pytest.raises(ValueError, match="GET"):
+            run_gh(["api", "--method=DELETE", "repos/owner/repo"])
+
+    def test_api_method_equals_patch_rejected(self) -> None:
+        """--method=PATCH 形式が拒否される。"""
+        with pytest.raises(ValueError, match="GET"):
+            run_gh(["api", "--method=PATCH", "repos/owner/repo"])
+
+    def test_api_method_equals_put_rejected(self) -> None:
+        """--method=PUT 形式が拒否される。"""
+        with pytest.raises(ValueError, match="GET"):
+            run_gh(["api", "--method=PUT", "repos/owner/repo"])
+
+    def test_api_method_equals_get_allowed(self) -> None:
+        """--method=GET 形式は許可される。"""
+        with patch("hachimoku.engine._tools._gh.subprocess.run") as mock_run:
+            mock_run.return_value = Mock(stdout="ok")
+            run_gh(["api", "--method=GET", "repos/owner/repo"])
+
+    def test_api_method_equals_case_insensitive(self) -> None:
+        """--method=post（小文字）も拒否される。"""
+        with pytest.raises(ValueError, match="GET"):
+            run_gh(["api", "--method=post", "repos/owner/repo"])
+
+    # --- Bypass 2: 暗黙的 POST フラグ (#255) ---
+
+    def test_api_field_flag_short_rejected(self) -> None:
+        """-f フラグによる暗黙的 POST が拒否される。"""
+        with pytest.raises(ValueError, match="implicit"):
+            run_gh(["api", "-f", "body=test", "repos/owner/repo"])
+
+    def test_api_field_flag_long_rejected(self) -> None:
+        """--field フラグによる暗黙的 POST が拒否される。"""
+        with pytest.raises(ValueError, match="implicit"):
+            run_gh(["api", "--field", "body=test", "repos/owner/repo"])
+
+    def test_api_raw_field_flag_short_rejected(self) -> None:
+        """-F フラグによる暗黙的 POST が拒否される。"""
+        with pytest.raises(ValueError, match="implicit"):
+            run_gh(["api", "-F", "body=test", "repos/owner/repo"])
+
+    def test_api_raw_field_flag_long_rejected(self) -> None:
+        """--raw-field フラグによる暗黙的 POST が拒否される。"""
+        with pytest.raises(ValueError, match="implicit"):
+            run_gh(["api", "--raw-field", "body=test", "repos/owner/repo"])
+
+    def test_api_input_flag_rejected(self) -> None:
+        """--input フラグによる暗黙的 POST が拒否される。"""
+        with pytest.raises(ValueError, match="implicit"):
+            run_gh(["api", "--input", "data.json", "repos/owner/repo"])
+
 
 class TestRunGhExecution:
     """run_gh のコマンド実行を検証。"""

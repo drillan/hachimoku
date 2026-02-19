@@ -76,6 +76,12 @@ def run_gh(args: list[str]) -> str:
     return result.stdout
 
 
+_IMPLICIT_POST_FLAGS: Final[frozenset[str]] = frozenset(
+    {"-f", "--field", "-F", "--raw-field", "--input"}
+)
+"""gh api で暗黙的に POST メソッドを使用するフラグ。"""
+
+
 def _validate_api_method(args: list[str]) -> None:
     """api サブコマンドの HTTP メソッドが GET であることを検証する。
 
@@ -84,7 +90,8 @@ def _validate_api_method(args: list[str]) -> None:
 
     Raises:
         ValueError: GET 以外の HTTP メソッドが指定されている場合、
-            または -X / --method フラグに値が指定されていない場合。
+            -X / --method フラグに値が指定されていない場合、
+            または暗黙的に POST を引き起こすフラグが含まれている場合。
     """
     for i, arg in enumerate(args):
         if arg in ("-X", "--method"):
@@ -93,3 +100,15 @@ def _validate_api_method(args: list[str]) -> None:
             method = args[i + 1].upper()
             if method != "GET":
                 raise ValueError(f"gh api only allows GET method, got '{method}'")
+
+        # --method=VALUE 形式の検出
+        if arg.startswith("--method="):
+            method = arg.split("=", 1)[1].upper()
+            if method != "GET":
+                raise ValueError(f"gh api only allows GET method, got '{method}'")
+
+        # 暗黙的 POST フラグの検出
+        if arg in _IMPLICIT_POST_FLAGS:
+            raise ValueError(
+                f"gh api: flag '{arg}' causes implicit POST, which is not allowed"
+            )
