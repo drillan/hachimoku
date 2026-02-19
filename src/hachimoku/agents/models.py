@@ -10,9 +10,9 @@ import re
 from collections.abc import Mapping
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Final
+from typing import Annotated, Final
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BeforeValidator, Field, field_validator, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.schemas import BaseAgentOutput, SchemaNotFoundError, get_schema
@@ -122,6 +122,9 @@ def _validate_tool_categories(
     return v
 
 
+_ValidatedTools = Annotated[tuple[str, ...], BeforeValidator(_validate_tool_categories)]
+
+
 class AgentDefinition(HachimokuBaseModel):
     """レビューエージェントの全構成情報。TOML 定義ファイルから構築される。
 
@@ -132,7 +135,7 @@ class AgentDefinition(HachimokuBaseModel):
         output_schema: SCHEMA_REGISTRY に登録されたスキーマ名。
         resolved_schema: output_schema から解決されたスキーマ型。
         system_prompt: エージェントのシステムプロンプト。
-        allowed_tools: 許可するツールのリスト。
+        allowed_tools: 許可するツールカテゴリ名のタプル。値は ToolCategory の定義値に限定される。
         applicability: 適用ルール。
         phase: 実行フェーズ。
         max_turns: エージェント固有の最大ターン数。None の場合はグローバル設定を使用。
@@ -145,22 +148,13 @@ class AgentDefinition(HachimokuBaseModel):
     output_schema: str = Field(min_length=1)
     resolved_schema: type[BaseAgentOutput] = Field(exclude=True)
     system_prompt: str = Field(min_length=1)
-    allowed_tools: tuple[str, ...] = ()
+    allowed_tools: _ValidatedTools = ()
     applicability: ApplicabilityRule = Field(
         default_factory=lambda: ApplicabilityRule(always=True)
     )
     phase: Phase = Phase.MAIN
     max_turns: int | None = Field(default=None, gt=0)
     timeout: int | None = Field(default=None, gt=0)
-
-    @field_validator("allowed_tools", mode="before")
-    @classmethod
-    def _validate_allowed_tools(
-        cls,
-        v: tuple[str, ...] | list[str],
-    ) -> tuple[str, ...] | list[str]:
-        """allowed_tools の各値が ToolCategory に存在することを検証する。"""
-        return _validate_tool_categories(v)
 
     @model_validator(mode="before")
     @classmethod
@@ -203,16 +197,7 @@ class SelectorDefinition(HachimokuBaseModel):
     description: str = Field(min_length=1)
     model: str | None = Field(default=None, min_length=1)
     system_prompt: str = Field(min_length=1)
-    allowed_tools: tuple[str, ...] = ()
-
-    @field_validator("allowed_tools", mode="before")
-    @classmethod
-    def _validate_allowed_tools(
-        cls,
-        v: tuple[str, ...] | list[str],
-    ) -> tuple[str, ...] | list[str]:
-        """allowed_tools の各値が ToolCategory に存在することを検証する。"""
-        return _validate_tool_categories(v)
+    allowed_tools: _ValidatedTools = ()
 
 
 # =============================================================================
