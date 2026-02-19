@@ -18,6 +18,7 @@ from hachimoku.config._locator import (
 from hachimoku.models.config import HachimokuConfig
 
 _AGENTS_KEY: str = "agents"
+_AGGREGATION_KEY: str = "aggregation"
 _SELECTOR_KEY: str = "selector"
 
 
@@ -61,20 +62,20 @@ def _merge_agents(
     return merged
 
 
-def _merge_selector(
+def _merge_flat_section(
     base: dict[str, object] | None,
     override: dict[str, object],
 ) -> dict[str, object]:
-    """selector セクションをフィールド単位でマージする。
+    """フラットなセクション（selector, aggregation 等）をフィールド単位でマージする。
 
-    agents と異なり、selector はフラットな辞書なので単純な dict.update で済む。
+    agents と異なり、フラットな辞書なので単純な dict.update で済む。
 
     Args:
-        base: 既存の selector 辞書。None の場合は空として扱う。
-        override: 上書きする selector 辞書。
+        base: 既存の辞書。None の場合は空として扱う。
+        override: 上書きする辞書。
 
     Returns:
-        マージ済みの selector 辞書。
+        マージ済みの辞書。
     """
     if base is None:
         return dict(override)
@@ -90,7 +91,7 @@ def merge_config_layers(
 
     FR-CF-007: 後のレイヤーが先のレイヤーを上書きする。
     agents セクションはエージェント名→フィールド単位でマージする。
-    selector セクションはフィールド単位でマージする（FR-CF-010）。
+    selector, aggregation セクションはフィールド単位でマージする（FR-CF-010, #252）。
     None のレイヤーはスキップされる。
 
     Args:
@@ -118,8 +119,19 @@ def merge_config_layers(
                         f"'{_SELECTOR_KEY}' must be a dict, got {type(value).__name__}"
                     )
                     raise TypeError(msg)
-                result[_SELECTOR_KEY] = _merge_selector(
+                result[_SELECTOR_KEY] = _merge_flat_section(
                     result.get(_SELECTOR_KEY, None),  # type: ignore[arg-type]
+                    value,
+                )
+            elif key == _AGGREGATION_KEY:
+                if not isinstance(value, dict):
+                    msg = (
+                        f"'{_AGGREGATION_KEY}' must be a dict, "
+                        f"got {type(value).__name__}"
+                    )
+                    raise TypeError(msg)
+                result[_AGGREGATION_KEY] = _merge_flat_section(
+                    result.get(_AGGREGATION_KEY, None),  # type: ignore[arg-type]
                     value,
                 )
             else:
