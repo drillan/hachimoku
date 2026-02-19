@@ -313,7 +313,7 @@ class TestEnsureGitignore:
         gitignore = tmp_path / ".gitignore"
         gitignore.write_bytes("# プロジェクト設定\n".encode("shift_jis"))
 
-        with pytest.raises(InitError, match=r"\.gitignore"):
+        with pytest.raises(InitError, match=r"Convert .gitignore to UTF-8"):
             _ensure_gitignore(tmp_path)
 
 
