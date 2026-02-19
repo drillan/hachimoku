@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import Field, field_validator
 
-from hachimoku.models._base import HachimokuBaseModel
+from hachimoku.models._base import HachimokuBaseModel, normalize_enum_value
 from hachimoku.models.severity import Severity
 
 
@@ -40,14 +40,5 @@ class ReviewIssue(HachimokuBaseModel):
     @field_validator("severity", mode="before")
     @classmethod
     def normalize_severity(cls, v: object) -> object:
-        """Severity 入力を PascalCase に正規化する。
-
-        大文字小文字非依存で Severity メンバーとマッチし、
-        PascalCase の値に変換する。マッチしない str や
-        str 以外の入力はそのまま返し、後続のバリデーションに委ねる。
-        """
-        if isinstance(v, str):
-            for member in Severity:
-                if v.lower() == member.value.lower():
-                    return member.value
-        return v
+        """Severity 入力を PascalCase に正規化する。"""
+        return normalize_enum_value(v, Severity)
