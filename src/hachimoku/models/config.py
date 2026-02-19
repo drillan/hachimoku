@@ -41,17 +41,27 @@ class OutputFormat(StrEnum):
     JSON = "json"
 
 
-class SelectorConfig(HachimokuBaseModel):
-    """セレクターエージェント設定。FR-CF-010.
+class _OverridableExecutionConfig(HachimokuBaseModel):
+    """実行パラメータの上書き設定の基底クラス。Issue #261.
 
-    model, timeout, max_turns はオプショナル（None 可）で、
+    SelectorConfig, AgentConfig, AggregationConfig に共通する
+    model, timeout, max_turns フィールドを一元管理する。
+    全フィールドはオプショナル（None 可）で、
     None の場合はグローバル設定値が適用される。
-    allowed_tools は selector.toml に移動済み。
     """
 
     model: str | None = Field(default=None, min_length=1)
     timeout: int | None = Field(default=None, gt=0)
     max_turns: int | None = Field(default=None, gt=0)
+
+
+class SelectorConfig(_OverridableExecutionConfig):
+    """セレクターエージェント設定。FR-CF-010.
+
+    model, timeout, max_turns は _OverridableExecutionConfig から継承。
+    allowed_tools は selector.toml に移動済み。
+    """
+
     referenced_content_max_chars: int = Field(
         default=DEFAULT_REFERENCED_CONTENT_MAX_CHARS, gt=0
     )
@@ -60,32 +70,24 @@ class SelectorConfig(HachimokuBaseModel):
     )
 
 
-class AgentConfig(HachimokuBaseModel):
+class AgentConfig(_OverridableExecutionConfig):
     """エージェント個別設定。FR-CF-002 エージェント個別設定セクション.
 
     enabled はデフォルト True の必須フィールド。
-    model, timeout, max_turns はオプショナル（None 可）で、
-    None の場合はグローバル設定値が適用される（FR-CF-008）。
+    model, timeout, max_turns は _OverridableExecutionConfig から継承（FR-CF-008）。
     """
 
     enabled: StrictBool = True
-    model: str | None = Field(default=None, min_length=1)
-    timeout: int | None = Field(default=None, gt=0)
-    max_turns: int | None = Field(default=None, gt=0)
 
 
-class AggregationConfig(HachimokuBaseModel):
+class AggregationConfig(_OverridableExecutionConfig):
     """集約エージェント設定。FR-RE-019, Issue #152.
 
     SelectorConfig と同パターン。enabled で集約の有効/無効を切り替え可能。
-    model, timeout, max_turns はオプショナル（None 可）で、
-    None の場合はグローバル設定値が適用される。
+    model, timeout, max_turns は _OverridableExecutionConfig から継承。
     """
 
     enabled: StrictBool = True
-    model: str | None = Field(default=None, min_length=1)
-    timeout: int | None = Field(default=None, gt=0)
-    max_turns: int | None = Field(default=None, gt=0)
 
 
 class HachimokuConfig(HachimokuBaseModel):
