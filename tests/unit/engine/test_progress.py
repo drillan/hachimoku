@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from hachimoku.agents.models import LoadError
+from hachimoku.agents.models import LoadError, Phase
 from hachimoku.engine._progress import (
     PlainProgressReporter,
     PlainSelectorSpinner,
@@ -284,7 +284,7 @@ class TestPlainProgressReporter:
     def test_on_agent_pending_is_noop(self, capsys: pytest.CaptureFixture[str]) -> None:
         """on_agent_pending は何も出力しない。"""
         reporter = PlainProgressReporter()
-        reporter.on_agent_pending("test-agent", "main")
+        reporter.on_agent_pending("test-agent", Phase.MAIN)
         captured = capsys.readouterr()
         assert captured.err == ""
         assert captured.out == ""

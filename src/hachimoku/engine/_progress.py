@@ -11,7 +11,7 @@ import sys
 from collections.abc import Sequence
 from typing import Final, Protocol, runtime_checkable
 
-from hachimoku.agents.models import LoadError
+from hachimoku.agents.models import LoadError, Phase
 from hachimoku.models.agent_result import (
     AgentError,
     AgentResult,
@@ -33,7 +33,7 @@ class ProgressReporter(Protocol):
     FR-CLI-015: TTY/非 TTY で異なる実装を切り替える。
     """
 
-    def on_agent_pending(self, agent_name: str, phase: str) -> None:
+    def on_agent_pending(self, agent_name: str, phase: Phase) -> None:
         """エージェントを pending 状態として登録する。"""
         ...
 
@@ -65,7 +65,7 @@ class PlainProgressReporter:
     既存の report_agent_start / report_agent_complete 関数に委譲する。
     """
 
-    def on_agent_pending(self, agent_name: str, phase: str) -> None:
+    def on_agent_pending(self, agent_name: str, phase: Phase) -> None:
         """プレーンテキストでは pending 表示しない。"""
 
     def on_agent_start(self, agent_name: str) -> None:

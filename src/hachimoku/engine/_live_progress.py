@@ -34,7 +34,7 @@ SELECTOR_SPINNER_STYLE: Final[str] = "dots"
 class AgentRow:
     """テーブル行の状態。"""
 
-    phase: str
+    phase: Phase
     status: str = "pending"
 
 
@@ -50,7 +50,7 @@ class RichProgressReporter:
         self._live: Live | None = None
         self.agents: dict[str, AgentRow] = {}
 
-    def on_agent_pending(self, agent_name: str, phase: str) -> None:
+    def on_agent_pending(self, agent_name: str, phase: Phase) -> None:
         """エージェントを pending 状態として登録する。"""
         self.agents[agent_name] = AgentRow(phase=phase)
         self._refresh()
@@ -95,7 +95,7 @@ class RichProgressReporter:
 
         sorted_agents = sorted(
             self.agents.items(),
-            key=lambda item: (PHASE_ORDER[Phase(item[1].phase)], item[0]),
+            key=lambda item: (PHASE_ORDER[item[1].phase], item[0]),
         )
 
         for name, row in sorted_agents:
