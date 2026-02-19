@@ -302,6 +302,66 @@ class TestCoverageGapValid:
         assert isinstance(gap, HachimokuBaseModel)
 
 
+class TestCoverageGapPriorityCaseInsensitive:
+    """CoverageGap.priority のケース非依存入力を検証。"""
+
+    def test_lowercase_priority_accepted(self) -> None:
+        """小文字入力が Severity.CRITICAL に正規化される。"""
+        gap = CoverageGap(
+            file_path="src/main.py",
+            description="desc",
+            priority="critical",  # type: ignore[arg-type]
+        )
+        assert gap.priority == Severity.CRITICAL
+
+    def test_uppercase_priority_accepted(self) -> None:
+        """大文字入力が Severity.IMPORTANT に正規化される。"""
+        gap = CoverageGap(
+            file_path="src/main.py",
+            description="desc",
+            priority="IMPORTANT",  # type: ignore[arg-type]
+        )
+        assert gap.priority == Severity.IMPORTANT
+
+    @pytest.mark.parametrize(
+        ("input_str", "expected"),
+        [
+            ("critical", Severity.CRITICAL),
+            ("important", Severity.IMPORTANT),
+            ("suggestion", Severity.SUGGESTION),
+            ("nitpick", Severity.NITPICK),
+        ],
+    )
+    def test_all_severity_values_case_insensitive(
+        self, input_str: str, expected: Severity
+    ) -> None:
+        """全4値について小文字入力を検証。"""
+        gap = CoverageGap(
+            file_path="src/main.py",
+            description="desc",
+            priority=input_str,  # type: ignore[arg-type]
+        )
+        assert gap.priority == expected
+
+    def test_invalid_priority_rejected(self) -> None:
+        """不正な文字列で ValidationError。"""
+        with pytest.raises(ValidationError):
+            CoverageGap(
+                file_path="src/main.py",
+                description="desc",
+                priority="invalid",  # type: ignore[arg-type]
+            )
+
+    def test_enum_value_accepted(self) -> None:
+        """Severity enum インスタンスも受け入れる。"""
+        gap = CoverageGap(
+            file_path="src/main.py",
+            description="desc",
+            priority=Severity.SUGGESTION,
+        )
+        assert gap.priority == Severity.SUGGESTION
+
+
 class TestCoverageGapConstraints:
     """CoverageGap の制約を検証。"""
 
@@ -374,6 +434,57 @@ class TestTestGapAssessmentValid:
             risk_level=Severity.NITPICK,
         )
         assert isinstance(assessment, BaseAgentOutput)
+
+
+class TestTestGapAssessmentRiskLevelCaseInsensitive:
+    """TestGapAssessment.risk_level のケース非依存入力を検証。"""
+
+    def test_lowercase_risk_level_accepted(self) -> None:
+        """小文字入力が Severity.CRITICAL に正規化される。"""
+        assessment = TestGapAssessment(
+            issues=[],
+            coverage_gaps=[],
+            risk_level="critical",  # type: ignore[arg-type]
+        )
+        assert assessment.risk_level == Severity.CRITICAL
+
+    def test_uppercase_risk_level_accepted(self) -> None:
+        """大文字入力が Severity.IMPORTANT に正規化される。"""
+        assessment = TestGapAssessment(
+            issues=[],
+            coverage_gaps=[],
+            risk_level="IMPORTANT",  # type: ignore[arg-type]
+        )
+        assert assessment.risk_level == Severity.IMPORTANT
+
+    @pytest.mark.parametrize(
+        ("input_str", "expected"),
+        [
+            ("critical", Severity.CRITICAL),
+            ("important", Severity.IMPORTANT),
+            ("suggestion", Severity.SUGGESTION),
+            ("nitpick", Severity.NITPICK),
+        ],
+    )
+    def test_all_severity_values_case_insensitive(
+        self, input_str: str, expected: Severity
+    ) -> None:
+        """全4値について小文字入力を検証。"""
+        assessment = TestGapAssessment(
+            issues=[],
+            coverage_gaps=[],
+            risk_level=input_str,  # type: ignore[arg-type]
+        )
+        assert assessment.risk_level == expected
+
+    def test_invalid_risk_level_rejected(self) -> None:
+        """不正な文字列で ValidationError。"""
+        with pytest.raises(ValidationError):
+            TestGapAssessment(
+                issues=[],
+                coverage_gaps=[],
+                risk_level="invalid",  # type: ignore[arg-type]
+            )
 
 
 class TestTestGapAssessmentConstraints:
@@ -582,6 +693,57 @@ class TestImprovementItemValid:
         """HachimokuBaseModel のインスタンスである。"""
         item = ImprovementItem(title="t", description="d", priority=Severity.NITPICK)
         assert isinstance(item, HachimokuBaseModel)
+
+
+class TestImprovementItemPriorityCaseInsensitive:
+    """ImprovementItem.priority のケース非依存入力を検証。"""
+
+    def test_lowercase_priority_accepted(self) -> None:
+        """小文字入力が Severity.SUGGESTION に正規化される。"""
+        item = ImprovementItem(
+            title="t",
+            description="d",
+            priority="suggestion",  # type: ignore[arg-type]
+        )
+        assert item.priority == Severity.SUGGESTION
+
+    def test_uppercase_priority_accepted(self) -> None:
+        """大文字入力が Severity.CRITICAL に正規化される。"""
+        item = ImprovementItem(
+            title="t",
+            description="d",
+            priority="CRITICAL",  # type: ignore[arg-type]
+        )
+        assert item.priority == Severity.CRITICAL
+
+    @pytest.mark.parametrize(
+        ("input_str", "expected"),
+        [
+            ("critical", Severity.CRITICAL),
+            ("important", Severity.IMPORTANT),
+            ("suggestion", Severity.SUGGESTION),
+            ("nitpick", Severity.NITPICK),
+        ],
+    )
+    def test_all_severity_values_case_insensitive(
+        self, input_str: str, expected: Severity
+    ) -> None:
+        """全4値について小文字入力を検証。"""
+        item = ImprovementItem(
+            title="t",
+            description="d",
+            priority=input_str,  # type: ignore[arg-type]
+        )
+        assert item.priority == expected
+
+    def test_invalid_priority_rejected(self) -> None:
+        """不正な文字列で ValidationError。"""
+        with pytest.raises(ValidationError):
+            ImprovementItem(
+                title="t",
+                description="d",
+                priority="invalid",  # type: ignore[arg-type]
+            )
 
 
 class TestImprovementItemConstraints:
