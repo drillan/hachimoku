@@ -163,14 +163,10 @@ def _format_agent_result_row(
     agent_result: AgentSuccess | AgentError | AgentTimeout | AgentTruncated,
 ) -> str:
     match agent_result:
-        case AgentSuccess():
+        case AgentSuccess() | AgentTruncated():
             issue_count = str(len(agent_result.issues))
             time_display = f"{agent_result.elapsed_time:.1f}s"
-            return f"| {agent_result.agent_name} | success | {issue_count} | {time_display} |"
-        case AgentTruncated():
-            issue_count = str(len(agent_result.issues))
-            time_display = f"{agent_result.elapsed_time:.1f}s"
-            return f"| {agent_result.agent_name} | truncated | {issue_count} | {time_display} |"
+            return f"| {agent_result.agent_name} | {agent_result.status} | {issue_count} | {time_display} |"
         case AgentError():
             return f"| {agent_result.agent_name} | error | - | - |"
         case AgentTimeout():
