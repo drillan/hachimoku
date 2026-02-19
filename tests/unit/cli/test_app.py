@@ -20,6 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import click
 import pytest
 
 from pydantic import ValidationError
@@ -609,6 +610,54 @@ class TestReviewRunReviewError:
         mock_run_review.side_effect = RuntimeError("Engine failed")
         result = runner.invoke(app)
         assert "--help" in result.output
+
+
+class TestReviewGroupExceptionChain:
+    """_ReviewGroup.invoke の暗黙的例外チェーン抑制を検証する (#270)。
+
+    PR モード（整数引数）では _ReviewGroup.invoke が resolve_command の
+    UsageError を catch して review_callback を呼び出す。レビュー実行中に
+    例外が発生した場合、UsageError が __context__ として例外チェーンに
+    含まれてはならない。
+    """
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_pr_mode_exception_has_no_usage_error_in_chain(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """PR モードでの例外チェーンに UsageError が含まれない。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_run_review.side_effect = RuntimeError("Engine failed")
+        result = runner.invoke(app, ["123"])
+        assert result.exit_code == 3
+
+        exc: BaseException | None = result.exception
+        visited: set[int] = set()
+        while exc is not None and id(exc) not in visited:
+            visited.add(id(exc))
+            assert not isinstance(exc, click.UsageError), (
+                "UsageError should not appear in the exception chain"
+            )
+            exc = exc.__cause__ if exc.__cause__ is not None else exc.__context__
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_diff_mode_exception_has_no_usage_error_in_chain(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """diff モード（引数なし）の例外チェーンには元々 UsageError がない（回帰テスト）。"""
+        mock_config.return_value = HachimokuConfig()
+        mock_run_review.side_effect = RuntimeError("Engine failed")
+        result = runner.invoke(app)
+        assert result.exit_code == 3
+
+        exc: BaseException | None = result.exception
+        visited: set[int] = set()
+        while exc is not None and id(exc) not in visited:
+            visited.add(id(exc))
+            assert not isinstance(exc, click.UsageError)
+            exc = exc.__cause__ if exc.__cause__ is not None else exc.__context__
 
 
 class TestReviewConfigError:

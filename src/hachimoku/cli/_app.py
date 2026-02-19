@@ -96,11 +96,15 @@ class _ReviewGroup(TyperGroup):
         ctx.args = []
         ctx._protected_args = []
 
+        is_review_args = False
         try:
             cmd_name, cmd, remaining = self.resolve_command(ctx, args)
         except click.UsageError as exc:
             if "No such command" not in str(exc):
                 raise
+            is_review_args = True
+
+        if is_review_args:
             ctx.ensure_object(dict)
             ctx.obj[_REVIEW_ARGS_KEY] = args
             ctx.invoked_subcommand = None
