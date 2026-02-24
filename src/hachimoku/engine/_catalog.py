@@ -41,12 +41,21 @@ BUILTIN_TOOL_CATALOG: Final[Mapping[str, tuple[AbstractBuiltinTool, ...]]] = (
 
 CLAUDECODE_BUILTIN_MAP: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
     {
+        "git_read": ("mcp__pydantic_tools__run_git",),
+        "gh_read": ("mcp__pydantic_tools__run_gh",),
+        "file_read": (
+            "mcp__pydantic_tools__read_file",
+            "mcp__pydantic_tools__list_directory",
+        ),
         "web_fetch": ("WebFetch",),
     }
 )
-"""カテゴリ名から Claude Code ネイティブツール名へのマッピング。
+"""カテゴリ名から claudecode: モデルの allowed_tools に追加するツール名へのマッピング。
 
-claudecode: モデル使用時に allowed_tools に追加するツール名。
+CLI ビルトインツール名（例: "WebFetch"）と MCP ツール名
+（例: "mcp__pydantic_tools__run_git"）の両方を含む。
+MCP ツール名は set_agent_toolsets() で MCP サーバー経由で登録される
+pydantic-ai ツールに対応する。
 """
 
 _ALL_CATEGORIES: Final[frozenset[str]] = frozenset(

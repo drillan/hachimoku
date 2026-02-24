@@ -71,6 +71,33 @@ class TestClaudeCodeBuiltinMap:
         assert "web_fetch" in CLAUDECODE_BUILTIN_MAP
         assert CLAUDECODE_BUILTIN_MAP["web_fetch"] == ("WebFetch",)
 
+    def test_git_read_maps_to_mcp_tool(self) -> None:
+        """git_read カテゴリが MCP ツール名にマッピングされる。"""
+        assert "git_read" in CLAUDECODE_BUILTIN_MAP
+        assert CLAUDECODE_BUILTIN_MAP["git_read"] == ("mcp__pydantic_tools__run_git",)
+
+    def test_gh_read_maps_to_mcp_tool(self) -> None:
+        """gh_read カテゴリが MCP ツール名にマッピングされる。"""
+        assert "gh_read" in CLAUDECODE_BUILTIN_MAP
+        assert CLAUDECODE_BUILTIN_MAP["gh_read"] == ("mcp__pydantic_tools__run_gh",)
+
+    def test_file_read_maps_to_mcp_tools(self) -> None:
+        """file_read カテゴリが2つの MCP ツール名にマッピングされる。"""
+        assert "file_read" in CLAUDECODE_BUILTIN_MAP
+        assert CLAUDECODE_BUILTIN_MAP["file_read"] == (
+            "mcp__pydantic_tools__read_file",
+            "mcp__pydantic_tools__list_directory",
+        )
+
+    def test_mcp_names_follow_naming_convention(self) -> None:
+        """MCP ツール名が mcp__pydantic_tools__ プレフィックスに従う。"""
+        for category, names in CLAUDECODE_BUILTIN_MAP.items():
+            for name in names:
+                if category != "web_fetch":
+                    assert name.startswith("mcp__pydantic_tools__"), (
+                        f"{category} の MCP ツール名 '{name}' が命名規則に従っていない"
+                    )
+
 
 # =============================================================================
 # resolve_tools
@@ -86,6 +113,11 @@ class TestResolveTools:
         assert len(resolved.tools) > 0
         assert all(isinstance(t, Tool) for t in resolved.tools)
         assert resolved.builtin_tools == ()
+
+    def test_resolves_git_read_includes_mcp_names(self) -> None:
+        """git_read カテゴリの解決で MCP ツール名が claudecode_builtin_names に含まれる。"""
+        resolved = resolve_tools(("git_read",))
+        assert "mcp__pydantic_tools__run_git" in resolved.claudecode_builtin_names
 
     def test_resolves_gh_read(self) -> None:
         """gh_read カテゴリからツールを解決する。"""
@@ -110,7 +142,23 @@ class TestResolveTools:
         resolved = resolve_tools(("file_read", "web_fetch"))
         assert len(resolved.tools) > 0
         assert len(resolved.builtin_tools) == 1
-        assert resolved.claudecode_builtin_names == ("WebFetch",)
+        assert "mcp__pydantic_tools__read_file" in resolved.claudecode_builtin_names
+        assert (
+            "mcp__pydantic_tools__list_directory" in resolved.claudecode_builtin_names
+        )
+        assert "WebFetch" in resolved.claudecode_builtin_names
+
+    def test_resolves_all_categories_includes_all_mcp_names(self) -> None:
+        """全カテゴリ解決時に全 MCP ツール名が claudecode_builtin_names に含まれる。"""
+        resolved = resolve_tools(("git_read", "gh_read", "file_read", "web_fetch"))
+        expected_names = {
+            "mcp__pydantic_tools__run_git",
+            "mcp__pydantic_tools__run_gh",
+            "mcp__pydantic_tools__read_file",
+            "mcp__pydantic_tools__list_directory",
+            "WebFetch",
+        }
+        assert expected_names == set(resolved.claudecode_builtin_names)
 
     def test_resolves_multiple_regular_categories(self) -> None:
         """複数の通常カテゴリのツールを統合して返す。"""
