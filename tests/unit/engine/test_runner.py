@@ -124,9 +124,16 @@ class TestRunAgentTimeout:
     async def test_timeout_returns_agent_timeout(
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
-        """TimeoutError 発生時に AgentTimeout が返される。"""
+        """CLIExecutionError(error_type="timeout") 発生時に AgentTimeout が返される。"""
         mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(side_effect=TimeoutError)
+        mock_instance.run = AsyncMock(
+            side_effect=CLIExecutionError(
+                "SDK query timed out after 60 seconds",
+                exit_code=2,
+                stderr="Query was cancelled due to timeout",
+                error_type="timeout",
+            )
+        )
 
         ctx = _make_context(agent_name="timeout-agent", timeout_seconds=60)
         result = await run_agent(ctx)

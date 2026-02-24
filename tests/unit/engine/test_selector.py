@@ -564,7 +564,15 @@ class TestRunSelectorError:
         ("exception", "match_pattern"),
         [
             (RuntimeError("LLM connection failed"), "LLM connection failed"),
-            (TimeoutError("timed out"), "timed out"),
+            (
+                CLIExecutionError(
+                    "SDK query timed out",
+                    exit_code=2,
+                    stderr="Query was cancelled due to timeout",
+                    error_type="timeout",
+                ),
+                "SDK query timed out",
+            ),
         ],
     )
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)

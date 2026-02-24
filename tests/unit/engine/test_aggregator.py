@@ -9,6 +9,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from claudecode_model.exceptions import CLIExecutionError
 from pydantic import ValidationError
 
 from hachimoku.agents.models import AggregatorDefinition
@@ -540,9 +541,16 @@ class TestRunAggregatorError:
     async def test_timeout_raises_aggregator_error(
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
-        """TimeoutError が AggregatorError にラップされる。"""
+        """CLIExecutionError(error_type="timeout") が AggregatorError にラップされる。"""
         mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=TimeoutError("timed out"))
+        mock_instance.run = AsyncMock(
+            side_effect=CLIExecutionError(
+                "SDK query timed out",
+                exit_code=2,
+                stderr="Query was cancelled due to timeout",
+                error_type="timeout",
+            )
+        )
         mock_agent_cls.return_value = mock_instance
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)

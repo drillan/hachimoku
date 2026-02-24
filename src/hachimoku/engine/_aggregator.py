@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 
-from anyio import fail_after
 from claudecode_model import ClaudeCodeModelSettings
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
@@ -110,7 +109,7 @@ async def run_aggregator(
         3. エージェント結果からユーザーメッセージを構築
         4. resolve_model() でモデルオブジェクトを生成
         5. pydantic-ai Agent(output_type=AggregatedReport, tools=[]) を構築
-        6. anyio.fail_after() + UsageLimits でエージェントを実行
+        6. UsageLimits でエージェントを実行（タイムアウトは ClaudeCodeModelSettings 経由で SDK に委譲）
         7. AggregatedReport を返す
 
     Args:
@@ -146,15 +145,14 @@ async def run_aggregator(
             system_prompt=aggregator_definition.system_prompt,
         )
 
-        with fail_after(timeout):
-            result = await agent.run(
-                user_message,
-                usage_limits=UsageLimits(request_limit=max_turns),
-                model_settings=ClaudeCodeModelSettings(
-                    max_turns=max_turns,
-                    timeout=timeout,
-                ),
-            )
+        result = await agent.run(
+            user_message,
+            usage_limits=UsageLimits(request_limit=max_turns),
+            model_settings=ClaudeCodeModelSettings(
+                max_turns=max_turns,
+                timeout=timeout,
+            ),
+        )
 
         return result.output
 

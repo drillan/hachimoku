@@ -115,8 +115,9 @@ async def run_selector(
            build_selector_instruction() でユーザーメッセージを構築
         4. pydantic-ai Agent(output_type=SelectorOutput, deps_type=SelectorDeps,
            instructions=_prefetch_guardrail) を構築
-        5. anyio.fail_after() + UsageLimits でエージェントを実行
-           （deps=SelectorDeps(prefetched=prefetched_context) を渡す）
+        5. UsageLimits でエージェントを実行
+           （タイムアウトは ClaudeCodeModelSettings 経由で SDK に委譲、
+           deps=SelectorDeps(prefetched=prefetched_context) を渡す）
         6. SelectorOutput を返す
 
     エラー時の挙動（仕様 Edge Cases より）:
