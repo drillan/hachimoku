@@ -1,9 +1,9 @@
 """AgentRunner — 単一エージェントの実行。
 
 FR-RE-003: タイムアウト・ターン数制御・失敗許容。
-FR-RE-004: anyio.fail_after + UsageLimits による二段階制御。
+FR-RE-004: UsageLimits + ClaudeCodeModelSettings(timeout) による二段階制御。
 R-001: pydantic-ai UsageLimits + model_settings max_turns の二重経路。
-R-002: anyio.fail_after でエージェント全体の実行をラップ。
+R-002: タイムアウトは ClaudeCodeModelSettings 経由で SDK に委譲。
 R-003: UsageLimitExceeded 時は空 issues リストで AgentTruncated を返す。
 R-011: result.usage() からトークン数を CostInfo に変換。
 """
@@ -13,14 +13,13 @@ from __future__ import annotations
 import logging
 import time
 
-from anyio import fail_after
-
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
 
+from hachimoku.engine._cancel_scope_guard import run_agent_safe
 from hachimoku.engine._context import AgentExecutionContext
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.models.agent_result import (
@@ -43,13 +42,12 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
 
     実行フロー:
         1. pydantic-ai Agent を構築（model, tools, builtin_tools, system_prompt, output_type）
-        2. anyio.fail_after() でタイムアウト制御をラップ
-        3. UsageLimits(request_limit=max_turns) でターン数制御
-        4. agent.run() を実行
-        5. 結果を AgentResult に変換
+        2. UsageLimits(request_limit=max_turns) でターン数制御
+        3. run_agent_safe() で実行（agent.iter() ベース、CancelScope 衝突ガード付き）
+        4. 結果を AgentResult に変換
 
     例外ハンドリング:
-        - TimeoutError → AgentTimeout
+        - CLIExecutionError(error_type="timeout") → AgentTimeout
         - UsageLimitExceeded → AgentTruncated（空 issues リスト）
         - その他の例外 → AgentError
 
@@ -79,15 +77,15 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
             resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
-        with fail_after(context.timeout_seconds):
-            result = await agent.run(
-                context.user_message,
-                usage_limits=UsageLimits(request_limit=context.max_turns),
-                model_settings=ClaudeCodeModelSettings(
-                    max_turns=context.max_turns,
-                    timeout=context.timeout_seconds,
-                ),
-            )
+        result = await run_agent_safe(
+            agent,
+            user_prompt=context.user_message,
+            usage_limits=UsageLimits(request_limit=context.max_turns),
+            model_settings=ClaudeCodeModelSettings(
+                max_turns=context.max_turns,
+                timeout=context.timeout_seconds,
+            ),
+        )
 
         elapsed = time.monotonic() - start_time
         usage = result.usage()
@@ -102,12 +100,6 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             ),
         )
 
-    except TimeoutError:
-        return AgentTimeout(
-            agent_name=context.agent_name,
-            timeout_seconds=float(context.timeout_seconds),
-        )
-
     except UsageLimitExceeded:
         elapsed = time.monotonic() - start_time
         return AgentTruncated(
@@ -118,6 +110,13 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
         )
 
     except Exception as exc:
+        # CLIExecutionError(error_type="timeout") → AgentTimeout
+        if isinstance(exc, CLIExecutionError) and exc.error_type == "timeout":
+            return AgentTimeout(
+                agent_name=context.agent_name,
+                timeout_seconds=float(context.timeout_seconds),
+            )
+
         logger.warning(
             "Agent '%s' failed with %s: %s",
             context.agent_name,

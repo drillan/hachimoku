@@ -120,13 +120,17 @@ class TestRunAgentTimeout:
     """run_agent がタイムアウト時に AgentTimeout を返すケースのテスト。"""
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_timeout_returns_agent_timeout(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """TimeoutError 発生時に AgentTimeout が返される。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(side_effect=TimeoutError)
+        """CLIExecutionError(error_type="timeout") 発生時に AgentTimeout が返される。"""
+        mock_run_safe.side_effect = CLIExecutionError(
+            "SDK query timed out after 60 seconds",
+            exit_code=2,
+            stderr="Query was cancelled due to timeout",
+            error_type="timeout",
+        )
 
         ctx = _make_context(agent_name="timeout-agent", timeout_seconds=60)
         result = await run_agent(ctx)
@@ -261,9 +265,9 @@ class TestRunAgentError:
 class TestRunAgentSchemaViolation:
     """run_agent が出力スキーマ違反時に AgentError を返すケースのテスト。"""
 
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_validation_error_returns_agent_error(
-        self, mock_agent_cls: MagicMock
+        self, mock_run_safe: AsyncMock
     ) -> None:
         """出力パース時の ValidationError が AgentError に変換される。"""
         # BaseAgentOutput のバリデーションで実際の ValidationError を生成
@@ -272,8 +276,7 @@ class TestRunAgentSchemaViolation:
         except ValidationError as real_error:
             validation_error = real_error
 
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(side_effect=validation_error)
+        mock_run_safe.side_effect = validation_error
 
         ctx = _make_context(agent_name="schema-fail-agent")
         result = await run_agent(ctx)
@@ -291,34 +294,42 @@ class TestRunAgentSchemaViolation:
 class TestRunAgentResolveModel:
     """run_agent が resolve_model を呼び出して Agent を構築するテスト。"""
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
     async def test_resolve_model_called_with_context_values(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
     ) -> None:
         """resolve_model が context.model で呼ばれる。"""
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
         await run_agent(ctx)
 
         mock_resolve.assert_called_once_with("test", extra_builtin_tools=())
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
     async def test_resolved_model_passed_to_agent(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
     ) -> None:
         """resolve_model の戻り値が Agent(model=...) に渡される。"""
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
         await run_agent(ctx)
@@ -326,10 +337,14 @@ class TestRunAgentResolveModel:
         mock_agent_cls.assert_called_once()
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
     async def test_registers_toolsets_for_claudecode_model(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
     ) -> None:
         """ClaudeCodeModel の場合、set_agent_toolsets が呼ばれる。"""
         mock_model = MagicMock(spec=ClaudeCodeModel)
@@ -337,8 +352,8 @@ class TestRunAgentResolveModel:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_run_safe.return_value = mock_result
         mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(return_value=mock_result)
 
         ctx = _make_context()
         await run_agent(ctx)
@@ -347,16 +362,17 @@ class TestRunAgentResolveModel:
             mock_instance._function_toolset
         )
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
     @patch("hachimoku.engine._runner.Agent")
     async def test_skips_toolset_registration_for_string_model(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, _: MagicMock, mock_run_safe: AsyncMock
     ) -> None:
         """文字列モデルの場合、set_agent_toolsets は呼ばれない。"""
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
         result = await run_agent(ctx)
@@ -370,43 +386,41 @@ class TestRunAgentResolveModel:
 
 
 class TestRunAgentModelSettings:
-    """run_agent が agent.run() に model_settings を渡すテスト。"""
+    """run_agent が run_agent_safe に model_settings を渡すテスト。"""
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_model_settings_max_turns_passed(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """agent.run() に model_settings={"max_turns": N, "timeout": T} が渡される。"""
+        """run_agent_safe に model_settings={"max_turns": N, "timeout": T} が渡される。"""
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = _make_context(max_turns=10)
         await run_agent(ctx)
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"] == {"max_turns": 10, "timeout": 300}
         assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_model_settings_timeout_passed(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """agent.run() に context.timeout_seconds が model_settings["timeout"] に渡される。"""
+        """run_agent_safe に context.timeout_seconds が model_settings["timeout"] に渡される。"""
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = _make_context(timeout_seconds=600)
         await run_agent(ctx)
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"]["timeout"] == 600
 
 
@@ -448,20 +462,17 @@ class TestRunAgentErrorDiagnostics:
         ],
     )
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_cli_execution_error_preserves_field(
         self,
-        mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
         _: MagicMock,
         error_kwargs: dict[str, object],
         assert_field: str,
         expected_value: object,
     ) -> None:
         """CLIExecutionError の各属性が AgentError に保存される。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError("CLI failed", **error_kwargs)  # type: ignore[arg-type]
-        )
+        mock_run_safe.side_effect = CLIExecutionError("CLI failed", **error_kwargs)  # type: ignore[arg-type]
         ctx = _make_context(agent_name="cli-error-agent")
         result = await run_agent(ctx)
 
@@ -469,13 +480,12 @@ class TestRunAgentErrorDiagnostics:
         assert getattr(result, assert_field) == expected_value
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_non_cli_exception_has_none_optional_fields(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """CLIExecutionError 以外の例外では新規フィールドが None のままである。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(side_effect=RuntimeError("unexpected"))
+        mock_run_safe.side_effect = RuntimeError("unexpected")
 
         ctx = _make_context(agent_name="generic-error-agent")
         result = await run_agent(ctx)
@@ -495,13 +505,12 @@ class TestRunAgentErrorLogging:
     """run_agent がエラー時にログ出力するテスト。"""
 
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)
-    @patch("hachimoku.engine._runner.Agent")
+    @patch("hachimoku.engine._runner.run_agent_safe")
     async def test_exception_is_logged_with_warning(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """例外発生時に logger.warning が呼ばれる。"""
-        mock_instance = mock_agent_cls.return_value
-        mock_instance.run = AsyncMock(side_effect=RuntimeError("test error"))
+        mock_run_safe.side_effect = RuntimeError("test error")
 
         ctx = _make_context(agent_name="log-test-agent")
         with patch("hachimoku.engine._runner.logger") as mock_logger:
@@ -520,10 +529,14 @@ class TestRunAgentErrorLogging:
 class TestRunAgentBuiltinTools:
     """run_agent が builtin_tools を Agent に渡すテスト。Issue #222。"""
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
     async def test_builtin_tools_passed_to_agent(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
     ) -> None:
         """context.builtin_tools が Agent(builtin_tools=...) に渡される。"""
         from pydantic_ai.builtin_tools import WebFetchTool
@@ -532,7 +545,7 @@ class TestRunAgentBuiltinTools:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         wft = WebFetchTool()
         ctx = AgentExecutionContext(
@@ -552,17 +565,21 @@ class TestRunAgentBuiltinTools:
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert call_kwargs["builtin_tools"] == [wft]
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
     async def test_empty_builtin_tools_passed(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
     ) -> None:
         """builtin_tools=() のとき空リストが Agent に渡される。"""
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
         await run_agent(ctx)
@@ -570,17 +587,21 @@ class TestRunAgentBuiltinTools:
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert call_kwargs["builtin_tools"] == []
 
+    @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
     async def test_claudecode_builtin_names_passed_to_resolve_model(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
     ) -> None:
         """context.claudecode_builtin_names が resolve_model の extra_builtin_tools に渡される。"""
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
-        mock_agent_cls.return_value.run = AsyncMock(return_value=mock_result)
+        mock_run_safe.return_value = mock_result
 
         ctx = AgentExecutionContext(
             agent_name="test-agent",

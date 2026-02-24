@@ -22,13 +22,12 @@ async def run_agent(
 
     実行フロー:
         1. pydantic-ai Agent を構築（model, tools, system_prompt, output_type）
-        2. anyio.fail_after() でタイムアウト制御をラップ
-        3. UsageLimits(request_limit=max_turns) でターン数制御
-        4. agent.run() を実行
-        5. 結果を AgentResult に変換
+        2. UsageLimits(request_limit=max_turns) でターン数制御
+        3. run_agent_safe() で実行（agent.iter() ベース、CancelScope 衝突ガード付き）
+        4. 結果を AgentResult に変換
 
     例外ハンドリング:
-        - TimeoutError → AgentTimeout
+        - CLIExecutionError(error_type="timeout") → AgentTimeout
         - UsageLimitExceeded → AgentTruncated（部分結果あり）
         - その他の例外 → AgentError
 

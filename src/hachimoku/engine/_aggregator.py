@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import logging
 
-from anyio import fail_after
 from claudecode_model import ClaudeCodeModelSettings
 from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AggregatorDefinition
+from hachimoku.engine._cancel_scope_guard import run_agent_safe
 from hachimoku.engine._context import _resolve_with_agent_def
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.models.agent_result import (
@@ -110,7 +110,7 @@ async def run_aggregator(
         3. エージェント結果からユーザーメッセージを構築
         4. resolve_model() でモデルオブジェクトを生成
         5. pydantic-ai Agent(output_type=AggregatedReport, tools=[]) を構築
-        6. anyio.fail_after() + UsageLimits でエージェントを実行
+        6. UsageLimits でエージェントを実行（タイムアウトは ClaudeCodeModelSettings 経由で SDK に委譲）
         7. AggregatedReport を返す
 
     Args:
@@ -146,15 +146,15 @@ async def run_aggregator(
             system_prompt=aggregator_definition.system_prompt,
         )
 
-        with fail_after(timeout):
-            result = await agent.run(
-                user_message,
-                usage_limits=UsageLimits(request_limit=max_turns),
-                model_settings=ClaudeCodeModelSettings(
-                    max_turns=max_turns,
-                    timeout=timeout,
-                ),
-            )
+        result = await run_agent_safe(
+            agent,
+            user_prompt=user_message,
+            usage_limits=UsageLimits(request_limit=max_turns),
+            model_settings=ClaudeCodeModelSettings(
+                max_turns=max_turns,
+                timeout=timeout,
+            ),
+        )
 
         return result.output
 
