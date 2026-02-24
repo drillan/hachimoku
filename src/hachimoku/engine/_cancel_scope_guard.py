@@ -4,15 +4,19 @@ Issue #274: pydantic-ai v1.63.0 の内部 CancelScope（pydantic-graph の
 TaskGroup + _run_tracked_task）と claude-agent-sdk の内部タスクグループが
 衝突し、RuntimeError が発生する問題への対策。
 
-2つの衝突パターンを処理する:
+対策は 2 層で構成される:
 
-1. __aexit__ 衝突（結果保存済み）: agent.iter() で結果をコンテキスト終了前に
-   保存し、__aexit__ の CancelScope RuntimeError を許容して結果を返す。
+Layer 1 — _run_tracked_task パッチ:
+    pydantic-graph の _run_tracked_task() から CancelScope ラッパーを除去する。
+    CancelScope は並列タスクキャンセル用（fork/join）だが、pydantic-ai の
+    エージェント実行は逐次的なため除去しても安全。これにより CancelScope
+    ツリー破壊の影響を遮断する。
 
-2. イテレーション中衝突（結果未保存）: ClaudeCodeModel の move_on_after() が
-   timeout 発火 → CancelScope ツリー破壊 → _run_tracked_task の CancelScope
-   が RuntimeError を送出。元の CLIExecutionError(error_type="timeout") が
-   RuntimeError に上書きされるため、timeout エラーを復元する。
+Layer 2 — run_agent_safe ラッパー:
+    agent.iter() で結果をコンテキスト終了前に保存し、残存する CancelScope
+    衝突（ClaudeCodeModel の move_on_after() 起因）を処理する。
+    - 結果保存後の衝突: 保存済みの結果を返す。
+    - 結果未保存の衝突: CLIExecutionError(error_type="timeout") を送出。
 """
 
 from __future__ import annotations
@@ -27,6 +31,47 @@ if TYPE_CHECKING:
     from pydantic_ai.run import AgentRunResult
 
 logger = logging.getLogger(__name__)
+
+
+def _patch_graph_cancel_scope() -> None:
+    """pydantic-graph の _run_tracked_task から CancelScope を除去する。
+
+    claude-agent-sdk の内部タスクグループが anyio の CancelScope ツリーを破壊し、
+    _run_tracked_task 内の ``with CancelScope()`` の ``__exit__()`` で RuntimeError
+    が発生する。
+
+    CancelScope は並列タスクキャンセル用（fork/join）だが、pydantic-ai の
+    エージェント実行は逐次的なため、除去しても機能に影響しない。
+    """
+    from anyio import BrokenResourceError
+    from pydantic_graph.beta.graph import (
+        GraphTask,
+        _GraphIterator,
+        _GraphTaskAsyncIterable,
+        _GraphTaskResult,
+    )
+
+    async def _safe_run_tracked_task(
+        self: _GraphIterator,  # type: ignore[type-arg]
+        t_: GraphTask,
+    ) -> None:
+        result = await self._run_task(t_)
+        try:
+            if isinstance(result, _GraphTaskAsyncIterable):
+                async for new_tasks in result.iterable:
+                    await self.iter_stream_sender.send(
+                        _GraphTaskResult(t_, new_tasks, False)
+                    )
+                await self.iter_stream_sender.send(_GraphTaskResult(t_, []))
+            else:
+                await self.iter_stream_sender.send(_GraphTaskResult(t_, result))
+        except BrokenResourceError:
+            pass
+
+    _GraphIterator._run_tracked_task = _safe_run_tracked_task  # type: ignore[assignment]
+
+
+_patch_graph_cancel_scope()
 
 
 def _is_cancel_scope_error(error: RuntimeError) -> bool:

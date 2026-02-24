@@ -1,11 +1,10 @@
 """CancelScope ガードのテスト。
 
 Issue #274: pydantic-ai 内部の CancelScope と claude-agent-sdk の
-CancelScope が衝突する問題への対策。agent.iter() で結果を先に保存し、
-__aexit__ の RuntimeError を許容する。
+CancelScope が衝突する問題への対策。
 
-CancelScope 衝突で結果が保存されていない場合（イテレーション中の衝突）は、
-元の timeout エラーを復元して CLIExecutionError(error_type="timeout") を送出する。
+Layer 1: _run_tracked_task から CancelScope を除去するパッチ。
+Layer 2: agent.iter() で結果を先に保存し、残存する CancelScope 衝突を処理。
 """
 
 from __future__ import annotations
@@ -219,3 +218,30 @@ class TestRunAgentSafeOtherExceptions:
 
         with pytest.raises(TimeoutError, match="timed out"):
             await run_agent_safe(agent, user_prompt="test")
+
+
+# =============================================================================
+# Layer 1: _run_tracked_task パッチ
+# =============================================================================
+
+
+class TestGraphCancelScopePatch:
+    """_run_tracked_task から CancelScope が除去されていることを検証する。"""
+
+    def test_patch_removes_cancel_scope(self) -> None:
+        """パッチ適用後、_run_tracked_task に CancelScope がない。"""
+        import inspect
+
+        from pydantic_graph.beta.graph import _GraphIterator
+
+        src = inspect.getsource(_GraphIterator._run_tracked_task)
+        assert "CancelScope" not in src
+
+    def test_patch_preserves_stream_send(self) -> None:
+        """パッチ後も iter_stream_sender.send が呼ばれる。"""
+        import inspect
+
+        from pydantic_graph.beta.graph import _GraphIterator
+
+        src = inspect.getsource(_GraphIterator._run_tracked_task)
+        assert "iter_stream_sender.send" in src
