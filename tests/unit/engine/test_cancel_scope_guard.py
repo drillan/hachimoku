@@ -5,6 +5,7 @@ CancelScope が衝突する問題への対策。
 
 Layer 1: _run_tracked_task から CancelScope を除去するパッチ。
 Layer 2: agent.iter() で結果を先に保存し、残存する CancelScope 衝突を処理。
+Layer 3: CancelScope.__exit__ をパッチし、ツリー破壊エラーを抑制。
 """
 
 from __future__ import annotations
@@ -245,3 +246,104 @@ class TestGraphCancelScopePatch:
 
         src = inspect.getsource(_GraphIterator._run_tracked_task)
         assert "iter_stream_sender.send" in src
+
+
+# =============================================================================
+# Layer 3: CancelScope.__exit__ パッチ
+# =============================================================================
+
+
+class TestCancelScopeExitPatch:
+    """CancelScope.__exit__ がパッチされ、ツリー破壊エラーが抑制される。"""
+
+    def test_patch_is_applied(self) -> None:
+        """パッチ適用後、CancelScope.__exit__ が _safe_exit になっている。"""
+        from anyio import CancelScope
+
+        assert CancelScope.__exit__.__name__ == "_safe_exit"
+
+    def test_suppresses_cancel_scope_error(self) -> None:
+        """cancel scope RuntimeError が抑制される。"""
+        from hachimoku.engine._cancel_scope_guard import _make_safe_cancel_scope_exit
+
+        def raising_exit(
+            self: object,
+            exc_type: object,
+            exc_val: object,
+            exc_tb: object,
+        ) -> bool | None:
+            raise RuntimeError(
+                "Attempted to exit a cancel scope that isn't the current "
+                "tasks's current cancel scope"
+            )
+
+        safe_exit = _make_safe_cancel_scope_exit(raising_exit)
+        result = safe_exit(None, None, None, None)
+        assert result is False
+
+    def test_suppresses_different_task_cancel_scope_error(self) -> None:
+        """'different task' メッセージの cancel scope エラーも抑制される。"""
+        from hachimoku.engine._cancel_scope_guard import _make_safe_cancel_scope_exit
+
+        def raising_exit(
+            self: object,
+            exc_type: object,
+            exc_val: object,
+            exc_tb: object,
+        ) -> bool | None:
+            raise RuntimeError(
+                "Attempted to exit cancel scope in a different task "
+                "than it was entered in"
+            )
+
+        safe_exit = _make_safe_cancel_scope_exit(raising_exit)
+        result = safe_exit(None, None, None, None)
+        assert result is False
+
+    def test_reraises_non_cancel_scope_runtime_error(self) -> None:
+        """cancel scope 以外の RuntimeError は再送出される。"""
+        from hachimoku.engine._cancel_scope_guard import _make_safe_cancel_scope_exit
+
+        def raising_exit(
+            self: object,
+            exc_type: object,
+            exc_val: object,
+            exc_tb: object,
+        ) -> bool | None:
+            raise RuntimeError("something completely different")
+
+        safe_exit = _make_safe_cancel_scope_exit(raising_exit)
+        with pytest.raises(RuntimeError, match="something completely different"):
+            safe_exit(None, None, None, None)
+
+    def test_passes_through_normal_return(self) -> None:
+        """正常な __exit__ の戻り値がそのまま返される。"""
+        from hachimoku.engine._cancel_scope_guard import _make_safe_cancel_scope_exit
+
+        def normal_exit(
+            self: object,
+            exc_type: object,
+            exc_val: object,
+            exc_tb: object,
+        ) -> bool | None:
+            return None
+
+        safe_exit = _make_safe_cancel_scope_exit(normal_exit)
+        result = safe_exit(None, None, None, None)
+        assert result is None
+
+    def test_passes_through_suppress_return(self) -> None:
+        """例外抑制の True がそのまま返される。"""
+        from hachimoku.engine._cancel_scope_guard import _make_safe_cancel_scope_exit
+
+        def suppressing_exit(
+            self: object,
+            exc_type: object,
+            exc_val: object,
+            exc_tb: object,
+        ) -> bool | None:
+            return True
+
+        safe_exit = _make_safe_cancel_scope_exit(suppressing_exit)
+        result = safe_exit(None, None, None, None)
+        assert result is True

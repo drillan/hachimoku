@@ -4,7 +4,7 @@ Issue #274: pydantic-ai v1.63.0 の内部 CancelScope（pydantic-graph の
 TaskGroup + _run_tracked_task）と claude-agent-sdk の内部タスクグループが
 衝突し、RuntimeError が発生する問題への対策。
 
-対策は 2 層で構成される:
+対策は 3 層で構成される:
 
 Layer 1 — _run_tracked_task パッチ:
     pydantic-graph の _run_tracked_task() から CancelScope ラッパーを除去する。
@@ -17,16 +17,27 @@ Layer 2 — run_agent_safe ラッパー:
     衝突（ClaudeCodeModel の move_on_after() 起因）を処理する。
     - 結果保存後の衝突: 保存済みの結果を返す。
     - 結果未保存の衝突: CLIExecutionError(error_type="timeout") を送出。
+
+Layer 3 — CancelScope.__exit__ パッチ:
+    anyio CancelScope.__exit__() のツリー破壊 RuntimeError を抑制する。
+    claude-agent-sdk の _tg が CancelScope スタックにスタール scope を残し、
+    ClaudeCodeModel の move_on_after().__exit__() が RuntimeError を送出する。
+    ClaudeCodeModel はこれを「タイムアウト」と誤判定するため、__exit__() 自体で
+    エラーを抑制し、正常な return を可能にする。
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from claudecode_model.exceptions import CLIExecutionError
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
+    from anyio import CancelScope
     from pydantic_ai import Agent
     from pydantic_ai.run import AgentRunResult
 
@@ -81,6 +92,62 @@ def _is_cancel_scope_error(error: RuntimeError) -> bool:
     anyio のエラーメッセージ形式に依存する（anyio 4.x で検証済み）。
     """
     return "cancel scope" in str(error).lower()
+
+
+def _make_safe_cancel_scope_exit(
+    original_exit: Callable[..., bool | None],
+) -> Callable[..., bool | None]:
+    """CancelScope.__exit__ のセーフラッパーを生成する。
+
+    テスト可能な形で __exit__ ラッパーを生成するファクトリ。
+    cancel scope ツリー破壊の RuntimeError を抑制し、それ以外の
+    RuntimeError は再送出する。
+
+    Args:
+        original_exit: オリジナルの CancelScope.__exit__ メソッド。
+
+    Returns:
+        ラップされた __exit__ 関数。
+    """
+
+    def _safe_exit(
+        self: CancelScope,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        try:
+            return original_exit(self, exc_type, exc_val, exc_tb)
+        except RuntimeError as e:
+            if _is_cancel_scope_error(e):
+                logger.warning(
+                    "Suppressed cancel scope tree corruption in "
+                    "CancelScope.__exit__(): %s",
+                    e,
+                )
+                return False
+            raise
+
+    return _safe_exit
+
+
+def _patch_cancel_scope_exit() -> None:
+    """anyio CancelScope.__exit__() をパッチし、ツリー破壊エラーを抑制する。
+
+    claude-agent-sdk の内部タスクグループが anyio の CancelScope ツリーを破壊し、
+    ClaudeCodeModel の move_on_after().__exit__() で RuntimeError が発生する。
+    ClaudeCodeModel はこれを「タイムアウト」と誤判定し、クエリが成功しているにも
+    かかわらず CLIExecutionError(error_type="timeout") を送出する。
+
+    このパッチにより、CancelScope.__exit__() のツリー破壊 RuntimeError を
+    抑制し、正常な return を可能にする。
+    """
+    from anyio import CancelScope as _CancelScope
+
+    _CancelScope.__exit__ = _make_safe_cancel_scope_exit(_CancelScope.__exit__)  # type: ignore[assignment]
+
+
+_patch_cancel_scope_exit()
 
 
 async def run_agent_safe(
