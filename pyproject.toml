@@ -1,6 +1,6 @@
 [project]
 name = "hachimoku"
-version = "0.0.7"
+version = "0.0.8"
 description = "Multi-agent code review CLI tool"
 readme = "README.md"
 authors = [

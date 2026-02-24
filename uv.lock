@@ -378,7 +378,7 @@ dependencies = [
 [[package]]
 name = "claudecode-model"
 version = "0.0.35"
-source = { git = "https://github.com/drillan/claudecode-model.git#b00d655215db50db98f726baf7cf1dc7ac9dfe0c" }
+source = { git = "https://github.com/drillan/claudecode-model.git#09e25cbf04da1223a4af5dd6f5604afb475ed387" }
 dependencies = [
     { name = "claude-agent-sdk" },
     { name = "dacite" },
@@ -863,7 +863,7 @@ wheels = [
 
 [[package]]
 name = "hachimoku"
-version = "0.0.7"
+version = "0.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
