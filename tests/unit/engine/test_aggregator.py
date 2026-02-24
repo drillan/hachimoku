@@ -221,13 +221,13 @@ def _make_aggregation_config(
     )
 
 
-def _make_mock_agent_run(
+def _make_mock_run_safe_result(
     issues: list[ReviewIssue] | None = None,
     strengths: list[str] | None = None,
     recommended_actions: list[RecommendedAction] | None = None,
     agent_failures: list[str] | None = None,
-) -> AsyncMock:
-    """Agent.run の戻り値をモック化するヘルパー。"""
+) -> MagicMock:
+    """run_agent_safe() の戻り値をモック化するヘルパー。"""
     output = AggregatedReport(
         issues=issues or [],
         strengths=strengths or ["Good code"],
@@ -236,7 +236,7 @@ def _make_mock_agent_run(
     )
     mock_result = MagicMock()
     mock_result.output = output
-    return AsyncMock(return_value=mock_result)
+    return mock_result
 
 
 # =============================================================================
@@ -265,7 +265,7 @@ class TestAggregatorError:
 class TestRunAggregatorSuccess:
     """run_aggregator の正常系テスト。
 
-    Agent.run() をモック化し、LLM 呼び出しを回避する。
+    run_agent_safe() をモック化し、LLM 呼び出しを回避する。
     """
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
@@ -275,9 +275,9 @@ class TestRunAggregatorSuccess:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """正常完了時に AggregatedReport が返される。"""
-        mock_run_safe.return_value = _make_mock_agent_run(
+        mock_run_safe.return_value = _make_mock_run_safe_result(
             strengths=["Clean code"]
-        ).return_value
+        )
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         result = await run_aggregator(
@@ -298,9 +298,9 @@ class TestRunAggregatorSuccess:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AgentSuccess と AgentTruncated のみをフィルタして集約する。"""
-        mock_run_safe.return_value = _make_mock_agent_run(
+        mock_run_safe.return_value = _make_mock_run_safe_result(
             agent_failures=["reviewer-c", "reviewer-d"]
-        ).return_value
+        )
 
         mixed_results: list[
             AgentSuccess | AgentTruncated | AgentError | AgentTimeout
@@ -332,7 +332,7 @@ class TestRunAggregatorSuccess:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AggregatorDefinition.system_prompt が Agent に渡される。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -355,7 +355,7 @@ class TestRunAggregatorSuccess:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """Agent にツールが渡されない（空リスト）。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -376,7 +376,7 @@ class TestRunAggregatorSuccess:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """Agent の output_type が AggregatedReport である。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -420,7 +420,7 @@ class TestRunAggregatorModelResolution:
         expected_model: str,
     ) -> None:
         """モデル解決の優先順: config > definition > global。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -464,7 +464,7 @@ class TestRunAggregatorTimeoutResolution:
         expected_value: int,
     ) -> None:
         """AggregationConfig の timeout/max_turns がグローバル値より優先される。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -487,7 +487,7 @@ class TestRunAggregatorTimeoutResolution:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AggregationConfig の timeout/max_turns が None の場合、グローバル値が使用される。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -594,7 +594,7 @@ class TestRunAggregatorUserMessage:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """ユーザーメッセージに issues の情報が含まれる。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         issue = ReviewIssue(
             agent_name="reviewer-a",
@@ -623,7 +623,7 @@ class TestRunAggregatorUserMessage:
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """ユーザーメッセージに失敗エージェント情報が含まれる。"""
-        mock_run_safe.return_value = _make_mock_agent_run().return_value
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         error = AgentError(agent_name="reviewer-b", error_message="fail")

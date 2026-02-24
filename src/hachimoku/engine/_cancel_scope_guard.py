@@ -1,4 +1,4 @@
-"""CancelScope 衝突ガード — agent.run() の安全なラッパー。
+"""CancelScope 衝突ガード — agent.iter() ベースの安全な代替。
 
 Issue #274: pydantic-ai v1.63.0 の内部 CancelScope（pydantic-graph の
 TaskGroup + _run_tracked_task）と claude-agent-sdk の内部タスクグループが
@@ -27,13 +27,15 @@ Note:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from claudecode_model.exceptions import CLIExecutionError
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
     from pydantic_ai.run import AgentRunResult
+
+_OutputT = TypeVar("_OutputT")
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +49,32 @@ def _patch_graph_cancel_scope() -> None:
 
     CancelScope は並列タスクキャンセル用（fork/join）だが、pydantic-ai の
     エージェント実行は逐次的なため、除去しても機能に影響しない。
+
+    pydantic_graph.beta.graph の内部 API に依存するため、API 変更時は
+    パッチを無効化しログ警告のみ出力する（Layer 2 が安全網として機能する）。
     """
-    from anyio import BrokenResourceError
-    from pydantic_graph.beta.graph import (
-        GraphTask,
-        _GraphIterator,
-        _GraphTaskAsyncIterable,
-        _GraphTaskResult,
-    )
+    try:
+        from anyio import BrokenResourceError
+        from pydantic_graph.beta.graph import (
+            GraphTask,
+            _GraphIterator,
+            _GraphTaskAsyncIterable,
+            _GraphTaskResult,
+        )
+    except (ImportError, AttributeError):
+        logger.warning(
+            "Failed to patch pydantic-graph CancelScope: internal API changed. "
+            "CancelScope workaround disabled (Layer 2 still active)."
+        )
+        return
 
     async def _safe_run_tracked_task(
         self: _GraphIterator,  # type: ignore[type-arg]
         t_: GraphTask,
     ) -> None:
+        # self.cancel_scopes[t_.task_id] は意図的に未設定。
+        # _finish_task() の scope.cancel() は .pop(default=None) で安全に no-op。
+        # pydantic-ai のエージェント実行は逐次的なため、外部タスクキャンセルは不要。
         result = await self._run_task(t_)
         try:
             if isinstance(result, _GraphTaskAsyncIterable):
@@ -79,26 +94,35 @@ def _patch_graph_cancel_scope() -> None:
 _patch_graph_cancel_scope()
 
 
+_CANCEL_SCOPE_ERROR_PATTERNS: tuple[str, ...] = (
+    "attempted to exit a cancel scope that isn't the current tasks's current cancel scope",
+    "attempted to exit cancel scope in a different task",
+    "this cancel scope is not active",
+)
+"""anyio CancelScope の既知エラーメッセージパターン（anyio 4.x asyncio backend）。"""
+
+
 def _is_cancel_scope_error(error: RuntimeError) -> bool:
     """RuntimeError が anyio CancelScope の衝突かどうかを判定する。
 
-    claudecode_model.model._is_cancel_scope_error と同じロジック。
+    claudecode_model.model._is_cancel_scope_error と同じプレフィックスマッチング。
     anyio のエラーメッセージ形式に依存する（anyio 4.x で検証済み）。
     """
-    return "cancel scope" in str(error).lower()
+    msg = str(error).lower()
+    return any(msg.startswith(pattern) for pattern in _CANCEL_SCOPE_ERROR_PATTERNS)
 
 
 async def run_agent_safe(
-    agent: Agent[Any, Any],
+    agent: Agent[Any, _OutputT],
     /,
     **run_kwargs: Any,
-) -> AgentRunResult[Any]:
+) -> AgentRunResult[_OutputT]:
     """CancelScope 衝突を許容しつつ agent を実行する。
 
-    pydantic-ai の agent.run() は内部で agent.iter() のコンテキスト
-    マネージャを使用するが、CancelScope の衝突が発生すると結果が失われる。
+    agent.run() の代替として agent.iter() を直接使い、CancelScope 衝突時の
+    結果喪失を防止する。
 
-    このヘルパーは agent.iter() を直接使い、2つの衝突パターンを処理する:
+    2つの衝突パターンを処理する:
 
     1. 結果保存後の __aexit__ 衝突: 保存済みの結果を返す。
     2. イテレーション中の衝突（結果未保存）: ClaudeCodeModel の
@@ -120,7 +144,7 @@ async def run_agent_safe(
         RuntimeError: CancelScope 以外の RuntimeError。
         Exception: iteration 中に発生したその他の例外。
     """
-    result: AgentRunResult[Any] | None = None
+    result: AgentRunResult[_OutputT] | None = None
 
     try:
         async with agent.iter(**run_kwargs) as agent_run:

@@ -23,7 +23,7 @@ async def run_agent(
     実行フロー:
         1. pydantic-ai Agent を構築（model, tools, system_prompt, output_type）
         2. UsageLimits(request_limit=max_turns) でターン数制御
-        3. agent.run() を実行（タイムアウトは ClaudeCodeModelSettings 経由で SDK に委譲）
+        3. run_agent_safe() で実行（agent.iter() ベース、CancelScope 衝突ガード付き）
         4. 結果を AgentResult に変換
 
     例外ハンドリング:

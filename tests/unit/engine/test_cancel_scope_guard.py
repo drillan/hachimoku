@@ -15,6 +15,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from claudecode_model.exceptions import CLIExecutionError
+from typing import Any
+
 from pydantic_ai.run import AgentRunResult
 
 from hachimoku.engine._cancel_scope_guard import run_agent_safe
@@ -73,7 +75,7 @@ class TestRunAgentSafeSuccess:
         mock_result = MagicMock(spec=AgentRunResult)
         agent = _make_mock_agent_run(result=mock_result)
 
-        result = await run_agent_safe(agent, user_prompt="test")
+        result: AgentRunResult[Any] = await run_agent_safe(agent, user_prompt="test")
         assert result is mock_result
 
     async def test_passes_kwargs_to_iter(self) -> None:
@@ -120,7 +122,7 @@ class TestRunAgentSafeCancelScopeRecovery:
             result=mock_result, raise_on_exit=cancel_scope_error
         )
 
-        result = await run_agent_safe(agent, user_prompt="test")
+        result: AgentRunResult[Any] = await run_agent_safe(agent, user_prompt="test")
         assert result is mock_result
 
     async def test_recovers_on_different_task_error(self) -> None:
@@ -133,7 +135,7 @@ class TestRunAgentSafeCancelScopeRecovery:
             result=mock_result, raise_on_exit=cancel_scope_error
         )
 
-        result = await run_agent_safe(agent, user_prompt="test")
+        result: AgentRunResult[Any] = await run_agent_safe(agent, user_prompt="test")
         assert result is mock_result
 
 
