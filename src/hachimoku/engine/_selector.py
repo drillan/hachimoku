@@ -20,6 +20,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition, SelectorDefinition
+from hachimoku.engine._cancel_scope_guard import run_agent_safe
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import _resolve_with_agent_def
 from hachimoku.engine._instruction import build_selector_instruction
@@ -244,8 +245,9 @@ async def run_selector(
             # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
             resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
-        result = await agent.run(
-            user_message,
+        result = await run_agent_safe(
+            agent,
+            user_prompt=user_message,
             deps=SelectorDeps(prefetched=prefetched_context),
             usage_limits=UsageLimits(request_limit=max_turns),
             model_settings=ClaudeCodeModelSettings(

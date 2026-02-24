@@ -19,6 +19,7 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
 
+from hachimoku.engine._cancel_scope_guard import run_agent_safe
 from hachimoku.engine._context import AgentExecutionContext
 from hachimoku.engine._model_resolver import resolve_model
 from hachimoku.models.agent_result import (
@@ -76,8 +77,9 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
             resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
-        result = await agent.run(
-            context.user_message,
+        result = await run_agent_safe(
+            agent,
+            user_prompt=context.user_message,
             usage_limits=UsageLimits(request_limit=context.max_turns),
             model_settings=ClaudeCodeModelSettings(
                 max_turns=context.max_turns,

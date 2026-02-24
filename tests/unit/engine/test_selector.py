@@ -103,6 +103,23 @@ def _make_mock_agent_run(
     return AsyncMock(return_value=mock_result)
 
 
+def _make_mock_run_safe_result(
+    selected_agents: list[str] | None = None,
+    reasoning: str = "Test reasoning",
+) -> MagicMock:
+    """run_agent_safe の戻り値をモック化するヘルパー。
+
+    run_agent_safe は AgentRunResult を返す。
+    .output に SelectorOutput 相当のデータを持つ MagicMock を返す。
+    """
+    if selected_agents is None:
+        selected_agents = ["test-agent"]
+    output = SelectorOutput(selected_agents=selected_agents, reasoning=reasoning)
+    mock_result = MagicMock()
+    mock_result.output = output
+    return mock_result
+
+
 # =============================================================================
 # SelectorOutput モデル — 正常系
 # =============================================================================
@@ -408,18 +425,17 @@ class TestSelectorError:
 class TestRunSelectorSuccess:
     """run_selector の正常系テスト。
 
-    Agent.run() をモック化し、ツール実行を回避する。
+    run_agent_safe() をモック化し、ツール実行を回避する。
     """
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_returns_selector_output(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """正常完了時に SelectorOutput が返される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run(["agent-a", "agent-b"])
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result(["agent-a", "agent-b"])
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [
@@ -442,14 +458,13 @@ class TestRunSelectorSuccess:
         assert result.selected_agents == ["agent-a", "agent-b"]
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_empty_selection_is_valid(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """空リスト返却が正常に完了する。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run([], "No match")
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result([], "No match")
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = []
@@ -469,14 +484,15 @@ class TestRunSelectorSuccess:
         assert result.selected_agents == []
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_reasoning_preserved(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """reasoning が保持される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run(["agent-a"], "Detailed reasoning here")
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result(
+            ["agent-a"], "Detailed reasoning here"
+        )
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -495,14 +511,13 @@ class TestRunSelectorSuccess:
         assert result.reasoning == "Detailed reasoning here"
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_model_override(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """SelectorConfig.model が指定されている場合、Agent に渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -524,14 +539,13 @@ class TestRunSelectorSuccess:
         assert call_kwargs.kwargs["model"] == "custom-model"
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_definition_model_used_when_config_none(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """SelectorConfig.model が None の場合、SelectorDefinition.model が使用される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -576,18 +590,18 @@ class TestRunSelectorError:
         ],
     )
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_exception_raises_selector_error(
         self,
         mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
         _: MagicMock,
         exception: Exception,
         match_pattern: str,
     ) -> None:
         """各種例外が SelectorError にラップされる。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=exception)
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.side_effect = exception
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -615,18 +629,15 @@ class TestRunSelectorErrorDiagnostics:
     """run_selector が CLIExecutionError の構造化属性を SelectorError に伝播するテスト。"""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_cli_execution_error_attributes_propagated(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """CLIExecutionError の exit_code, error_type, stderr が SelectorError に伝播される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "CLI failed", exit_code=1, stderr="fatal error", error_type="timeout"
-            )
+        mock_run_safe.side_effect = CLIExecutionError(
+            "CLI failed", exit_code=1, stderr="fatal error", error_type="timeout"
         )
-        mock_agent_cls.return_value = mock_instance
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -652,18 +663,15 @@ class TestRunSelectorErrorDiagnostics:
         assert isinstance(err.__cause__, CLIExecutionError)
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_cli_execution_error_empty_stderr_preserved(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """CLIExecutionError の空 stderr は空文字列として保存される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "CLI failed", exit_code=1, stderr="", error_type="unknown"
-            )
+        mock_run_safe.side_effect = CLIExecutionError(
+            "CLI failed", exit_code=1, stderr="", error_type="unknown"
         )
-        mock_agent_cls.return_value = mock_instance
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -684,14 +692,13 @@ class TestRunSelectorErrorDiagnostics:
         assert exc_info.value.stderr == ""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_non_cli_error_fields_remain_none(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """CLIExecutionError 以外の例外では診断フィールドが None のまま。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=RuntimeError("unexpected"))
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.side_effect = RuntimeError("unexpected")
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -725,15 +732,17 @@ class TestRunSelectorResolveModel:
     """run_selector が resolve_model を呼び出すテスト。"""
 
     @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_resolve_model_called(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """resolve_model が正しく呼ばれ、結果が Agent に渡される。"""
         mock_resolve.return_value = "resolved-model"
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -758,16 +767,19 @@ class TestRunSelectorResolveModel:
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
 
     @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_registers_toolsets_for_claudecode_model(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """ClaudeCodeModel の場合、set_agent_toolsets が呼ばれる。"""
         mock_model = MagicMock(spec=ClaudeCodeModel)
         mock_resolve.return_value = mock_model
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
+        mock_instance = mock_agent_cls.return_value
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -789,14 +801,13 @@ class TestRunSelectorResolveModel:
         )
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_skips_toolset_registration_for_string_model(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """文字列モデルの場合、set_agent_toolsets は呼ばれない。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -821,17 +832,16 @@ class TestRunSelectorResolveModel:
 
 
 class TestRunSelectorModelSettings:
-    """run_selector が agent.run() に model_settings を渡すテスト。"""
+    """run_selector が run_agent_safe() に model_settings を渡すテスト。"""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_model_settings_max_turns_passed(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """agent.run() に model_settings={"max_turns": N, "timeout": T} が渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        """run_agent_safe() に model_settings={"max_turns": N, "timeout": T} が渡される。"""
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -848,19 +858,18 @@ class TestRunSelectorModelSettings:
             resolved_content="test diff content",
         )
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"] == {"max_turns": 10, "timeout": 300}
         assert call_kwargs["usage_limits"] == UsageLimits(request_limit=10)
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_max_turns_override(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """SelectorConfig.max_turns が model_settings に反映される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -877,18 +886,17 @@ class TestRunSelectorModelSettings:
             resolved_content="test diff content",
         )
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"] == {"max_turns": 5, "timeout": 300}
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_model_settings_timeout_passed(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """global_timeout が model_settings["timeout"] に渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -905,18 +913,17 @@ class TestRunSelectorModelSettings:
             resolved_content="test diff content",
         )
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"]["timeout"] == 600
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_selector_config_timeout_override(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """SelectorConfig.timeout が model_settings["timeout"] に反映される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -933,7 +940,7 @@ class TestRunSelectorModelSettings:
             resolved_content="test diff content",
         )
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"]["timeout"] == 120
 
 
@@ -946,14 +953,13 @@ class TestRunSelectorDefinitionIntegration:
     """run_selector が SelectorDefinition を使用するテスト。"""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_system_prompt_from_definition(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """SelectorDefinition.system_prompt が Agent に渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -979,14 +985,13 @@ class TestRunSelectorDefinitionIntegration:
         )
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_config_model_overrides_definition_model(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """SelectorConfig.model が SelectorDefinition.model より優先される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -1008,14 +1013,13 @@ class TestRunSelectorDefinitionIntegration:
         assert call_kwargs.kwargs["model"] == "config-model"
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_global_model_used_when_config_and_definition_none(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """config.model と definition.model が両方 None の場合、global_model が使用される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         target = _make_target()
         agents: Sequence[AgentDefinition] = [_make_agent()]
@@ -1046,6 +1050,7 @@ class TestRunSelectorPrefetched:
     """run_selector の prefetched_context 伝播テスト。Issue #187。"""
 
     @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     @patch(
         "hachimoku.engine._selector.resolve_tools",
@@ -1055,12 +1060,13 @@ class TestRunSelectorPrefetched:
         self,
         _mock_tools: MagicMock,
         mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
         _mock_resolve: MagicMock,
     ) -> None:
         """prefetched_context が build_selector_instruction に渡される。"""
         from hachimoku.engine._prefetch import PrefetchedContext
 
-        mock_agent_cls.return_value.run = _make_mock_agent_run()
+        mock_run_safe.return_value = _make_mock_run_safe_result()
         agents = [_make_agent()]
         definition = _make_selector_definition()
         config = _make_selector_config()
@@ -1087,6 +1093,7 @@ class TestRunSelectorPrefetched:
         assert call_kwargs.kwargs["prefetched_context"] is ctx
 
     @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     @patch(
         "hachimoku.engine._selector.resolve_tools",
@@ -1096,10 +1103,11 @@ class TestRunSelectorPrefetched:
         self,
         _mock_tools: MagicMock,
         mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
         _mock_resolve: MagicMock,
     ) -> None:
         """prefetched_context=None でも正常に動作する（後方互換）。"""
-        mock_agent_cls.return_value.run = _make_mock_agent_run()
+        mock_run_safe.return_value = _make_mock_run_safe_result()
         agents = [_make_agent()]
         definition = _make_selector_definition()
         config = _make_selector_config()
@@ -1248,14 +1256,13 @@ class TestRunSelectorDepsIntegration:
     """run_selector が SelectorDeps と instructions を Agent に渡すテスト。Issue #195。"""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_constructed_with_deps_type(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """Agent コンストラクタに deps_type=SelectorDeps が渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         await run_selector(
             target=_make_target(),
@@ -1272,14 +1279,13 @@ class TestRunSelectorDepsIntegration:
         assert call_kwargs["deps_type"] is SelectorDeps
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_constructed_with_instructions(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """Agent コンストラクタに instructions=_prefetch_guardrail が渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         await run_selector(
             target=_make_target(),
@@ -1296,16 +1302,15 @@ class TestRunSelectorDepsIntegration:
         assert call_kwargs["instructions"] is _prefetch_guardrail
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_run_receives_deps(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """agent.run() に deps=SelectorDeps(prefetched=ctx) が渡される。"""
+        """run_agent_safe() に deps=SelectorDeps(prefetched=ctx) が渡される。"""
         from hachimoku.engine._prefetch import PrefetchedContext
 
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         ctx = PrefetchedContext(issue_context="Prefetched issue")
         await run_selector(
@@ -1320,20 +1325,19 @@ class TestRunSelectorDepsIntegration:
             prefetched_context=ctx,
         )
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         deps = call_kwargs["deps"]
         assert isinstance(deps, SelectorDeps)
         assert deps.prefetched is ctx
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_agent_run_receives_none_deps_when_no_prefetch(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """prefetched_context=None のとき deps.prefetched=None が渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         await run_selector(
             target=_make_target(),
@@ -1346,7 +1350,7 @@ class TestRunSelectorDepsIntegration:
             resolved_content="test diff",
         )
 
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         deps = call_kwargs["deps"]
         assert isinstance(deps, SelectorDeps)
         assert deps.prefetched is None
@@ -1361,14 +1365,13 @@ class TestRunSelectorBuiltinTools:
     """run_selector が ResolvedTools を使用し builtin_tools を Agent に渡すテスト。Issue #222。"""
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_builtin_tools_passed_to_agent(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """resolve_tools の builtin_tools が Agent(builtin_tools=...) に渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         await run_selector(
             target=_make_target(),
@@ -1386,15 +1389,17 @@ class TestRunSelectorBuiltinTools:
         assert call_kwargs["builtin_tools"] == []
 
     @patch("hachimoku.engine._selector.resolve_model")
+    @patch("hachimoku.engine._selector.run_agent_safe")
     @patch("hachimoku.engine._selector.Agent")
     async def test_extra_builtin_tools_passed_to_resolve_model(
-        self, mock_agent_cls: MagicMock, mock_resolve: MagicMock
+        self,
+        mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
+        mock_resolve: MagicMock,
     ) -> None:
         """claudecode_builtin_names が resolve_model の extra_builtin_tools に渡される。"""
         mock_resolve.return_value = "resolved-model"
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_run_safe_result()
 
         await run_selector(
             target=_make_target(),

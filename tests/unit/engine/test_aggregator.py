@@ -269,14 +269,15 @@ class TestRunAggregatorSuccess:
     """
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_returns_aggregated_report(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """正常完了時に AggregatedReport が返される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run(strengths=["Clean code"])
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run(
+            strengths=["Clean code"]
+        ).return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         result = await run_aggregator(
@@ -291,16 +292,15 @@ class TestRunAggregatorSuccess:
         assert result.strengths == ["Clean code"]
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_filters_success_and_truncated(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AgentSuccess と AgentTruncated のみをフィルタして集約する。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run(
+        mock_run_safe.return_value = _make_mock_agent_run(
             agent_failures=["reviewer-c", "reviewer-d"]
-        )
-        mock_agent_cls.return_value = mock_instance
+        ).return_value
 
         mixed_results: list[
             AgentSuccess | AgentTruncated | AgentError | AgentTimeout
@@ -326,14 +326,13 @@ class TestRunAggregatorSuccess:
         assert isinstance(result, AggregatedReport)
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_system_prompt_from_definition(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AggregatorDefinition.system_prompt が Agent に渡される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -350,14 +349,13 @@ class TestRunAggregatorSuccess:
         assert call_kwargs.kwargs["system_prompt"] == "Custom aggregator prompt"
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_no_tools_passed_to_agent(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """Agent にツールが渡されない（空リスト）。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -372,14 +370,13 @@ class TestRunAggregatorSuccess:
         assert call_kwargs.kwargs.get("tools", []) == []
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_output_type_is_aggregated_report(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """Agent の output_type が AggregatedReport である。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -411,19 +408,19 @@ class TestRunAggregatorModelResolution:
         ],
     )
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_model_resolution_priority(
         self,
         mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
         _: MagicMock,
         config_model: str | None,
         definition_model: str | None,
         expected_model: str,
     ) -> None:
         """モデル解決の優先順: config > definition > global。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -454,10 +451,12 @@ class TestRunAggregatorTimeoutResolution:
         ],
     )
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_config_overrides_global(
         self,
         mock_agent_cls: MagicMock,
+        mock_run_safe: AsyncMock,
         _: MagicMock,
         config_timeout: int | None,
         config_max_turns: int | None,
@@ -465,9 +464,7 @@ class TestRunAggregatorTimeoutResolution:
         expected_value: int,
     ) -> None:
         """AggregationConfig の timeout/max_turns がグローバル値より優先される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -480,18 +477,17 @@ class TestRunAggregatorTimeoutResolution:
             global_timeout=600,
             global_max_turns=10,
         )
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"][assert_field] == expected_value
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_global_values_used_when_config_none(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AggregationConfig の timeout/max_turns が None の場合、グローバル値が使用される。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         await run_aggregator(
@@ -502,7 +498,7 @@ class TestRunAggregatorTimeoutResolution:
             global_timeout=300,
             global_max_turns=10,
         )
-        call_kwargs = mock_instance.run.call_args.kwargs
+        call_kwargs = mock_run_safe.call_args.kwargs
         assert call_kwargs["model_settings"]["timeout"] == 300
         assert call_kwargs["model_settings"]["max_turns"] == 10
 
@@ -516,14 +512,13 @@ class TestRunAggregatorError:
     """run_aggregator のエラー系テスト。"""
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_agent_exception_raises_aggregator_error(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, _agent: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """Agent.run() の例外が AggregatorError にラップされる。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=RuntimeError("LLM connection failed"))
-        mock_agent_cls.return_value = mock_instance
+        """run_agent_safe() の例外が AggregatorError にラップされる。"""
+        mock_run_safe.side_effect = RuntimeError("LLM connection failed")
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         with pytest.raises(AggregatorError, match="LLM connection failed"):
@@ -537,21 +532,18 @@ class TestRunAggregatorError:
             )
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_timeout_raises_aggregator_error(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, _agent: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """CLIExecutionError(error_type="timeout") が AggregatorError にラップされる。"""
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(
-            side_effect=CLIExecutionError(
-                "SDK query timed out",
-                exit_code=2,
-                stderr="Query was cancelled due to timeout",
-                error_type="timeout",
-            )
+        mock_run_safe.side_effect = CLIExecutionError(
+            "SDK query timed out",
+            exit_code=2,
+            stderr="Query was cancelled due to timeout",
+            error_type="timeout",
         )
-        mock_agent_cls.return_value = mock_instance
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         with pytest.raises(AggregatorError):
@@ -565,15 +557,14 @@ class TestRunAggregatorError:
             )
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_original_exception_chained(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, _agent: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """AggregatorError.__cause__ に元の例外がチェインされる。"""
         original = RuntimeError("original error")
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(side_effect=original)
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.side_effect = original
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         with pytest.raises(AggregatorError) as exc_info:
@@ -597,14 +588,13 @@ class TestRunAggregatorUserMessage:
     """run_aggregator がエージェント結果からユーザーメッセージを構築するテスト。"""
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_user_message_contains_issues(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """ユーザーメッセージに issues の情報が含まれる。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         issue = ReviewIssue(
             agent_name="reviewer-a",
@@ -622,19 +612,18 @@ class TestRunAggregatorUserMessage:
             global_timeout=300,
             global_max_turns=10,
         )
-        user_message = mock_instance.run.call_args.args[0]
+        user_message = mock_run_safe.call_args.kwargs["user_prompt"]
         assert "SQL injection vulnerability" in user_message
         assert "reviewer-a" in user_message
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
     @patch("hachimoku.engine._aggregator.Agent")
     async def test_user_message_contains_failed_agents(
-        self, mock_agent_cls: MagicMock, _: MagicMock
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
         """ユーザーメッセージに失敗エージェント情報が含まれる。"""
-        mock_instance = MagicMock()
-        mock_instance.run = _make_mock_agent_run()
-        mock_agent_cls.return_value = mock_instance
+        mock_run_safe.return_value = _make_mock_agent_run().return_value
 
         success = AgentSuccess(agent_name="reviewer-a", issues=[], elapsed_time=1.0)
         error = AgentError(agent_name="reviewer-b", error_message="fail")
@@ -646,5 +635,5 @@ class TestRunAggregatorUserMessage:
             global_timeout=300,
             global_max_turns=10,
         )
-        user_message = mock_instance.run.call_args.args[0]
+        user_message = mock_run_safe.call_args.kwargs["user_prompt"]
         assert "reviewer-b" in user_message
