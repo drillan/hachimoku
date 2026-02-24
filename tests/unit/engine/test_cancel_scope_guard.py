@@ -3,6 +3,9 @@
 Issue #274: pydantic-ai 内部の CancelScope と claude-agent-sdk の
 CancelScope が衝突する問題への対策。agent.iter() で結果を先に保存し、
 __aexit__ の RuntimeError を許容する。
+
+CancelScope 衝突で結果が保存されていない場合（イテレーション中の衝突）は、
+元の timeout エラーを復元して CLIExecutionError(error_type="timeout") を送出する。
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from typing import AsyncIterator
 from unittest.mock import MagicMock
 
 import pytest
+from claudecode_model.exceptions import CLIExecutionError
 from pydantic_ai.run import AgentRunResult
 
 from hachimoku.engine._cancel_scope_guard import run_agent_safe
@@ -135,23 +139,45 @@ class TestRunAgentSafeCancelScopeRecovery:
 
 
 # =============================================================================
-# CancelScope 衝突: 結果なし → 例外を再送出
+# CancelScope 衝突: 結果なし → CLIExecutionError(error_type="timeout")
 # =============================================================================
 
 
 class TestRunAgentSafeCancelScopeNoResult:
-    """結果が保存される前に CancelScope 衝突が発生した場合、例外が送出される。"""
+    """結果が保存される前に CancelScope 衝突が発生した場合。
 
-    async def test_reraises_when_no_result(self) -> None:
-        """結果がない CancelScope 衝突は RuntimeError を再送出する。"""
+    CancelScope 衝突 + 結果なしは、ClaudeCodeModel の move_on_after() が
+    timeout を発火させた結果。元の CLIExecutionError(error_type="timeout") が
+    RuntimeError に上書きされているため、timeout エラーを復元して送出する。
+    """
+
+    async def test_raises_cli_timeout_when_no_result_on_exit(self) -> None:
+        """__aexit__ で CancelScope 衝突 + 結果なし → CLIExecutionError(timeout)。"""
         cancel_scope_error = RuntimeError(
             "Attempted to exit a cancel scope that isn't the current "
             "tasks's current cancel scope"
         )
         agent = _make_mock_agent_run(result=None, raise_on_exit=cancel_scope_error)
 
-        with pytest.raises(RuntimeError, match="cancel scope"):
+        with pytest.raises(CLIExecutionError) as exc_info:
             await run_agent_safe(agent, user_prompt="test")
+        assert exc_info.value.error_type == "timeout"
+        assert exc_info.value.__cause__ is cancel_scope_error
+
+    async def test_raises_cli_timeout_when_cancel_scope_during_iter(self) -> None:
+        """イテレーション中の CancelScope 衝突 → CLIExecutionError(timeout)。
+
+        実際のエラーパス: _run_tracked_task の CancelScope.__exit__ が
+        イテレーション中に RuntimeError を発生させるケース。
+        """
+        cancel_scope_error = RuntimeError(
+            "Attempted to exit cancel scope in a different task than it was entered in"
+        )
+        agent = _make_mock_agent_run(raise_during_iter=cancel_scope_error)
+
+        with pytest.raises(CLIExecutionError) as exc_info:
+            await run_agent_safe(agent, user_prompt="test")
+        assert exc_info.value.error_type == "timeout"
 
 
 # =============================================================================

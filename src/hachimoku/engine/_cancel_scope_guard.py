@@ -2,16 +2,25 @@
 
 Issue #274: pydantic-ai v1.63.0 の内部 CancelScope（pydantic-graph の
 TaskGroup + _run_tracked_task）と claude-agent-sdk の内部タスクグループが
-衝突し、__aexit__ で RuntimeError が発生する問題への対策。
+衝突し、RuntimeError が発生する問題への対策。
 
-agent.iter() を使い、結果をコンテキスト終了前に保存することで、
-__aexit__ の CancelScope RuntimeError を許容しつつ結果を回復する。
+2つの衝突パターンを処理する:
+
+1. __aexit__ 衝突（結果保存済み）: agent.iter() で結果をコンテキスト終了前に
+   保存し、__aexit__ の CancelScope RuntimeError を許容して結果を返す。
+
+2. イテレーション中衝突（結果未保存）: ClaudeCodeModel の move_on_after() が
+   timeout 発火 → CancelScope ツリー破壊 → _run_tracked_task の CancelScope
+   が RuntimeError を送出。元の CLIExecutionError(error_type="timeout") が
+   RuntimeError に上書きされるため、timeout エラーを復元する。
 """
 
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+
+from claudecode_model.exceptions import CLIExecutionError
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
@@ -37,12 +46,15 @@ async def run_agent_safe(
     """CancelScope 衝突を許容しつつ agent を実行する。
 
     pydantic-ai の agent.run() は内部で agent.iter() のコンテキスト
-    マネージャを使用するが、__aexit__ で CancelScope の衝突が発生すると
-    結果が失われる。
+    マネージャを使用するが、CancelScope の衝突が発生すると結果が失われる。
 
-    このヘルパーは agent.iter() を直接使い、結果をコンテキスト終了前に
-    保存する。__aexit__ で CancelScope RuntimeError が発生しても、
-    保存済みの結果を返すことで回復する。
+    このヘルパーは agent.iter() を直接使い、2つの衝突パターンを処理する:
+
+    1. 結果保存後の __aexit__ 衝突: 保存済みの結果を返す。
+    2. イテレーション中の衝突（結果未保存）: ClaudeCodeModel の
+       move_on_after() timeout 発火による CancelScope ツリー破壊。
+       RuntimeError に上書きされた CLIExecutionError(error_type="timeout")
+       を復元して送出する。
 
     Args:
         agent: pydantic-ai Agent インスタンス。
@@ -53,8 +65,9 @@ async def run_agent_safe(
         AgentRunResult: エージェントの実行結果。
 
     Raises:
-        RuntimeError: CancelScope 以外の RuntimeError、
-            または結果が保存される前に CancelScope 衝突が発生した場合。
+        CLIExecutionError: CancelScope 衝突で結果が保存されていない場合
+            （error_type="timeout"）。
+        RuntimeError: CancelScope 以外の RuntimeError。
         Exception: iteration 中に発生したその他の例外。
     """
     result: AgentRunResult[Any] | None = None
@@ -65,13 +78,31 @@ async def run_agent_safe(
                 pass
             result = agent_run.result
     except RuntimeError as exc:
-        if _is_cancel_scope_error(exc) and result is not None:
+        if not _is_cancel_scope_error(exc):
+            raise
+
+        if result is not None:
             logger.warning(
                 "Cancel scope conflict during agent cleanup (result preserved): %s",
                 exc,
             )
         else:
-            raise
+            # CancelScope 衝突 + 結果なし = timeout 発火による衝突。
+            # ClaudeCodeModel の move_on_after() が発火
+            # → CLIExecutionError(error_type="timeout") が送出されるが、
+            # _run_tracked_task の CancelScope.__exit__() が RuntimeError で
+            # 上書きする。元の timeout エラーを復元する。
+            logger.warning(
+                "Cancel scope conflict during agent execution "
+                "(no result, treating as timeout): %s",
+                exc,
+            )
+            raise CLIExecutionError(
+                "Agent execution interrupted by cancel scope conflict "
+                "(timeout-induced cancel scope tree corruption)",
+                error_type="timeout",
+                recoverable=True,
+            ) from exc
 
     if result is None:
         raise RuntimeError("Agent run did not produce a result")
