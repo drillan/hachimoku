@@ -124,7 +124,7 @@ class TestRunAgentTimeout:
     async def test_timeout_returns_agent_timeout(
         self, mock_agent_cls: MagicMock, _: MagicMock
     ) -> None:
-        """asyncio.TimeoutError 発生時に AgentTimeout が返される。"""
+        """TimeoutError 発生時に AgentTimeout が返される。"""
         mock_instance = mock_agent_cls.return_value
         mock_instance.run = AsyncMock(side_effect=TimeoutError)
 
