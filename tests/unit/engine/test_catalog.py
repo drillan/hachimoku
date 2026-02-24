@@ -3,6 +3,8 @@
 FR-RE-016: カテゴリベースのツール管理。
 """
 
+import asyncio
+
 import pytest
 from pydantic_ai import Tool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
@@ -10,6 +12,7 @@ from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
 from hachimoku.engine._catalog import (
     BUILTIN_TOOL_CATALOG,
     CLAUDECODE_BUILTIN_MAP,
+    TOOL_CATALOG,
     ResolvedTools,
     resolve_tools,
     validate_categories,
@@ -97,6 +100,72 @@ class TestClaudeCodeBuiltinMap:
                     assert name.startswith("mcp__pydantic_tools__"), (
                         f"{category} の MCP ツール名 '{name}' が命名規則に従っていない"
                     )
+
+
+# =============================================================================
+# TOOL_CATALOG — async ツール関数
+# =============================================================================
+
+
+class TestToolCatalogAsync:
+    """TOOL_CATALOG のツール関数が async であることを検証する。
+
+    claudecode_model の MCP ブリッジ（create_tool_wrapper）は
+    await original_function(**args) で呼び出すため、
+    ツール関数は async でなければならない。
+    """
+
+    @pytest.mark.parametrize(
+        ("category", "expected_names"),
+        [
+            ("git_read", ["run_git"]),
+            ("gh_read", ["run_gh"]),
+            ("file_read", ["read_file", "list_directory"]),
+        ],
+    )
+    def test_tool_functions_are_async(
+        self, category: str, expected_names: list[str]
+    ) -> None:
+        """各カテゴリのツール関数が async である。"""
+        tools = TOOL_CATALOG[category]
+        for tool, expected_name in zip(tools, expected_names, strict=True):
+            assert asyncio.iscoroutinefunction(tool.function), (
+                f"Tool '{expected_name}' in category '{category}' must be async"
+            )
+
+    @pytest.mark.parametrize(
+        ("category", "expected_names"),
+        [
+            ("git_read", ["run_git"]),
+            ("gh_read", ["run_gh"]),
+            ("file_read", ["read_file", "list_directory"]),
+        ],
+    )
+    def test_tool_names_preserved(
+        self, category: str, expected_names: list[str]
+    ) -> None:
+        """async 化後もツール名が元の関数名を維持する。"""
+        tools = TOOL_CATALOG[category]
+        actual_names = [t.name for t in tools]
+        assert actual_names == expected_names
+
+    def test_tool_names_match_mcp_convention(self) -> None:
+        """TOOL_CATALOG のツール名が CLAUDECODE_BUILTIN_MAP の MCP 名と整合する。"""
+        mcp_prefix = "mcp__pydantic_tools__"
+        for category, tools in TOOL_CATALOG.items():
+            if category not in CLAUDECODE_BUILTIN_MAP:
+                continue
+            tool_names = [t.name for t in tools]
+            mcp_names = CLAUDECODE_BUILTIN_MAP[category]
+            for mcp_name in mcp_names:
+                assert mcp_name.startswith(mcp_prefix), (
+                    f"MCP name '{mcp_name}' missing prefix"
+                )
+                bare_name = mcp_name.removeprefix(mcp_prefix)
+                assert bare_name in tool_names, (
+                    f"MCP name '{mcp_name}' has no matching tool "
+                    f"'{bare_name}' in TOOL_CATALOG['{category}']"
+                )
 
 
 # =============================================================================
