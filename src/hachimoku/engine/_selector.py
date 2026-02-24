@@ -8,12 +8,12 @@ Issue #187: prefetched_context の伝播。
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from anyio import fail_after
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
 from pydantic import Field
@@ -183,7 +183,7 @@ async def run_selector(
         4. build_selector_instruction() でユーザーメッセージを構築
         5. resolve_model() でモデルオブジェクトを生成
         6. pydantic-ai Agent(system_prompt=definition.system_prompt) を構築
-        7. asyncio.timeout() + UsageLimits でエージェントを実行
+        7. anyio.fail_after() + UsageLimits でエージェントを実行
         8. SelectorOutput を返す
 
     Args:
@@ -245,7 +245,7 @@ async def run_selector(
             # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
             resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
-        async with asyncio.timeout(timeout):
+        with fail_after(timeout):
             result = await agent.run(
                 user_message,
                 deps=SelectorDeps(prefetched=prefetched_context),

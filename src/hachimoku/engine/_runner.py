@@ -1,18 +1,19 @@
 """AgentRunner — 単一エージェントの実行。
 
 FR-RE-003: タイムアウト・ターン数制御・失敗許容。
-FR-RE-004: asyncio.timeout + UsageLimits による二段階制御。
+FR-RE-004: anyio.fail_after + UsageLimits による二段階制御。
 R-001: pydantic-ai UsageLimits + model_settings max_turns の二重経路。
-R-002: asyncio.timeout でエージェント全体の実行をラップ。
+R-002: anyio.fail_after でエージェント全体の実行をラップ。
 R-003: UsageLimitExceeded 時は空 issues リストで AgentTruncated を返す。
 R-011: result.usage() からトークン数を CostInfo に変換。
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
+
+from anyio import fail_after
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
@@ -42,13 +43,13 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
 
     実行フロー:
         1. pydantic-ai Agent を構築（model, tools, builtin_tools, system_prompt, output_type）
-        2. asyncio.timeout() でタイムアウト制御をラップ
+        2. anyio.fail_after() でタイムアウト制御をラップ
         3. UsageLimits(request_limit=max_turns) でターン数制御
         4. agent.run() を実行
         5. 結果を AgentResult に変換
 
     例外ハンドリング:
-        - asyncio.TimeoutError → AgentTimeout
+        - TimeoutError → AgentTimeout
         - UsageLimitExceeded → AgentTruncated（空 issues リスト）
         - その他の例外 → AgentError
 
@@ -78,7 +79,7 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
             # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
             resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
 
-        async with asyncio.timeout(context.timeout_seconds):
+        with fail_after(context.timeout_seconds):
             result = await agent.run(
                 context.user_message,
                 usage_limits=UsageLimits(request_limit=context.max_turns),

@@ -866,6 +866,7 @@ name = "hachimoku"
 version = "0.0.6"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "claudecode-model" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
@@ -889,6 +890,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio" },
     { name = "claudecode-model", git = "https://github.com/drillan/claudecode-model.git" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-ai", specifier = ">=1.56.0" },
