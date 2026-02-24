@@ -6,6 +6,7 @@ R-004: カテゴリ→ツール解決のマッピング管理。
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -18,13 +19,40 @@ from hachimoku.engine._tools._file import list_directory, read_file
 from hachimoku.engine._tools._gh import run_gh
 from hachimoku.engine._tools._git import run_git
 
+
+# ---------------------------------------------------------------------------
+# async ラッパー — claudecode_model の MCP ブリッジ互換
+#
+# claudecode_model の create_tool_wrapper は常に await で呼び出すため、
+# ツール関数は async でなければならない。
+# 同期関数（run_git, run_gh 等）を asyncio.to_thread でラップし、
+# name= で元のツール名を維持する。
+# ---------------------------------------------------------------------------
+
+
+async def _run_git_async(args: list[str]) -> str:
+    return await asyncio.to_thread(run_git, args)
+
+
+async def _run_gh_async(args: list[str]) -> str:
+    return await asyncio.to_thread(run_gh, args)
+
+
+async def _read_file_async(path: str) -> str:
+    return await asyncio.to_thread(read_file, path)
+
+
+async def _list_directory_async(path: str, pattern: str | None = None) -> str:
+    return await asyncio.to_thread(list_directory, path, pattern)
+
+
 TOOL_CATALOG: Final[Mapping[str, tuple[Tool[None], ...]]] = MappingProxyType(
     {
-        "git_read": (Tool(run_git, takes_ctx=False),),
-        "gh_read": (Tool(run_gh, takes_ctx=False),),
+        "git_read": (Tool(_run_git_async, takes_ctx=False, name="run_git"),),
+        "gh_read": (Tool(_run_gh_async, takes_ctx=False, name="run_gh"),),
         "file_read": (
-            Tool(read_file, takes_ctx=False),
-            Tool(list_directory, takes_ctx=False),
+            Tool(_read_file_async, takes_ctx=False, name="read_file"),
+            Tool(_list_directory_async, takes_ctx=False, name="list_directory"),
         ),
     }
 )
@@ -41,12 +69,21 @@ BUILTIN_TOOL_CATALOG: Final[Mapping[str, tuple[AbstractBuiltinTool, ...]]] = (
 
 CLAUDECODE_BUILTIN_MAP: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
     {
+        "git_read": ("mcp__pydantic_tools__run_git",),
+        "gh_read": ("mcp__pydantic_tools__run_gh",),
+        "file_read": (
+            "mcp__pydantic_tools__read_file",
+            "mcp__pydantic_tools__list_directory",
+        ),
         "web_fetch": ("WebFetch",),
     }
 )
-"""カテゴリ名から Claude Code ネイティブツール名へのマッピング。
+"""カテゴリ名から claudecode: モデルの allowed_tools に追加するツール名へのマッピング。
 
-claudecode: モデル使用時に allowed_tools に追加するツール名。
+CLI ビルトインツール名（例: "WebFetch"）と MCP ツール名
+（例: "mcp__pydantic_tools__run_git"）の両方を含む。
+MCP ツール名は set_agent_toolsets() で MCP サーバー経由で登録される
+pydantic-ai ツールに対応する。
 """
 
 _ALL_CATEGORIES: Final[frozenset[str]] = frozenset(

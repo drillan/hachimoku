@@ -762,7 +762,12 @@ class TestRunSelectorResolveModel:
         mock_resolve.assert_called_once_with(
             "anthropic:claude-opus-4-6",
             allowed_builtin_tools=(),
-            extra_builtin_tools=(),
+            extra_builtin_tools=(
+                "mcp__pydantic_tools__run_git",
+                "mcp__pydantic_tools__run_gh",
+                "mcp__pydantic_tools__read_file",
+                "mcp__pydantic_tools__list_directory",
+            ),
         )
         assert mock_agent_cls.call_args.kwargs["model"] == "resolved-model"
 
@@ -1413,9 +1418,14 @@ class TestRunSelectorBuiltinTools:
         )
 
         # デフォルトの allowed_tools=(git_read, gh_read, file_read) では
-        # claudecode_builtin_names=() なので extra_builtin_tools=() が渡される
+        # 各カテゴリの MCP ツール名が claudecode_builtin_names に含まれる
         mock_resolve.assert_called_once_with(
             "anthropic:claude-opus-4-6",
             allowed_builtin_tools=(),
-            extra_builtin_tools=(),
+            extra_builtin_tools=(
+                "mcp__pydantic_tools__run_git",
+                "mcp__pydantic_tools__run_gh",
+                "mcp__pydantic_tools__read_file",
+                "mcp__pydantic_tools__list_directory",
+            ),
         )

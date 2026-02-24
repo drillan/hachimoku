@@ -22,8 +22,8 @@ _CLAUDECODE_PREFIX: str = "claudecode:"
 # セレクターは allowed_builtin_tools=() で無効化する（Issue #198）。
 # deny-list 方式では新規ツール（Task 等）の追加漏れによる
 # バイパスリスクがあるため、allow-list 方式を採用する。
-# pydantic-ai ツール（run_git, run_gh）は subprocess.run() を直接使用するため
-# この制限の影響を受けない。
+# pydantic-ai ツール（run_git, run_gh 等）の MCP ツール名は
+# CLAUDECODE_BUILTIN_MAP 経由で extra_builtin_tools に追加される（Issue #276）。
 # Issue #161: ビルトインツール使用による権限拒否・ターン浪費の防止。
 # Issue #184: deny-list から allow-list への切り替え。
 _ALLOWED_BUILTIN_TOOLS: Final[tuple[str, ...]] = ("Read", "Grep", "Glob")
@@ -47,8 +47,9 @@ def resolve_model(
             （Issue #198: セレクター向け）。anthropic プレフィックスでは無視される。
         extra_builtin_tools: claudecode プレフィックス時に追加で許可する
             ツール名のタプル。``allowed_builtin_tools`` の解決結果に追加される。
-            Issue #222: web_fetch カテゴリから解決された claudecode ビルトインツール名
-            （例: ``("WebFetch",)``）を渡す用途。anthropic プレフィックスでは無視される。
+            Issue #222, #276: ``CLAUDECODE_BUILTIN_MAP`` から解決された全カテゴリの
+            ツール名（例: ``("WebFetch",)``, ``("mcp__pydantic_tools__run_git",)`` 等）
+            を渡す用途。anthropic プレフィックスでは無視される。
 
     Returns:
         claudecode の場合: ``claudecode:`` プレフィックスを除去し
