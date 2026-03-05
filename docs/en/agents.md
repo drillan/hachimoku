@@ -36,13 +36,14 @@ Like review agents, its configuration is managed via a TOML definition file.
 |-------|------|----------|-------------|
 | `name` | `str` | Yes | Selector name (fixed as `"selector"`) |
 | `description` | `str` | Yes | Description of the selector |
-| `model` | `str` | Yes | LLM model name to use |
+| `model` | `str \| None` | No | LLM model name. Default: `None` (resolved via [model resolution priority](#model-resolution-priority)) |
 | `system_prompt` | `str` | Yes | Selector's system prompt |
 | `allowed_tools` | `list[str]` | No | Allowed tool categories. Default: `git_read`, `gh_read`, `file_read` (3 categories, `web_fetch` not included) |
 
 Unlike `AgentDefinition` for review agents, there are no `output_schema`, `phase`, or `applicability` fields.
 The selector's output is always fixed to `SelectorOutput` (list of selected agent names with reasons).
 
+(model-resolution-priority)=
 ### Model Resolution Priority
 
 The selector agent's model is resolved in the following priority order:
@@ -92,6 +93,8 @@ Agent definitions are written as TOML files in the following format.
 | `system_prompt` | `str` | Yes | Agent's system prompt |
 | `allowed_tools` | `list[str]` | No | List of allowed tool categories. Default: empty |
 | `phase` | `str` | No | Execution phase. Default: `"main"` |
+| `max_turns` | `int \| None` | No | Agent-specific maximum turns. Default: `None` (uses global setting). Must be positive |
+| `timeout` | `int \| None` | No | Agent-specific timeout in seconds. Default: `None` (uses global setting). Must be positive |
 
 `[applicability]` table:
 
