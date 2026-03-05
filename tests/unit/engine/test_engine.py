@@ -1327,6 +1327,8 @@ class TestRunReviewAggregation:
 
         assert result.report.aggregated is not None
         assert result.report.aggregated.strengths == ["Good code"]
+        assert result.report.aggregated.overall_score == 8.0
+        assert result.report.summary.overall_score == 8.0
         assert result.report.aggregation_error is None
 
     @patch("hachimoku.engine._engine.run_aggregator")

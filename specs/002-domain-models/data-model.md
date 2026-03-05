@@ -80,6 +80,27 @@ classDiagram
     class ReviewReport {
         +results: list[AgentResult]
         +summary: ReviewSummary
+        +aggregated: AggregatedReport | None
+        +aggregation_error: str | None
+    }
+
+    enum Priority {
+        HIGH
+        MEDIUM
+        LOW
+    }
+
+    class RecommendedAction {
+        +description: str
+        +priority: Priority
+    }
+
+    class AggregatedReport {
+        +issues: list[ReviewIssue]
+        +strengths: list[str]
+        +recommended_actions: list[RecommendedAction]
+        +agent_failures: list[str]
+        +overall_score: float 0.0-10.0
     }
 
     class BaseAgentOutput {
@@ -198,10 +219,17 @@ classDiagram
     ReviewIssue --> FileLocation
     AgentSuccess --> ReviewIssue
     AgentSuccess --> CostInfo
+    HachimokuBaseModel <|-- AggregatedReport
+    HachimokuBaseModel <|-- RecommendedAction
+
     ReviewReport --> ReviewSummary
+    ReviewReport --> AggregatedReport
     ReviewReport ..> AgentSuccess
     ReviewReport ..> AgentError
     ReviewReport ..> AgentTimeout
+    AggregatedReport --> ReviewIssue
+    AggregatedReport --> RecommendedAction
+    RecommendedAction --> Priority
     DiffReviewRecord --> ReviewSummary
     PRReviewRecord --> ReviewSummary
     FileReviewRecord --> ReviewSummary

@@ -20,4 +20,4 @@ class BaseAgentOutput(HachimokuBaseModel):
     """
 
     issues: list[ReviewIssue]
-    overall_score: float = Field(ge=0.0, le=10.0)
+    overall_score: float = Field(ge=0.0, le=10.0, allow_inf_nan=False)

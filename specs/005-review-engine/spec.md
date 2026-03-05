@@ -339,6 +339,7 @@
   - `strengths: list[str]`（良い実装に対するポジティブフィードバック。各要素が1つのフィードバック）
   - `recommended_actions: list[RecommendedAction]`（優先度付き対応推奨。RecommendedAction は `description: str` と `priority: Priority` を持つ。Priority enum を使用）
   - `agent_failures: list[str]`（失敗したエージェント名のリスト。集約結果のみを参照する消費者にレビューの不完全性を通知する）
+  - `overall_score: float`（0.0-10.0、総合品質スコア。各エージェントのスコアと指摘内容に基づいて集約エージェントが算出する。Issue #280）
 
 - **FR-RE-019**: システムは設定で LLM ベース集約の有効/無効を切替可能にしなければならない（Issue #152）。デフォルトは有効（`aggregation.enabled = true`）。無効の場合、FR-RE-002 Step 9.5 をスキップし `ReviewReport.aggregated = None` となる
 

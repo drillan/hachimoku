@@ -502,6 +502,50 @@ class TestAgentTruncatedConstraints:
                 cost=None,  # type: ignore[call-arg]
             )
 
+    def test_overall_score_boundary_zero(self) -> None:
+        """overall_score=0.0 が受け入れられる。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=5,
+            overall_score=0.0,
+        )
+        assert result.overall_score == 0.0
+
+    def test_overall_score_boundary_ten(self) -> None:
+        """overall_score=10.0 が受け入れられる。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=5,
+            overall_score=10.0,
+        )
+        assert result.overall_score == 10.0
+
+    def test_overall_score_below_zero_rejected(self) -> None:
+        """overall_score=-0.1 で ValidationError。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AgentTruncated(
+                agent_name="test",
+                issues=[],
+                elapsed_time=1.0,
+                turns_consumed=5,
+                overall_score=-0.1,
+            )
+
+    def test_overall_score_above_ten_rejected(self) -> None:
+        """overall_score=10.1 で ValidationError。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AgentTruncated(
+                agent_name="test",
+                issues=[],
+                elapsed_time=1.0,
+                turns_consumed=5,
+                overall_score=10.1,
+            )
+
 
 class TestAgentResultDiscriminatedUnion:
     """AgentResult 判別共用体のデシリアライズを検証。

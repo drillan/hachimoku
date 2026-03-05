@@ -49,7 +49,7 @@ Set overall_score on a 0.0-10.0 scale representing the overall code quality:
 - Consider the individual agent scores as inputs, weighting them by the severity and number of issues found.
 - If all agents report 9-10 with no significant issues, the overall score should be 9-10.
 - Critical issues should pull the score below 4.0 regardless of other scores.
-- Important issues should cap the score at 7.0 unless they are minor.
+- Important issues should cap the score at 7.0 unless there are fewer than 3 and all are Suggestion-level after deduplication.
 - If agent scores are unavailable, derive the overall score from the consolidated issue severities and counts.
 
 ## Output Rules

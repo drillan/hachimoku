@@ -67,7 +67,7 @@ class AggregatedReport(HachimokuBaseModel):
     strengths: list[str]
     recommended_actions: list[RecommendedAction]
     agent_failures: list[str]
-    overall_score: float = Field(ge=0.0, le=10.0)
+    overall_score: float = Field(ge=0.0, le=10.0, allow_inf_nan=False)
 
 
 class ReviewSummary(HachimokuBaseModel):
