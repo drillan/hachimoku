@@ -318,7 +318,6 @@ class TestAgentResultsSection:
         assert "| Agent | Status | Issues | Score | Time |" in result
 
     def test_agent_success_shows_score(self) -> None:
-        success = _make_success(agent_name="scorer", elapsed_time=2.0)
         success = AgentSuccess(
             agent_name="scorer",
             issues=[],

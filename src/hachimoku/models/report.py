@@ -80,6 +80,7 @@ class ReviewSummary(HachimokuBaseModel):
         max_severity: 検出された問題の最大重大度。問題なしの場合は None。
         total_elapsed_time: 全エージェントの合計実行時間（非負）。
         total_cost: 全エージェントの合計コスト情報（オプション）。
+        overall_score: 総合品質スコア（0.0-10.0、オプション）。
     """
 
     total_issues: int = Field(ge=0)
