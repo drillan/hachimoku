@@ -90,7 +90,7 @@ Records token consumption and cost for LLM execution.
 |-------|------|------------|
 | `input_tokens` | `int` | 0 or greater |
 | `output_tokens` | `int` | 0 or greater |
-| `total_cost` | `float` | 0.0 or greater |
+| `total_cost` | `float \| None` | Default `None`. 0.0 or greater |
 
 ## AgentResult
 
@@ -104,6 +104,7 @@ One of the following four types is automatically selected based on the `status` 
 | `status` | `Literal["success"]` | Yes | Fixed value `"success"` |
 | `agent_name` | `str` | Yes | Non-empty |
 | `issues` | `list[ReviewIssue]` | Yes | Empty list allowed |
+| `overall_score` | `float \| None` | No | Default `None`. 0.0 to 10.0 |
 | `elapsed_time` | `float` | Yes | Positive value (0 not allowed) |
 | `cost` | `CostInfo \| None` | No | Default `None` |
 
@@ -117,6 +118,7 @@ Treated as a valid result (same as AgentSuccess) when calculating ReviewSummary.
 | `status` | `Literal["truncated"]` | Yes | Fixed value `"truncated"` |
 | `agent_name` | `str` | Yes | Non-empty |
 | `issues` | `list[ReviewIssue]` | Yes | Empty list allowed |
+| `overall_score` | `float \| None` | No | Default `None`. 0.0 to 10.0 |
 | `elapsed_time` | `float` | Yes | Positive value (0 not allowed) |
 | `turns_consumed` | `int` | Yes | Positive value (0 not allowed) |
 
@@ -167,6 +169,7 @@ An overall summary of review results.
 | `max_severity` | `Severity \| None` | Yes | `None` when no issues |
 | `total_elapsed_time` | `float` | Yes | 0.0 or greater |
 | `total_cost` | `CostInfo \| None` | No | Default `None` |
+| `overall_score` | `float \| None` | No | Default `None`. 0.0 to 10.0 |
 
 ## Priority
 
@@ -199,6 +202,7 @@ Includes deduplicated issues, positive feedback, recommended actions, and failed
 | `strengths` | `list[str]` | Yes | Empty list allowed |
 | `recommended_actions` | `list[RecommendedAction]` | Yes | Empty list allowed |
 | `agent_failures` | `list[str]` | Yes | Failed agent names. Empty list allowed |
+| `overall_score` | `float` | Yes | 0.0 to 10.0 |
 
 ## ReviewReport
 
