@@ -1319,6 +1319,7 @@ class TestRunReviewAggregation:
             strengths=["Good code"],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=8.0,
         )
         mock_run_aggregator.return_value = agg_report
 
@@ -1326,6 +1327,8 @@ class TestRunReviewAggregation:
 
         assert result.report.aggregated is not None
         assert result.report.aggregated.strengths == ["Good code"]
+        assert result.report.aggregated.overall_score == 8.0
+        assert result.report.summary.overall_score == 8.0
         assert result.report.aggregation_error is None
 
     @patch("hachimoku.engine._engine.run_aggregator")
@@ -1692,6 +1695,7 @@ class TestRunReviewAggregation:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=7.0,
         )
         mock_run_aggregator.return_value = agg_report
 

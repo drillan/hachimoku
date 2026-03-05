@@ -132,6 +132,32 @@ class TestAgentSuccessValid:
         )
         assert result.cost == cost
 
+    def test_overall_score_default_none(self) -> None:
+        """overall_score 省略時に None となる。"""
+        result = AgentSuccess(agent_name="test", issues=[], elapsed_time=1.0)
+        assert result.overall_score is None
+
+    def test_overall_score_accepts_float(self) -> None:
+        """overall_score に float を渡せる。"""
+        result = AgentSuccess(
+            agent_name="test", issues=[], elapsed_time=1.0, overall_score=7.5
+        )
+        assert result.overall_score == 7.5
+
+    def test_overall_score_boundary_zero(self) -> None:
+        """overall_score=0.0 が許容される。"""
+        result = AgentSuccess(
+            agent_name="test", issues=[], elapsed_time=1.0, overall_score=0.0
+        )
+        assert result.overall_score == 0.0
+
+    def test_overall_score_boundary_ten(self) -> None:
+        """overall_score=10.0 が許容される。"""
+        result = AgentSuccess(
+            agent_name="test", issues=[], elapsed_time=1.0, overall_score=10.0
+        )
+        assert result.overall_score == 10.0
+
     def test_issues_with_review_issue(self) -> None:
         """issues に ReviewIssue リストを渡せる。"""
         issue = ReviewIssue(
@@ -180,6 +206,20 @@ class TestAgentSuccessConstraints:
     def test_missing_elapsed_time_rejected(self) -> None:
         with pytest.raises(ValidationError):
             AgentSuccess(agent_name="test", issues=[])  # type: ignore[call-arg]
+
+    def test_overall_score_below_zero_rejected(self) -> None:
+        """overall_score < 0.0 がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AgentSuccess(
+                agent_name="test", issues=[], elapsed_time=1.0, overall_score=-0.1
+            )
+
+    def test_overall_score_above_ten_rejected(self) -> None:
+        """overall_score > 10.0 がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AgentSuccess(
+                agent_name="test", issues=[], elapsed_time=1.0, overall_score=10.1
+            )
 
     def test_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):
@@ -381,6 +421,24 @@ class TestAgentTruncatedValid:
         assert len(result.issues) == 1
         assert result.issues[0].severity == Severity.CRITICAL
 
+    def test_overall_score_default_none(self) -> None:
+        """overall_score 省略時に None となる。"""
+        result = AgentTruncated(
+            agent_name="test", issues=[], elapsed_time=1.0, turns_consumed=5
+        )
+        assert result.overall_score is None
+
+    def test_overall_score_accepts_float(self) -> None:
+        """overall_score に float を渡せる。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=5,
+            overall_score=5.0,
+        )
+        assert result.overall_score == 5.0
+
 
 class TestAgentTruncatedConstraints:
     """AgentTruncated の制約違反を検証。"""
@@ -442,6 +500,50 @@ class TestAgentTruncatedConstraints:
                 elapsed_time=1.0,
                 turns_consumed=5,
                 cost=None,  # type: ignore[call-arg]
+            )
+
+    def test_overall_score_boundary_zero(self) -> None:
+        """overall_score=0.0 が受け入れられる。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=5,
+            overall_score=0.0,
+        )
+        assert result.overall_score == 0.0
+
+    def test_overall_score_boundary_ten(self) -> None:
+        """overall_score=10.0 が受け入れられる。"""
+        result = AgentTruncated(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.0,
+            turns_consumed=5,
+            overall_score=10.0,
+        )
+        assert result.overall_score == 10.0
+
+    def test_overall_score_below_zero_rejected(self) -> None:
+        """overall_score=-0.1 で ValidationError。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AgentTruncated(
+                agent_name="test",
+                issues=[],
+                elapsed_time=1.0,
+                turns_consumed=5,
+                overall_score=-0.1,
+            )
+
+    def test_overall_score_above_ten_rejected(self) -> None:
+        """overall_score=10.1 で ValidationError。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AgentTruncated(
+                agent_name="test",
+                issues=[],
+                elapsed_time=1.0,
+                turns_consumed=5,
+                overall_score=10.1,
             )
 
 
@@ -562,6 +664,19 @@ class TestAgentResultDiscriminatedUnion:
         assert isinstance(restored, AgentSuccess)
         assert restored.agent_name == original.agent_name
         assert restored.elapsed_time == original.elapsed_time
+
+    def test_round_trip_success_with_score(self) -> None:
+        """overall_score 付き AgentSuccess のラウンドトリップ。"""
+        original = AgentSuccess(
+            agent_name="test",
+            issues=[],
+            elapsed_time=1.5,
+            overall_score=8.5,
+        )
+        data = original.model_dump()
+        restored = self.adapter.validate_python(data)
+        assert isinstance(restored, AgentSuccess)
+        assert restored.overall_score == 8.5
 
     def test_round_trip_error(self) -> None:
         """AgentError の model_dump → validate_python ラウンドトリップ。"""

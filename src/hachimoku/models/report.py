@@ -60,12 +60,14 @@ class AggregatedReport(HachimokuBaseModel):
         strengths: 良い実装に対するポジティブフィードバック。
         recommended_actions: 優先度付き推奨アクション。
         agent_failures: 失敗したエージェント名リスト（不完全性の通知用）。
+        overall_score: 総合品質スコア（0.0-10.0）。
     """
 
     issues: list[ReviewIssue]
     strengths: list[str]
     recommended_actions: list[RecommendedAction]
     agent_failures: list[str]
+    overall_score: float = Field(ge=0.0, le=10.0, allow_inf_nan=False)
 
 
 class ReviewSummary(HachimokuBaseModel):
@@ -78,12 +80,14 @@ class ReviewSummary(HachimokuBaseModel):
         max_severity: 検出された問題の最大重大度。問題なしの場合は None。
         total_elapsed_time: 全エージェントの合計実行時間（非負）。
         total_cost: 全エージェントの合計コスト情報（オプション）。
+        overall_score: 総合品質スコア（0.0-10.0、オプション）。
     """
 
     total_issues: int = Field(ge=0)
     max_severity: Severity | None
     total_elapsed_time: float = Field(ge=0.0, allow_inf_nan=False)
     total_cost: CostInfo | None = None
+    overall_score: float | None = Field(default=None, ge=0.0, le=10.0)
 
     @model_validator(mode="after")
     def check_severity_consistency(self) -> ReviewSummary:

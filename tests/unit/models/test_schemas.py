@@ -55,18 +55,33 @@ class TestBaseAgentOutputValid:
     def test_valid_with_issues(self) -> None:
         """issues リスト付きでインスタンス生成が成功する。"""
         issue = _make_review_issue()
-        output = BaseAgentOutput(issues=[issue])
+        output = BaseAgentOutput(issues=[issue], overall_score=7.5)
         assert output.issues == [issue]
 
     def test_empty_issues_accepted(self) -> None:
         """空の issues リストでインスタンス生成が成功する。"""
-        output = BaseAgentOutput(issues=[])
+        output = BaseAgentOutput(issues=[], overall_score=5.0)
         assert output.issues == []
 
     def test_isinstance_hachimoku_base_model(self) -> None:
         """HachimokuBaseModel のインスタンスである。"""
-        output = BaseAgentOutput(issues=[])
+        output = BaseAgentOutput(issues=[], overall_score=5.0)
         assert isinstance(output, HachimokuBaseModel)
+
+    def test_overall_score_valid(self) -> None:
+        """overall_score 付きでインスタンス生成が成功する。"""
+        output = BaseAgentOutput(issues=[], overall_score=7.5)
+        assert output.overall_score == 7.5
+
+    def test_overall_score_boundary_zero(self) -> None:
+        """overall_score=0.0 が許容される。"""
+        output = BaseAgentOutput(issues=[], overall_score=0.0)
+        assert output.overall_score == 0.0
+
+    def test_overall_score_boundary_ten(self) -> None:
+        """overall_score=10.0 が許容される。"""
+        output = BaseAgentOutput(issues=[], overall_score=10.0)
+        assert output.overall_score == 10.0
 
 
 class TestBaseAgentOutputConstraints:
@@ -75,16 +90,31 @@ class TestBaseAgentOutputConstraints:
     def test_missing_issues_rejected(self) -> None:
         """issues フィールド省略時にバリデーションエラーが発生する。"""
         with pytest.raises(ValidationError, match="issues"):
-            BaseAgentOutput()  # type: ignore[call-arg]
+            BaseAgentOutput(overall_score=5.0)  # type: ignore[call-arg]
+
+    def test_missing_overall_score_rejected(self) -> None:
+        """overall_score 省略時にバリデーションエラーが発生する。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            BaseAgentOutput(issues=[])  # type: ignore[call-arg]
+
+    def test_overall_score_below_zero_rejected(self) -> None:
+        """overall_score < 0.0 がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            BaseAgentOutput(issues=[], overall_score=-0.1)
+
+    def test_overall_score_above_ten_rejected(self) -> None:
+        """overall_score > 10.0 がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            BaseAgentOutput(issues=[], overall_score=10.1)
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドがバリデーションエラーとなる。"""
         with pytest.raises(ValidationError, match="extra_field"):
-            BaseAgentOutput(issues=[], extra_field="x")  # type: ignore[call-arg]
+            BaseAgentOutput(issues=[], overall_score=5.0, extra_field="x")  # type: ignore[call-arg]
 
     def test_frozen_assignment_rejected(self) -> None:
         """frozen=True によりフィールド変更が拒否される。"""
-        output = BaseAgentOutput(issues=[])
+        output = BaseAgentOutput(issues=[], overall_score=5.0)
         with pytest.raises(ValidationError):
             output.issues = []  # type: ignore[misc]
 
@@ -161,6 +191,7 @@ class TestSeverityClassifiedValid:
             important_issues=[important],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=7.0,
         )
         assert classified.critical_issues == [critical]
         assert classified.important_issues == [important]
@@ -176,6 +207,7 @@ class TestSeverityClassifiedValid:
             important_issues=[important],
             suggestion_issues=[suggestion],
             nitpick_issues=[nitpick],
+            overall_score=5.0,
         )
         assert classified.issues == [critical, important, suggestion, nitpick]
 
@@ -189,6 +221,7 @@ class TestSeverityClassifiedValid:
             important_issues=[i1],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=3.0,
         )
         assert classified.issues == [c1, c2, i1]
 
@@ -199,6 +232,7 @@ class TestSeverityClassifiedValid:
             important_issues=[],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=9.0,
         )
         assert classified.issues == []
 
@@ -209,6 +243,7 @@ class TestSeverityClassifiedValid:
             important_issues=[],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=5.0,
         )
         assert isinstance(classified, BaseAgentOutput)
 
@@ -220,6 +255,7 @@ class TestSeverityClassifiedValid:
             important_issues=[],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=4.0,
         )
         data = classified.model_dump()
         assert "issues" in data
@@ -237,6 +273,7 @@ class TestSeverityClassifiedConstraints:
                 important_issues=[],
                 suggestion_issues=[],
                 nitpick_issues=[],
+                overall_score=5.0,
                 extra="x",  # type: ignore[call-arg]
             )
 
@@ -247,6 +284,7 @@ class TestSeverityClassifiedConstraints:
             important_issues=[],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=5.0,
         )
         with pytest.raises(ValidationError):
             classified.critical_issues = []  # type: ignore[misc]
@@ -260,6 +298,7 @@ class TestSeverityClassifiedConstraints:
             important_issues=[],
             suggestion_issues=[],
             nitpick_issues=[],
+            overall_score=5.0,
             issues=[extra_issue],  # type: ignore[call-arg]
         )
         assert classified.issues == [issue]
@@ -271,6 +310,7 @@ class TestSeverityClassifiedConstraints:
                 important_issues=[],
                 suggestion_issues=[],
                 nitpick_issues=[],
+                overall_score=5.0,
             )  # type: ignore[call-arg]
 
 
@@ -413,6 +453,7 @@ class TestTestGapAssessmentValid:
             issues=[],
             coverage_gaps=[gap],
             risk_level=Severity.IMPORTANT,
+            overall_score=6.0,
         )
         assert assessment.coverage_gaps == [gap]
         assert assessment.risk_level == Severity.IMPORTANT
@@ -423,6 +464,7 @@ class TestTestGapAssessmentValid:
             issues=[],
             coverage_gaps=[],
             risk_level=Severity.NITPICK,
+            overall_score=8.0,
         )
         assert assessment.coverage_gaps == []
 
@@ -432,6 +474,7 @@ class TestTestGapAssessmentValid:
             issues=[],
             coverage_gaps=[],
             risk_level=Severity.NITPICK,
+            overall_score=5.0,
         )
         assert isinstance(assessment, BaseAgentOutput)
 
@@ -445,6 +488,7 @@ class TestTestGapAssessmentRiskLevelCaseInsensitive:
             issues=[],
             coverage_gaps=[],
             risk_level="critical",  # type: ignore[arg-type]
+            overall_score=5.0,
         )
         assert assessment.risk_level == Severity.CRITICAL
 
@@ -454,6 +498,7 @@ class TestTestGapAssessmentRiskLevelCaseInsensitive:
             issues=[],
             coverage_gaps=[],
             risk_level="IMPORTANT",  # type: ignore[arg-type]
+            overall_score=5.0,
         )
         assert assessment.risk_level == Severity.IMPORTANT
 
@@ -474,6 +519,7 @@ class TestTestGapAssessmentRiskLevelCaseInsensitive:
             issues=[],
             coverage_gaps=[],
             risk_level=input_str,  # type: ignore[arg-type]
+            overall_score=5.0,
         )
         assert assessment.risk_level == expected
 
@@ -484,6 +530,7 @@ class TestTestGapAssessmentRiskLevelCaseInsensitive:
                 issues=[],
                 coverage_gaps=[],
                 risk_level="invalid",  # type: ignore[arg-type]
+                overall_score=5.0,
             )
 
 
@@ -493,7 +540,7 @@ class TestTestGapAssessmentConstraints:
     def test_missing_risk_level_rejected(self) -> None:
         """risk_level 省略時にバリデーションエラーが発生する。"""
         with pytest.raises(ValidationError, match="risk_level"):
-            TestGapAssessment(issues=[], coverage_gaps=[])  # type: ignore[call-arg]
+            TestGapAssessment(issues=[], coverage_gaps=[], overall_score=5.0)  # type: ignore[call-arg]
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドがバリデーションエラーとなる。"""
@@ -502,6 +549,7 @@ class TestTestGapAssessmentConstraints:
                 issues=[],
                 coverage_gaps=[],
                 risk_level=Severity.NITPICK,
+                overall_score=5.0,
                 extra="x",  # type: ignore[call-arg]
             )
 
@@ -577,17 +625,19 @@ class TestMultiDimensionalAnalysisValid:
     def test_valid_multi_dimensional_analysis(self) -> None:
         """正常値でインスタンス生成が成功する。"""
         dim = DimensionScore(name="quality", score=8.0, description="Good")
-        analysis = MultiDimensionalAnalysis(issues=[], dimensions=[dim])
+        analysis = MultiDimensionalAnalysis(
+            issues=[], dimensions=[dim], overall_score=8.0
+        )
         assert analysis.dimensions == [dim]
 
     def test_empty_dimensions_accepted(self) -> None:
         """空の dimensions リストが許容される。"""
-        analysis = MultiDimensionalAnalysis(issues=[], dimensions=[])
+        analysis = MultiDimensionalAnalysis(issues=[], dimensions=[], overall_score=5.0)
         assert analysis.dimensions == []
 
     def test_isinstance_base_agent_output(self) -> None:
         """BaseAgentOutput のインスタンスである。"""
-        analysis = MultiDimensionalAnalysis(issues=[], dimensions=[])
+        analysis = MultiDimensionalAnalysis(issues=[], dimensions=[], overall_score=5.0)
         assert isinstance(analysis, BaseAgentOutput)
 
 
@@ -597,7 +647,7 @@ class TestMultiDimensionalAnalysisConstraints:
     def test_missing_dimensions_rejected(self) -> None:
         """dimensions 省略時にバリデーションエラーが発生する。"""
         with pytest.raises(ValidationError, match="dimensions"):
-            MultiDimensionalAnalysis(issues=[])  # type: ignore[call-arg]
+            MultiDimensionalAnalysis(issues=[], overall_score=5.0)  # type: ignore[call-arg]
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドがバリデーションエラーとなる。"""
@@ -605,6 +655,7 @@ class TestMultiDimensionalAnalysisConstraints:
             MultiDimensionalAnalysis(
                 issues=[],
                 dimensions=[],
+                overall_score=5.0,
                 extra="x",  # type: ignore[call-arg]
             )
 
@@ -623,17 +674,18 @@ class TestCategoryClassificationValid:
         cat = CategoryClassification(
             issues=[issue],
             categories={"style": [issue]},
+            overall_score=7.0,
         )
         assert cat.categories == {"style": [issue]}
 
     def test_empty_categories_accepted(self) -> None:
         """空の categories 辞書が許容される。"""
-        cat = CategoryClassification(issues=[], categories={})
+        cat = CategoryClassification(issues=[], categories={}, overall_score=5.0)
         assert cat.categories == {}
 
     def test_isinstance_base_agent_output(self) -> None:
         """BaseAgentOutput のインスタンスである。"""
-        cat = CategoryClassification(issues=[], categories={})
+        cat = CategoryClassification(issues=[], categories={}, overall_score=5.0)
         assert isinstance(cat, BaseAgentOutput)
 
 
@@ -643,7 +695,7 @@ class TestCategoryClassificationConstraints:
     def test_missing_categories_rejected(self) -> None:
         """categories 省略時にバリデーションエラーが発生する。"""
         with pytest.raises(ValidationError, match="categories"):
-            CategoryClassification(issues=[])  # type: ignore[call-arg]
+            CategoryClassification(issues=[], overall_score=5.0)  # type: ignore[call-arg]
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドがバリデーションエラーとなる。"""
@@ -651,6 +703,7 @@ class TestCategoryClassificationConstraints:
             CategoryClassification(
                 issues=[],
                 categories={},
+                overall_score=5.0,
                 extra="x",  # type: ignore[call-arg]
             )
 
@@ -781,17 +834,23 @@ class TestImprovementSuggestionsValid:
     def test_valid_improvement_suggestions(self) -> None:
         """正常値でインスタンス生成が成功する。"""
         item = ImprovementItem(title="t", description="d", priority=Severity.SUGGESTION)
-        suggestions = ImprovementSuggestions(issues=[], suggestions=[item])
+        suggestions = ImprovementSuggestions(
+            issues=[], suggestions=[item], overall_score=7.0
+        )
         assert suggestions.suggestions == [item]
 
     def test_empty_suggestions_accepted(self) -> None:
         """空の suggestions リストが許容される。"""
-        suggestions = ImprovementSuggestions(issues=[], suggestions=[])
+        suggestions = ImprovementSuggestions(
+            issues=[], suggestions=[], overall_score=5.0
+        )
         assert suggestions.suggestions == []
 
     def test_isinstance_base_agent_output(self) -> None:
         """BaseAgentOutput のインスタンスである。"""
-        suggestions = ImprovementSuggestions(issues=[], suggestions=[])
+        suggestions = ImprovementSuggestions(
+            issues=[], suggestions=[], overall_score=5.0
+        )
         assert isinstance(suggestions, BaseAgentOutput)
 
 
@@ -801,7 +860,7 @@ class TestImprovementSuggestionsConstraints:
     def test_missing_suggestions_rejected(self) -> None:
         """suggestions 省略時にバリデーションエラーが発生する。"""
         with pytest.raises(ValidationError, match="suggestions"):
-            ImprovementSuggestions(issues=[])  # type: ignore[call-arg]
+            ImprovementSuggestions(issues=[], overall_score=5.0)  # type: ignore[call-arg]
 
     def test_extra_field_rejected(self) -> None:
         """定義外フィールドがバリデーションエラーとなる。"""
@@ -809,6 +868,7 @@ class TestImprovementSuggestionsConstraints:
             ImprovementSuggestions(
                 issues=[],
                 suggestions=[],
+                overall_score=5.0,
                 extra="x",  # type: ignore[call-arg]
             )
 

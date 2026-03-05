@@ -183,6 +183,39 @@ class TestReviewSummaryValid:
         assert summary.total_issues == 0
         assert summary.total_elapsed_time == 0.0
 
+    def test_overall_score_default_none(self) -> None:
+        """overall_score 省略時に None となる。"""
+        summary = ReviewSummary(
+            total_issues=0,
+            max_severity=None,
+            total_elapsed_time=0.0,
+        )
+        assert summary.overall_score is None
+
+    def test_overall_score_accepts_float(self) -> None:
+        """overall_score に float を渡せる。"""
+        summary = ReviewSummary(
+            total_issues=0,
+            max_severity=None,
+            total_elapsed_time=0.0,
+            overall_score=7.5,
+        )
+        assert summary.overall_score == 7.5
+
+    def test_overall_score_boundary_values(self) -> None:
+        """overall_score=0.0 と 10.0 が許容される。"""
+        s0 = ReviewSummary(
+            total_issues=0, max_severity=None, total_elapsed_time=0.0, overall_score=0.0
+        )
+        s10 = ReviewSummary(
+            total_issues=0,
+            max_severity=None,
+            total_elapsed_time=0.0,
+            overall_score=10.0,
+        )
+        assert s0.overall_score == 0.0
+        assert s10.overall_score == 10.0
+
 
 class TestReviewSummaryConstraints:
     """ReviewSummary の制約違反を検証。"""
@@ -224,6 +257,26 @@ class TestReviewSummaryConstraints:
     def test_missing_total_elapsed_time_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ReviewSummary(total_issues=0, max_severity=None)  # type: ignore[call-arg]
+
+    def test_overall_score_below_zero_rejected(self) -> None:
+        """overall_score < 0.0 がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            ReviewSummary(
+                total_issues=0,
+                max_severity=None,
+                total_elapsed_time=0.0,
+                overall_score=-0.1,
+            )
+
+    def test_overall_score_above_ten_rejected(self) -> None:
+        """overall_score > 10.0 がバリデーションエラーとなる。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            ReviewSummary(
+                total_issues=0,
+                max_severity=None,
+                total_elapsed_time=0.0,
+                overall_score=10.1,
+            )
 
     def test_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):
@@ -498,6 +551,7 @@ class TestReviewReportAggregation:
             strengths=["Good code"],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=8.0,
         )
         report = ReviewReport(
             results=[],
@@ -523,6 +577,7 @@ class TestReviewReportAggregation:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=5.0,
         )
         report = ReviewReport(
             results=[],
@@ -532,3 +587,72 @@ class TestReviewReportAggregation:
         )
         assert report.aggregated is not None
         assert report.aggregation_error is not None
+
+
+# =============================================================================
+# AggregatedReport.overall_score (Issue #280)
+# =============================================================================
+
+
+class TestAggregatedReportOverallScore:
+    """AggregatedReport の overall_score を検証。"""
+
+    def test_overall_score_required(self) -> None:
+        """overall_score 付きでインスタンス生成が成功する。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=7.5,
+        )
+        assert agg.overall_score == 7.5
+
+    def test_overall_score_boundary_values(self) -> None:
+        """overall_score=0.0 と 10.0 が許容される。"""
+        agg0 = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=0.0,
+        )
+        agg10 = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=10.0,
+        )
+        assert agg0.overall_score == 0.0
+        assert agg10.overall_score == 10.0
+
+    def test_missing_overall_score_rejected(self) -> None:
+        """overall_score 省略時にバリデーションエラーが発生する。"""
+        with pytest.raises(ValidationError, match="overall_score"):
+            AggregatedReport(
+                issues=[],
+                strengths=[],
+                recommended_actions=[],
+                agent_failures=[],
+            )  # type: ignore[call-arg]
+
+    def test_overall_score_below_zero_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="overall_score"):
+            AggregatedReport(
+                issues=[],
+                strengths=[],
+                recommended_actions=[],
+                agent_failures=[],
+                overall_score=-0.1,
+            )
+
+    def test_overall_score_above_ten_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="overall_score"):
+            AggregatedReport(
+                issues=[],
+                strengths=[],
+                recommended_actions=[],
+                agent_failures=[],
+                overall_score=10.1,
+            )

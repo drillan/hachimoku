@@ -60,6 +60,7 @@ classDiagram
         +status: Literal["success"] = "success"
         +agent_name: str
         +issues: list[ReviewIssue]
+        +overall_score: float | None 0.0-10.0
         +elapsed_time: float > 0
         +cost: CostInfo | None
     }
@@ -79,15 +80,36 @@ classDiagram
     class ReviewReport {
         +results: list[AgentResult]
         +summary: ReviewSummary
+        +aggregated: AggregatedReport | None
+        +aggregation_error: str | None
+    }
+
+    enum Priority {
+        HIGH
+        MEDIUM
+        LOW
+    }
+
+    class RecommendedAction {
+        +description: str
+        +priority: Priority
+    }
+
+    class AggregatedReport {
+        +issues: list[ReviewIssue]
+        +strengths: list[str]
+        +recommended_actions: list[RecommendedAction]
+        +agent_failures: list[str]
+        +overall_score: float 0.0-10.0
     }
 
     class BaseAgentOutput {
         <<abstract>>
         +issues: list[ReviewIssue]
+        +overall_score: float 0.0-10.0
     }
 
     class ScoredIssues {
-        +overall_score: float 0.0-10.0
     }
 
     class SeverityClassified {
@@ -139,6 +161,7 @@ classDiagram
         +max_severity: Severity | None
         +total_elapsed_time: float ≥ 0
         +total_cost: CostInfo | None
+        +overall_score: float | None 0.0-10.0
     }
 
     class DiffReviewRecord {
@@ -196,10 +219,17 @@ classDiagram
     ReviewIssue --> FileLocation
     AgentSuccess --> ReviewIssue
     AgentSuccess --> CostInfo
+    HachimokuBaseModel <|-- AggregatedReport
+    HachimokuBaseModel <|-- RecommendedAction
+
     ReviewReport --> ReviewSummary
+    ReviewReport --> AggregatedReport
     ReviewReport ..> AgentSuccess
     ReviewReport ..> AgentError
     ReviewReport ..> AgentTimeout
+    AggregatedReport --> ReviewIssue
+    AggregatedReport --> RecommendedAction
+    RecommendedAction --> Priority
     DiffReviewRecord --> ReviewSummary
     PRReviewRecord --> ReviewSummary
     FileReviewRecord --> ReviewSummary

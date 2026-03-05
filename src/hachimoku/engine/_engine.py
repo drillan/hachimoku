@@ -413,7 +413,12 @@ async def _run_aggregation_step(
             global_timeout=config.timeout,
             global_max_turns=config.max_turns,
         )
-        return report.model_copy(update={"aggregated": aggregated})
+        updated_summary = report.summary.model_copy(
+            update={"overall_score": aggregated.overall_score}
+        )
+        return report.model_copy(
+            update={"aggregated": aggregated, "summary": updated_summary}
+        )
     except AggregatorError as exc:
         print(
             f"Warning: Aggregation failed: {exc}",
