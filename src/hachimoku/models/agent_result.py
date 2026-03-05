@@ -35,6 +35,7 @@ class AgentSuccess(HachimokuBaseModel):
         status: 判別キー。固定値 "success"。
         agent_name: エージェント名。
         issues: 検出されたレビュー問題のリスト。
+        overall_score: 品質スコア（0.0-10.0、オプション）。
         elapsed_time: 実行所要時間（秒、正の値）。
         cost: LLM 実行コスト情報（オプション）。
     """
@@ -42,6 +43,7 @@ class AgentSuccess(HachimokuBaseModel):
     status: Literal["success"] = "success"
     agent_name: str = Field(min_length=1)
     issues: list[ReviewIssue]
+    overall_score: float | None = Field(default=None, ge=0.0, le=10.0)
     elapsed_time: float = Field(gt=0, allow_inf_nan=False)
     cost: CostInfo | None = None
 
@@ -93,6 +95,7 @@ class AgentTruncated(HachimokuBaseModel):
         status: 判別キー。固定値 "truncated"。
         agent_name: エージェント名。
         issues: その時点までに検出されたレビュー問題のリスト（部分的だが有効）。
+        overall_score: 品質スコア（0.0-10.0、オプション）。
         elapsed_time: 実行所要時間（秒、正の値）。
         turns_consumed: 切り詰めまでに消費したターン数（正の値）。
     """
@@ -100,6 +103,7 @@ class AgentTruncated(HachimokuBaseModel):
     status: Literal["truncated"] = "truncated"
     agent_name: str = Field(min_length=1)
     issues: list[ReviewIssue]
+    overall_score: float | None = Field(default=None, ge=0.0, le=10.0)
     elapsed_time: float = Field(gt=0, allow_inf_nan=False)
     turns_consumed: int = Field(gt=0)
 

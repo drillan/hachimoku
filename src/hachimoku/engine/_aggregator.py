@@ -58,6 +58,8 @@ def _build_aggregator_message(
     for r in results:
         if isinstance(r, (AgentSuccess, AgentTruncated)):
             sections.append(f"## Agent: {r.agent_name}")
+            if r.overall_score is not None:
+                sections.append(f"Score: {r.overall_score}/10.0")
             if r.issues:
                 for issue in r.issues:
                     location_str = ""

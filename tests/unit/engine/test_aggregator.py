@@ -51,6 +51,7 @@ class TestAggregatedReportValid:
             strengths=["Good test coverage"],
             recommended_actions=[action],
             agent_failures=["timeout-agent"],
+            overall_score=4.0,
         )
         assert len(report.issues) == 1
         assert report.issues[0].description == "SQL injection found"
@@ -65,6 +66,7 @@ class TestAggregatedReportValid:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=5.0,
         )
         assert report.issues == []
         assert report.strengths == []
@@ -90,6 +92,7 @@ class TestAggregatedReportValid:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=3.0,
         )
         assert len(report.issues) == 2
 
@@ -100,6 +103,7 @@ class TestAggregatedReportValid:
             strengths=["Good naming", "Clean architecture", "Well tested"],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=9.0,
         )
         assert len(report.strengths) == 3
 
@@ -114,6 +118,7 @@ class TestAggregatedReportValid:
             strengths=[],
             recommended_actions=actions,
             agent_failures=[],
+            overall_score=6.0,
         )
         assert len(report.recommended_actions) == 2
 
@@ -124,6 +129,7 @@ class TestAggregatedReportValid:
             strengths=[],
             recommended_actions=[],
             agent_failures=["agent-a", "agent-b"],
+            overall_score=5.0,
         )
         assert len(report.agent_failures) == 2
 
@@ -175,6 +181,7 @@ class TestAggregatedReportConstraints:
                 strengths=[],
                 recommended_actions=[],
                 agent_failures=[],
+                overall_score=5.0,
                 summary="extra",  # type: ignore[call-arg]
             )
 
@@ -185,6 +192,7 @@ class TestAggregatedReportConstraints:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=5.0,
         )
         with pytest.raises(ValidationError):
             report.strengths = ["new"]  # type: ignore[misc]
@@ -226,6 +234,7 @@ def _make_mock_run_safe_result(
     strengths: list[str] | None = None,
     recommended_actions: list[RecommendedAction] | None = None,
     agent_failures: list[str] | None = None,
+    overall_score: float = 7.0,
 ) -> MagicMock:
     """run_agent_safe() の戻り値をモック化するヘルパー。"""
     output = AggregatedReport(
@@ -233,6 +242,7 @@ def _make_mock_run_safe_result(
         strengths=strengths or ["Good code"],
         recommended_actions=recommended_actions or [],
         agent_failures=agent_failures or [],
+        overall_score=overall_score,
     )
     mock_result = MagicMock()
     mock_result.output = output
@@ -615,6 +625,52 @@ class TestRunAggregatorUserMessage:
         user_message = mock_run_safe.call_args.kwargs["user_prompt"]
         assert "SQL injection vulnerability" in user_message
         assert "reviewer-a" in user_message
+
+    @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
+    @patch("hachimoku.engine._aggregator.Agent")
+    async def test_user_message_contains_agent_scores(
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
+    ) -> None:
+        """ユーザーメッセージにエージェントスコア情報が含まれる。"""
+        mock_run_safe.return_value = _make_mock_run_safe_result()
+
+        success = AgentSuccess(
+            agent_name="reviewer-a", issues=[], elapsed_time=1.0, overall_score=8.5
+        )
+        await run_aggregator(
+            results=[success],
+            aggregator_definition=_make_aggregator_definition(),
+            aggregation_config=_make_aggregation_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+        )
+        user_message = mock_run_safe.call_args.kwargs["user_prompt"]
+        assert "8.5" in user_message
+
+    @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
+    @patch("hachimoku.engine._aggregator.run_agent_safe")
+    @patch("hachimoku.engine._aggregator.Agent")
+    async def test_user_message_omits_score_when_none(
+        self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
+    ) -> None:
+        """overall_score=None のとき、スコアが省略される。"""
+        mock_run_safe.return_value = _make_mock_run_safe_result()
+
+        success = AgentSuccess(
+            agent_name="reviewer-a", issues=[], elapsed_time=1.0, overall_score=None
+        )
+        await run_aggregator(
+            results=[success],
+            aggregator_definition=_make_aggregator_definition(),
+            aggregation_config=_make_aggregation_config(),
+            global_model="test",
+            global_timeout=300,
+            global_max_turns=10,
+        )
+        user_message = mock_run_safe.call_args.kwargs["user_prompt"]
+        assert "Score:" not in user_message
 
     @patch("hachimoku.engine._aggregator.resolve_model", side_effect=lambda m: m)
     @patch("hachimoku.engine._aggregator.run_agent_safe")

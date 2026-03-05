@@ -64,6 +64,13 @@ The confidence score is for your internal reasoning only — do not include it i
 - Every reported issue must be actionable — it must clearly require a code change, documentation fix, or other concrete developer action.
 - If you investigate a potential concern but determine it is acceptable in context, omit it entirely from your output.
 
+## Scoring Guidelines
+Set overall_score on a 0.0-10.0 scale:
+- 9-10: No silent failures found. All error paths are properly handled and propagated.
+- 7-8: Minor error handling gaps that do not risk data loss or security issues.
+- 4-6: Significant silent failures in non-critical paths, or broad exception catching without re-raise.
+- 0-3: Critical errors silently swallowed in auth, data persistence, or payment paths.
+
 ## Quality Principles
 - Only report genuine silent failure risks. Do not flag intentional error suppression with clear comments.
 - Be language-agnostic. Apply error handling principles universally.

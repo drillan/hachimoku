@@ -209,6 +209,8 @@
 6. **Given** 設定で集約が無効化されている状態（`aggregation.enabled = false`）, **When** レビューを実行する, **Then** Step 9.5 がスキップされ `ReviewReport.aggregated = None` となる
 7. **Given** 全エージェントが失敗し有効な結果が0件の状態, **When** 結果集約を行う, **Then** 集約ステップをスキップし `ReviewReport.aggregated = None` となる
 8. **Given** 有効結果（AgentSuccess / AgentTruncated）が1件のみの状態, **When** 結果集約を行う, **Then** 重複排除不要のため集約ステップをスキップし `ReviewReport.aggregated = None` となり、スキップ理由が stderr に出力される（Issue #174）
+9. **Given** 各エージェントが `overall_score`（0.0-10.0）を出力した状態, **When** 集約を実行する, **Then** 集約エージェントが各エージェントのスコアを考慮して `AggregatedReport.overall_score` を算出し、その値が `ReviewSummary.overall_score` にコピーされる（Issue #280）
+10. **Given** 集約が無効または失敗した状態, **When** レビューが完了する, **Then** `ReviewSummary.overall_score = None` となる（Issue #280）
 
 ---
 

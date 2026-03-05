@@ -1319,6 +1319,7 @@ class TestRunReviewAggregation:
             strengths=["Good code"],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=8.0,
         )
         mock_run_aggregator.return_value = agg_report
 
@@ -1692,6 +1693,7 @@ class TestRunReviewAggregation:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=7.0,
         )
         mock_run_aggregator.return_value = agg_report
 

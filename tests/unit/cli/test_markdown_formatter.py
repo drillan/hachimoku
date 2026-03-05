@@ -77,6 +77,7 @@ def _make_report(
     max_severity: Severity | None = None,
     total_elapsed_time: float = 0.0,
     total_cost: CostInfo | None = None,
+    overall_score: float | None = None,
     load_errors: tuple[LoadError, ...] = (),
     aggregated: AggregatedReport | None = None,
     aggregation_error: str | None = None,
@@ -88,6 +89,7 @@ def _make_report(
             max_severity=max_severity,
             total_elapsed_time=total_elapsed_time,
             total_cost=total_cost,
+            overall_score=overall_score,
         ),
         load_errors=load_errors,
         aggregated=aggregated,
@@ -138,6 +140,16 @@ class TestSummarySection:
         report = _make_report(total_cost=None)
         result = format_markdown(report)
         assert "Total Cost" not in result
+
+    def test_contains_overall_score_when_present(self) -> None:
+        report = _make_report(overall_score=8.5)
+        result = format_markdown(report)
+        assert "| Overall Score | 8.5 / 10.0 |" in result
+
+    def test_omits_overall_score_when_none(self) -> None:
+        report = _make_report(overall_score=None)
+        result = format_markdown(report)
+        assert "Overall Score" not in result
 
 
 # ── Issues セクション ────────────────────────────────────
@@ -299,6 +311,30 @@ class TestAgentResultsSection:
         assert "long-agent" in result
         assert "truncated" in result
 
+    def test_agent_results_table_has_score_column(self) -> None:
+        """Agent Results テーブルヘッダーに Score 列が含まれる。"""
+        report = _make_report()
+        result = format_markdown(report)
+        assert "| Agent | Status | Issues | Score | Time |" in result
+
+    def test_agent_success_shows_score(self) -> None:
+        success = _make_success(agent_name="scorer", elapsed_time=2.0)
+        success = AgentSuccess(
+            agent_name="scorer",
+            issues=[],
+            elapsed_time=2.0,
+            overall_score=8.5,
+        )
+        report = _make_report(results=[success])
+        result = format_markdown(report)
+        assert "| scorer | success | 0 | 8.5 | 2.0s |" in result
+
+    def test_agent_success_shows_dash_when_no_score(self) -> None:
+        success = _make_success(agent_name="no-score", elapsed_time=1.0)
+        report = _make_report(results=[success])
+        result = format_markdown(report)
+        assert "| no-score | success | 0 | - | 1.0s |" in result
+
 
 # ── Aggregated Analysis セクション ───────────────────────
 
@@ -312,6 +348,7 @@ class TestAggregatedSection:
             strengths=["Clean code", "Good tests"],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=8.0,
         )
         report = _make_report(aggregated=agg)
         result = format_markdown(report)
@@ -329,6 +366,7 @@ class TestAggregatedSection:
                 RecommendedAction(description="Add logging", priority=Priority.MEDIUM),
             ],
             agent_failures=[],
+            overall_score=6.0,
         )
         report = _make_report(aggregated=agg)
         result = format_markdown(report)
@@ -343,6 +381,7 @@ class TestAggregatedSection:
             strengths=[],
             recommended_actions=[],
             agent_failures=["timeout-agent", "broken-agent"],
+            overall_score=5.0,
         )
         report = _make_report(aggregated=agg)
         result = format_markdown(report)
@@ -356,10 +395,23 @@ class TestAggregatedSection:
             strengths=[],
             recommended_actions=[],
             agent_failures=[],
+            overall_score=7.0,
         )
         report = _make_report(aggregated=agg)
         result = format_markdown(report)
         assert "Deduplicated issue" in result
+
+    def test_overall_score_shown(self) -> None:
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=9.0,
+        )
+        report = _make_report(aggregated=agg)
+        result = format_markdown(report)
+        assert "**Overall Score: 9.0 / 10.0**" in result
 
     def test_no_aggregated_section_when_none(self) -> None:
         report = _make_report(aggregated=None)
@@ -446,6 +498,7 @@ class TestIntegration:
                 RecommendedAction(description="Fix injection", priority=Priority.HIGH),
             ],
             agent_failures=["broken-agent"],
+            overall_score=7.5,
         )
         report = _make_report(
             results=[success, error],

@@ -76,6 +76,9 @@ def _format_summary(summary: ReviewSummary) -> str:
     if summary.total_cost is not None:
         rows.append(_format_cost_row(summary.total_cost))
 
+    if summary.overall_score is not None:
+        rows.append(f"| Overall Score | {summary.overall_score} / 10.0 |")
+
     table = "\n".join(rows)
     return f"## Summary\n\n| Metric | Value |\n|--------|-------|\n{table}"
 
@@ -153,8 +156,8 @@ def _format_agent_results(report: ReviewReport) -> str:
     table_rows = "\n".join(rows)
     return (
         "## Agent Results\n\n"
-        "| Agent | Status | Issues | Time |\n"
-        "|-------|--------|--------|------|\n"
+        "| Agent | Status | Issues | Score | Time |\n"
+        "|-------|--------|--------|-------|------|\n"
         f"{table_rows}"
     )
 
@@ -165,12 +168,17 @@ def _format_agent_result_row(
     match agent_result:
         case AgentSuccess() | AgentTruncated():
             issue_count = str(len(agent_result.issues))
+            score_display = (
+                str(agent_result.overall_score)
+                if agent_result.overall_score is not None
+                else "-"
+            )
             time_display = f"{agent_result.elapsed_time:.1f}s"
-            return f"| {agent_result.agent_name} | {agent_result.status} | {issue_count} | {time_display} |"
+            return f"| {agent_result.agent_name} | {agent_result.status} | {issue_count} | {score_display} | {time_display} |"
         case AgentError():
-            return f"| {agent_result.agent_name} | error | - | - |"
+            return f"| {agent_result.agent_name} | error | - | - | - |"
         case AgentTimeout():
-            return f"| {agent_result.agent_name} | timeout ({agent_result.timeout_seconds:.0f}s) | - | - |"
+            return f"| {agent_result.agent_name} | timeout ({agent_result.timeout_seconds:.0f}s) | - | - | - |"
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -180,6 +188,8 @@ def _format_agent_result_row(
 
 def _format_aggregated(aggregated: AggregatedReport) -> str:
     parts: list[str] = ["## Aggregated Analysis"]
+
+    parts.append(f"\n**Overall Score: {aggregated.overall_score} / 10.0**")
 
     if aggregated.issues:
         issue_lines = "\n".join(

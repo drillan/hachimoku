@@ -297,6 +297,29 @@ class TestRunAgentResolveModel:
     @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
     @patch("hachimoku.engine._runner.Agent")
+    async def test_overall_score_propagated_from_output(
+        self,
+        mock_agent_cls: MagicMock,
+        mock_resolve: MagicMock,
+        mock_run_safe: AsyncMock,
+    ) -> None:
+        """result.output.overall_score が AgentSuccess.overall_score に伝播する。"""
+        mock_resolve.return_value = "resolved-model"
+        mock_result = MagicMock()
+        mock_result.output.issues = []
+        mock_result.output.overall_score = 8.5
+        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_run_safe.return_value = mock_result
+
+        ctx = _make_context()
+        result = await run_agent(ctx)
+
+        assert isinstance(result, AgentSuccess)
+        assert result.overall_score == 8.5
+
+    @patch("hachimoku.engine._runner.run_agent_safe")
+    @patch("hachimoku.engine._runner.resolve_model")
+    @patch("hachimoku.engine._runner.Agent")
     async def test_resolve_model_called_with_context_values(
         self,
         mock_agent_cls: MagicMock,
@@ -307,6 +330,7 @@ class TestRunAgentResolveModel:
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -328,6 +352,7 @@ class TestRunAgentResolveModel:
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -351,6 +376,7 @@ class TestRunAgentResolveModel:
         mock_resolve.return_value = mock_model
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
         mock_instance = mock_agent_cls.return_value
@@ -371,6 +397,7 @@ class TestRunAgentResolveModel:
         """文字列モデルの場合、set_agent_toolsets は呼ばれない。"""
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -396,6 +423,7 @@ class TestRunAgentModelSettings:
         """run_agent_safe に model_settings={"max_turns": N, "timeout": T} が渡される。"""
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -414,6 +442,7 @@ class TestRunAgentModelSettings:
         """run_agent_safe に context.timeout_seconds が model_settings["timeout"] に渡される。"""
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -544,6 +573,7 @@ class TestRunAgentBuiltinTools:
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -578,6 +608,7 @@ class TestRunAgentBuiltinTools:
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
@@ -600,6 +631,7 @@ class TestRunAgentBuiltinTools:
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
+        mock_result.output.overall_score = 5.0
         mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 

@@ -13,6 +13,8 @@ You will receive a list of review issues from multiple agents. Each issue includ
 - suggestion: how to fix (optional)
 - category: issue category (optional)
 
+Each agent may also include a score (0.0-10.0) representing their assessment of the code quality in their domain.
+
 You may also receive a list of agent names that failed during execution.
 
 ## Tasks
@@ -41,6 +43,14 @@ Create prioritized action items based on the consolidated issues:
 
 ### 4. Record Agent Failures
 Include the names of any agents that failed during execution in the agent_failures list. This helps consumers understand that the aggregation may be incomplete.
+
+### 5. Compute Overall Score
+Set overall_score on a 0.0-10.0 scale representing the overall code quality:
+- Consider the individual agent scores as inputs, weighting them by the severity and number of issues found.
+- If all agents report 9-10 with no significant issues, the overall score should be 9-10.
+- Critical issues should pull the score below 4.0 regardless of other scores.
+- Important issues should cap the score at 7.0 unless they are minor.
+- If agent scores are unavailable, derive the overall score from the consolidated issue severities and counts.
 
 ## Output Rules
 - Exclude any issue whose description or suggestion concludes that no change is needed, no action is required, or the code is acceptable as-is. These are noise, not actionable findings.

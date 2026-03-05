@@ -60,6 +60,7 @@ classDiagram
         +status: Literal["success"] = "success"
         +agent_name: str
         +issues: list[ReviewIssue]
+        +overall_score: float | None 0.0-10.0
         +elapsed_time: float > 0
         +cost: CostInfo | None
     }
@@ -84,10 +85,10 @@ classDiagram
     class BaseAgentOutput {
         <<abstract>>
         +issues: list[ReviewIssue]
+        +overall_score: float 0.0-10.0
     }
 
     class ScoredIssues {
-        +overall_score: float 0.0-10.0
     }
 
     class SeverityClassified {
@@ -139,6 +140,7 @@ classDiagram
         +max_severity: Severity | None
         +total_elapsed_time: float ≥ 0
         +total_cost: CostInfo | None
+        +overall_score: float | None 0.0-10.0
     }
 
     class DiffReviewRecord {

@@ -93,6 +93,7 @@ async def run_agent(context: AgentExecutionContext) -> AgentResult:
         return AgentSuccess(
             agent_name=context.agent_name,
             issues=result.output.issues,
+            overall_score=result.output.overall_score,
             elapsed_time=elapsed,
             cost=CostInfo(
                 input_tokens=usage.input_tokens,
