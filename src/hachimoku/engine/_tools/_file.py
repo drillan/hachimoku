@@ -18,10 +18,15 @@ def read_file(path: str) -> str:
         ファイルの内容（UTF-8）。
 
     Raises:
+        IsADirectoryError: パスがディレクトリの場合。
         FileNotFoundError: ファイルが存在しない場合。
         ValueError: ファイルが有効な UTF-8 テキストでない場合。
     """
     file_path = Path(path)
+    if file_path.is_dir():
+        raise IsADirectoryError(
+            f"'{path}' is a directory, not a file. Use list_directory to view its contents."
+        )
     if not file_path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
     try:

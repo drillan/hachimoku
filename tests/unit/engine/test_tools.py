@@ -324,9 +324,9 @@ class TestReadFile:
         with pytest.raises(FileNotFoundError):
             read_file("/nonexistent/file.txt")
 
-    def test_directory_path_raises_error(self, tmp_path: Path) -> None:
-        """ディレクトリパスで FileNotFoundError を送出する（S-7）。"""
-        with pytest.raises(FileNotFoundError):
+    def test_directory_path_raises_is_a_directory_error(self, tmp_path: Path) -> None:
+        """ディレクトリパスで IsADirectoryError を送出する（#282）。"""
+        with pytest.raises(IsADirectoryError, match="list_directory"):
             read_file(str(tmp_path))
 
     def test_binary_file_raises_value_error(self, tmp_path: Path) -> None:
