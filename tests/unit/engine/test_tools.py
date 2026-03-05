@@ -51,6 +51,14 @@ class TestRunGitWhitelist:
         with pytest.raises(ValueError, match="not allowed"):
             run_git([])
 
+    def test_grep_allowed(self) -> None:
+        """読み取り専用の git grep が許可される。"""
+        with patch("hachimoku.engine._tools._git.subprocess.run") as mock_run:
+            mock_run.return_value = Mock(stdout="match:1:result")
+            result = run_git(["grep", "pattern"])
+            assert result == "match:1:result"
+            mock_run.assert_called_once()
+
     def test_all_whitelisted_subcommands_accepted(self) -> None:
         """全ホワイトリストサブコマンドが許可される。"""
         with patch("hachimoku.engine._tools._git.subprocess.run") as mock_run:
