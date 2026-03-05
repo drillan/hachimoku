@@ -54,7 +54,7 @@ parallel = false
 |-----|---|----------|------|------|
 | `model` | `str` | `"claudecode:claude-opus-4-6"` | 空文字不可、プレフィックス必須 | 使用する LLM モデル名（`claudecode:` or `anthropic:` プレフィックスでプロバイダーを指定） |
 | `timeout` | `int` | `600` | 正の値 | エージェントのタイムアウト（秒） |
-| `max_turns` | `int` | `20` | 正の値 | エージェントの最大ターン数 |
+| `max_turns` | `int` | `30` | 正の値 | エージェントの最大ターン数 |
 | `parallel` | `bool` | `true` | - | 並列実行の有効化 |
 | `base_branch` | `str` | `"main"` | 空文字不可 | diff モードの基準ブランチ |
 | `output_format` | `str` | `"markdown"` | `"markdown"` or `"json"` | 出力形式 |
@@ -76,6 +76,7 @@ parallel = false
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
 | `referenced_content_max_chars` | `int` | `5000` | 正の値 | referenced_content の各コンテンツの最大文字数。超過時は末尾切り詰め + truncation マーカー追加 |
+| `convention_files` | `tuple[str, ...]` | `("CLAUDE.md", ".hachimoku/config.toml")` | 各要素空文字不可 | セレクターエージェントのコンベンションコンテキストとして含めるファイルパス |
 
 ### AggregationConfig
 
@@ -136,7 +137,7 @@ save_reviews = false
 CLI オプションでも制御できます。
 
 ```{code-block} bash
-8moku review --no-save-reviews
+8moku --no-save-reviews
 ```
 
 ## プロジェクトルート探索
