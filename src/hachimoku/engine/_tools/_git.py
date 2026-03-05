@@ -12,6 +12,7 @@ from typing import Final
 ALLOWED_GIT_SUBCOMMANDS: Final[frozenset[str]] = frozenset(
     {
         "diff",
+        "grep",
         "log",
         "show",
         "status",
