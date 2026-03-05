@@ -1,7 +1,7 @@
 # Execution settings
 model = "claudecode:claude-opus-4-6"  # Specify provider with prefix
 timeout = 600
-max_turns = 20
+max_turns = 30
 parallel = true
 base_branch = "main"
 

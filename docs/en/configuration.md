@@ -54,7 +54,7 @@ Complete list of all configuration items.
 |------|------|---------|------------|-------------|
 | `model` | `str` | `"claudecode:claude-opus-4-6"` | Non-empty, prefix required | LLM model name (specify provider with `claudecode:` or `anthropic:` prefix) |
 | `timeout` | `int` | `600` | Positive value | Agent timeout (seconds) |
-| `max_turns` | `int` | `20` | Positive value | Maximum number of agent turns |
+| `max_turns` | `int` | `30` | Positive value | Maximum number of agent turns |
 | `parallel` | `bool` | `true` | - | Enable parallel execution |
 | `base_branch` | `str` | `"main"` | Non-empty | Base branch for diff mode |
 | `output_format` | `str` | `"markdown"` | `"markdown"` or `"json"` | Output format |
@@ -76,6 +76,7 @@ When `model`, `timeout`, or `max_turns` is `None`, the selector definition value
 | `timeout` | `int \| None` | `None` | Positive value | Timeout (seconds) |
 | `max_turns` | `int \| None` | `None` | Positive value | Maximum turns |
 | `referenced_content_max_chars` | `int` | `5000` | Positive value | Maximum characters per referenced_content item. Truncated content gets a truncation marker appended |
+| `convention_files` | `tuple[str, ...]` | `("CLAUDE.md", ".hachimoku/config.toml")` | Each element non-empty | File paths to include as convention context for the selector agent |
 
 ### AggregationConfig
 
@@ -136,7 +137,7 @@ save_reviews = false
 Can also be controlled via CLI options.
 
 ```{code-block} bash
-8moku review --no-save-reviews
+8moku --no-save-reviews
 ```
 
 ## Project Root Discovery
