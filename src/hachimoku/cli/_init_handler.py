@@ -18,7 +18,7 @@ from hachimoku.models.config import DEFAULT_MAX_TURNS
 class InitError(Exception):
     """init コマンドのエラー。
 
-    Git リポジトリ外での実行等。
+    ファイルシステム操作エラー等。
     エラーメッセージは解決方法のヒントを含む（憲法 Art.3）。
     """
 
@@ -89,22 +89,6 @@ _CONFIG_TEMPLATE: str = """\
 # timeout = 600
 # max_turns = {max_turns}
 """
-
-
-def _ensure_git_repository(project_root: Path) -> None:
-    """Git リポジトリ内であることを確認する。
-
-    Args:
-        project_root: プロジェクトルートディレクトリ。
-
-    Raises:
-        InitError: .git/ が存在しない場合。
-    """
-    if not (project_root / ".git").exists():
-        raise InitError(
-            f"Not a Git repository: {project_root}\n"
-            "Run 'git init' to initialize a Git repository first."
-        )
 
 
 GITIGNORE_SECTION: str = "# hachimoku"
@@ -201,12 +185,11 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
     """init コマンドのビジネスロジックを実行する。
 
     手順:
-    1. Git リポジトリ確認（.git/ の存在）
-    2. .hachimoku/ ディレクトリ作成
-    3. .hachimoku/config.toml 生成（コメント付きテンプレート）
-    4. .hachimoku/agents/ にビルトインエージェント定義コピー
-    5. .hachimoku/reviews/ ディレクトリ作成
-    6. .gitignore に /.hachimoku/ エントリを追加
+    1. .hachimoku/ ディレクトリ作成
+    2. .hachimoku/config.toml 生成（コメント付きテンプレート）
+    3. .hachimoku/agents/ にビルトインエージェント定義コピー
+    4. .hachimoku/reviews/ ディレクトリ作成
+    5. Git リポジトリ内のみ、.gitignore に /.hachimoku/ エントリを追加
 
     Args:
         project_root: プロジェクトルートディレクトリ。
@@ -216,10 +199,8 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
         InitResult: 作成・スキップされたファイル情報。
 
     Raises:
-        InitError: Git リポジトリ外での実行、ファイルシステム操作エラー等。
+        InitError: ファイルシステム操作エラー等。
     """
-    _ensure_git_repository(project_root)
-
     hachimoku_dir = project_root / ".hachimoku"
     config_path = hachimoku_dir / "config.toml"
     agents_dir = hachimoku_dir / "agents"
@@ -246,13 +227,14 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
         created.extend(agent_created)
         skipped.extend(agent_skipped)
 
-        # .gitignore に /.hachimoku/ エントリを追加
-        gitignore_path = project_root / ".gitignore"
-        gitignore_result = _ensure_gitignore(project_root)
-        if gitignore_result == "created":
-            created.append(gitignore_path)
-        else:
-            skipped.append(gitignore_path)
+        # .gitignore に /.hachimoku/ エントリを追加（Git リポジトリ内のみ）
+        if (project_root / ".git").exists():
+            gitignore_path = project_root / ".gitignore"
+            gitignore_result = _ensure_gitignore(project_root)
+            if gitignore_result == "created":
+                created.append(gitignore_path)
+            else:
+                skipped.append(gitignore_path)
     except OSError as e:
         raise InitError(
             f"Failed to initialize .hachimoku/: {e}\n"

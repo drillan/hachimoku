@@ -18,7 +18,6 @@ from hachimoku.cli._init_handler import (
     InitError,
     InitResult,
     _copy_builtin_agents,
-    _ensure_git_repository,
     _ensure_gitignore,
     _generate_config_template,
     run_init,
@@ -82,28 +81,6 @@ class TestInitError:
     def test_message(self) -> None:
         err = InitError("test message")
         assert str(err) == "test message"
-
-
-# --- TestEnsureGitRepository ---
-
-
-class TestEnsureGitRepository:
-    """_ensure_git_repository の動作を検証する。"""
-
-    def test_git_repo_exists_no_error(self, tmp_path: Path) -> None:
-        """.git/ が存在する場合、例外が発生しない。"""
-        (tmp_path / ".git").mkdir()
-        _ensure_git_repository(tmp_path)  # 例外なし
-
-    def test_non_git_repo_raises_init_error(self, tmp_path: Path) -> None:
-        """.git/ が存在しない場合、InitError が送出される。"""
-        with pytest.raises(InitError):
-            _ensure_git_repository(tmp_path)
-
-    def test_error_contains_hint(self, tmp_path: Path) -> None:
-        """エラーメッセージに解決方法のヒントが含まれる。"""
-        with pytest.raises(InitError, match="git init"):
-            _ensure_git_repository(tmp_path)
 
 
 # --- TestGenerateConfigTemplate ---
@@ -447,10 +424,44 @@ class TestRunInit:
         assert len(result.created) == expected_count
         assert result.skipped == ()
 
-    def test_non_git_repo_raises_init_error(self, tmp_path: Path) -> None:
-        """.git/ なしの場合に InitError が送出される。"""
-        with pytest.raises(InitError):
-            run_init(tmp_path)
+    def test_non_git_repo_succeeds(self, tmp_path: Path) -> None:
+        """.git/ なしでも run_init() が正常終了する。"""
+        result = run_init(tmp_path)
+        assert (tmp_path / ".hachimoku").is_dir()
+        assert (tmp_path / ".hachimoku" / "config.toml").is_file()
+        assert result.created  # 何かしら作成されている
+
+    def test_non_git_repo_no_gitignore_created(self, tmp_path: Path) -> None:
+        """Git リポジトリ外では .gitignore が作成されない。"""
+        run_init(tmp_path)
+        assert not (tmp_path / ".gitignore").exists()
+
+    def test_non_git_repo_result_excludes_gitignore(self, tmp_path: Path) -> None:
+        """Git リポジトリ外では .gitignore が結果に含まれない。"""
+        result = run_init(tmp_path)
+        gitignore = tmp_path / ".gitignore"
+        assert gitignore not in result.created
+        assert gitignore not in result.skipped
+
+    def test_non_git_repo_creates_all_other_files(self, tmp_path: Path) -> None:
+        """Git リポジトリ外でも .hachimoku/ 配下のファイルが全て作成される。"""
+        result = run_init(tmp_path)
+        # config.toml + builtin agents (.gitignore は含まれない)
+        expected_count = 1 + len(BUILTIN_AGENT_NAMES)
+        assert len(result.created) == expected_count
+        assert (tmp_path / ".hachimoku" / "config.toml").is_file()
+        assert (tmp_path / ".hachimoku" / "agents").is_dir()
+        assert (tmp_path / ".hachimoku" / "reviews").is_dir()
+
+    def test_git_repo_still_creates_gitignore(self, tmp_path: Path) -> None:
+        """Git リポジトリ内では従来通り .gitignore にエントリが追加される。"""
+        (tmp_path / ".git").mkdir()
+        result = run_init(tmp_path)
+        gitignore = tmp_path / ".gitignore"
+        assert gitignore.is_file()
+        assert gitignore in result.created
+        content = gitignore.read_text(encoding="utf-8")
+        assert GITIGNORE_ENTRY in content
 
     def test_existing_files_skipped_no_force(self, tmp_path: Path) -> None:
         """既存ファイルがスキップされる。"""

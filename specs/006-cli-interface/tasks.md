@@ -104,7 +104,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] `src/hachimoku/cli/_init_handler.py` に `run_init()`, `_ensure_git_repository()`, `_generate_config_template()`, `_copy_builtin_agents()` を実装する。contracts/init_handler.py 準拠。`importlib.resources` でビルトイン定義を取得
+- [ ] T022 [US3] `src/hachimoku/cli/_init_handler.py` に `run_init()`, `_generate_config_template()`, `_copy_builtin_agents()` を実装する。contracts/init_handler.py 準拠。`importlib.resources` でビルトイン定義を取得
 - [ ] T023 [US3] `src/hachimoku/cli/_app.py` の `init` サブコマンドに InitHandler の呼び出しを接続する。InitError → 終了コード 4 のエラーハンドリング、結果の stderr 表示を実装
 - [ ] T024 [US3] 品質チェック: `ruff check --fix . && ruff format . && mypy .`
 

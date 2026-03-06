@@ -14,7 +14,7 @@ from hachimoku.models._base import HachimokuBaseModel
 class InitError(Exception):
     """init コマンドのエラー。
 
-    Git リポジトリ外での実行等。
+    ファイルシステム操作エラー等。
     エラーメッセージは解決方法のヒントを含む（憲法 Art.3）。
     """
 
@@ -35,11 +35,11 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
     """init コマンドのビジネスロジックを実行する。
 
     手順:
-    1. Git リポジトリ確認（.git/ の存在）
-    2. .hachimoku/ ディレクトリ作成
-    3. .hachimoku/config.toml 生成（コメント付きテンプレート）
-    4. .hachimoku/agents/ にビルトイン6エージェント定義コピー
-    5. .hachimoku/reviews/ ディレクトリ作成
+    1. .hachimoku/ ディレクトリ作成
+    2. .hachimoku/config.toml 生成（コメント付きテンプレート）
+    3. .hachimoku/agents/ にビルトイン6エージェント定義コピー
+    4. .hachimoku/reviews/ ディレクトリ作成
+    5. Git リポジトリ内のみ、.gitignore に /.hachimoku/ エントリを追加
 
     Args:
         project_root: プロジェクトルートディレクトリ。
@@ -49,16 +49,7 @@ def run_init(project_root: Path, *, force: bool = False) -> InitResult:
         InitResult: 作成・スキップされたファイル情報。
 
     Raises:
-        InitError: Git リポジトリ外での実行等。
-    """
-    ...
-
-
-def _ensure_git_repository(project_root: Path) -> None:
-    """Git リポジトリ内であることを確認する。
-
-    Raises:
-        InitError: .git/ が存在しない場合。
+        InitError: ファイルシステム操作エラー等。
     """
     ...
 

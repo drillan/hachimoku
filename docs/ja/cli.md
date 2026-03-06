@@ -75,7 +75,7 @@ file モードでは以下の処理が行われます:
 
 ## init
 
-`.hachimoku/` ディレクトリにデフォルトの設定ファイルとエージェント定義を作成します。
+`.hachimoku/` ディレクトリにデフォルトの設定ファイルとエージェント定義を作成します。Git リポジトリの内外を問わず実行できます。Git リポジトリ内では `.gitignore` への自動追加も行います。
 
 ```bash
 8moku init [OPTIONS]
@@ -99,7 +99,7 @@ file モードでは以下の処理が行われます:
 - `.hachimoku/config.toml` - 設定ファイル（全オプションがコメントアウトされたテンプレート）
 - `.hachimoku/agents/*.toml` - ビルトインエージェント定義のコピー
 - `.hachimoku/reviews/` - レビュー結果の JSONL 蓄積ディレクトリ
-- `.gitignore` への `/.hachimoku/` エントリ自動追加（未登録の場合のみ）
+- `.gitignore` への `/.hachimoku/` エントリ自動追加（Git リポジトリ内のみ。未登録の場合のみ）
 
 ## agents
 
