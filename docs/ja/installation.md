@@ -94,6 +94,8 @@ cd your-project
 
 - `config.toml` - 設定ファイル（全オプションがコメントアウトされたテンプレート）
 - `agents/*.toml` - ビルトインエージェント定義のコピー
+- `reviews/` - レビュー結果の JSONL 蓄積ディレクトリ
+- `.gitignore` への `/.hachimoku/` エントリ自動追加（Git リポジトリ内のみ。未登録の場合のみ）
 
 設定の詳細は [設定](configuration.md) を参照してください。
 
