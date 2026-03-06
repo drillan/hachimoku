@@ -12,6 +12,7 @@ show_cost = false
 
 # File mode settings
 max_files_per_review = 100
+# file_extensions = [".py", ".rst"]  # Filter by extension (empty = all files)
 
 # Selector agent settings
 [selector]

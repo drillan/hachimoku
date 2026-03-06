@@ -670,3 +670,62 @@ class TestResolveIfText:
             assert any("unreadable file" in w.lower() for w in warnings)
         finally:
             no_read.chmod(0o644)
+
+
+class TestResolveFilesExtensionFilter:
+    """resolve_files の拡張子フィルタリング。"""
+
+    def test_filter_single_extension(self, tmp_path: Path) -> None:
+        """単一拡張子で .py ファイルのみ返す。"""
+        (tmp_path / "a.py").write_text("# python")
+        (tmp_path / "b.rst").write_text("rst")
+        (tmp_path / "c.md").write_text("md")
+        result, _ = resolve_files((str(tmp_path),), filter_extensions=(".py",))
+        assert result is not None
+        names = [Path(p).name for p in result.paths]
+        assert names == ["a.py"]
+
+    def test_filter_multiple_extensions(self, tmp_path: Path) -> None:
+        """複数拡張子で .py と .rst のファイルを返す。"""
+        (tmp_path / "a.py").write_text("# python")
+        (tmp_path / "b.rst").write_text("rst")
+        (tmp_path / "c.md").write_text("md")
+        result, _ = resolve_files((str(tmp_path),), filter_extensions=(".py", ".rst"))
+        assert result is not None
+        names = [Path(p).name for p in result.paths]
+        assert names == ["a.py", "b.rst"]
+
+    def test_filter_empty_includes_all(self, tmp_path: Path) -> None:
+        """空タプルで全ファイルが返される（デフォルト動作）。"""
+        (tmp_path / "a.py").write_text("# python")
+        (tmp_path / "b.rst").write_text("rst")
+        result, _ = resolve_files((str(tmp_path),), filter_extensions=())
+        assert result is not None
+        assert len(result.paths) == 2
+
+    def test_filter_all_excluded_returns_none(self, tmp_path: Path) -> None:
+        """全ファイルがフィルタで除外される場合 None を返す。"""
+        (tmp_path / "a.py").write_text("# python")
+        result, _ = resolve_files((str(tmp_path),), filter_extensions=(".rst",))
+        assert result is None
+
+    def test_filter_with_glob_pattern(self, tmp_path: Path) -> None:
+        """glob パターンと拡張子フィルタの組み合わせ。"""
+        (tmp_path / "a.py").write_text("# python")
+        (tmp_path / "b.rst").write_text("rst")
+        result, _ = resolve_files((str(tmp_path / "*.py"),), filter_extensions=(".py",))
+        assert result is not None
+        names = [Path(p).name for p in result.paths]
+        assert names == ["a.py"]
+
+    def test_filter_with_directory(self, tmp_path: Path) -> None:
+        """ディレクトリ展開と拡張子フィルタの組み合わせ。"""
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "x.py").write_text("# python")
+        (sub / "y.html").write_text("<html>")
+        (tmp_path / "z.py").write_text("# top")
+        result, _ = resolve_files((str(tmp_path),), filter_extensions=(".py",))
+        assert result is not None
+        names = sorted(Path(p).name for p in result.paths)
+        assert names == ["x.py", "z.py"]

@@ -387,6 +387,51 @@ class TestReviewConfigOverrides:
 
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_option_key_mapping(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--ext → config_overrides に "file_extensions" キーが含まれる。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app, ["--ext", ".py"])
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert "file_extensions" in overrides
+        assert "ext" not in overrides
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_option_single_value(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--ext .py → config_overrides["file_extensions"] == (".py",)。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app, ["--ext", ".py"])
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert overrides["file_extensions"] == (".py",)
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_option_multiple_values(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--ext .py --ext .rst → config_overrides["file_extensions"] == (".py", ".rst")。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app, ["--ext", ".py", "--ext", ".rst"])
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert overrides["file_extensions"] == (".py", ".rst")
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_option_not_specified(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--ext 未指定 → config_overrides に "file_extensions" キーが含まれない。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app)
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert "file_extensions" not in overrides
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
     def test_base_branch_option(
         self, mock_config: MagicMock, mock_run_review: AsyncMock
     ) -> None:
@@ -415,6 +460,7 @@ class TestReviewConfigOverrides:
             "save_reviews",
             "show_cost",
             "max_files_per_review",
+            "file_extensions",
         }
         assert not (set(overrides.keys()) & config_keys)
 
@@ -1020,6 +1066,26 @@ class TestReviewCallbackFileModeResolution:
         setup_mocks(mock_config, mock_run_review)
         runner.invoke(app, ["123"])
         mock_resolve_files.assert_not_called()
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_resolve_files_called_with_filter_extensions(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """resolve_files が filter_extensions=config.file_extensions で呼ばれる。"""
+        mock_config.return_value = HachimokuConfig(file_extensions=(".py", ".rst"))
+        mock_run_review.return_value = make_engine_result(ExitCode.SUCCESS)
+        mock_resolve_files.return_value = (ResolvedFiles(paths=("/tmp/a.py",)), ())
+        runner.invoke(app, ["src/"])
+        mock_resolve_files.assert_called_once()
+        assert mock_resolve_files.call_args.kwargs["filter_extensions"] == (
+            ".py",
+            ".rst",
+        )
 
 
 # --- US5 テスト（agents サブコマンド） ---

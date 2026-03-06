@@ -208,11 +208,15 @@ def _expand_single_path(
 
 def resolve_files(
     raw_paths: tuple[str, ...],
+    *,
+    filter_extensions: tuple[str, ...] = (),
 ) -> tuple[ResolvedFiles | None, tuple[str, ...]]:
     """入力パス群を具体的なファイルパスリストに展開する。
 
     Args:
         raw_paths: 未展開のパス文字列タプル。
+        filter_extensions: 拡張子フィルタ（ドット付き小文字、例: (".py", ".rst")）。
+            空タプルの場合は全ファイルを対象とする。
 
     Returns:
         (ResolvedFiles | None, warnings): 展開済みファイルパスと警告のタプル。
@@ -232,6 +236,11 @@ def resolve_files(
         all_warnings.extend(warnings)
 
     unique_files = sorted(set(all_files))
+
+    if filter_extensions:
+        ext_set = frozenset(filter_extensions)
+        unique_files = [f for f in unique_files if Path(f).suffix.lower() in ext_set]
+
     warnings_tuple = tuple(all_warnings)
 
     if not unique_files:

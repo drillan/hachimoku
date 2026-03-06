@@ -72,6 +72,9 @@ _CONFIG_TEMPLATE: str = """\
 # Maximum files per review
 # max_files_per_review = 100
 
+# File extension filter (list, e.g. [".py", ".rst"])
+# file_extensions = []
+
 # --- Selector Agent Settings ---
 
 # [selector]

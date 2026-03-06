@@ -61,6 +61,7 @@ parallel = false
 | `save_reviews` | `bool` | `true` | - | レビュー履歴の JSONL 保存（後述） |
 | `show_cost` | `bool` | `false` | - | コスト情報の表示 |
 | `max_files_per_review` | `int` | `100` | 正の値 | file モードの最大ファイル数 |
+| `file_extensions` | `tuple[str, ...]` | `()` | 各要素空文字不可、ドット正規化 | file モードの拡張子フィルタ（空=全ファイル、CLI `--ext` で完全上書き） |
 | `selector` | `SelectorConfig` | 後述 | - | セレクターエージェント設定 |
 | `aggregation` | `AggregationConfig` | 後述 | - | 集約エージェント設定 |
 | `agents` | `dict[str, AgentConfig]` | `{}` | - | エージェント個別設定 |

@@ -61,6 +61,7 @@ Complete list of all configuration items.
 | `save_reviews` | `bool` | `true` | - | Save review history as JSONL (see below) |
 | `show_cost` | `bool` | `false` | - | Display cost information |
 | `max_files_per_review` | `int` | `100` | Positive value | Maximum number of files for file mode |
+| `file_extensions` | `tuple[str, ...]` | `()` | Each element non-empty, dot-normalized | Extension filter for file mode (empty = all files, CLI `--ext` fully overrides) |
 | `selector` | `SelectorConfig` | See below | - | Selector agent settings |
 | `aggregation` | `AggregationConfig` | See below | - | Aggregation agent settings |
 | `agents` | `dict[str, AgentConfig]` | `{}` | - | Per-agent settings |

@@ -110,6 +110,7 @@ class HachimokuConfig(HachimokuBaseModel):
 
     # ファイルモード設定
     max_files_per_review: int = Field(default=100, gt=0)
+    file_extensions: tuple[str, ...] = ()
 
     # セレクターエージェント設定
     selector: SelectorConfig = Field(default_factory=SelectorConfig)
@@ -119,6 +120,21 @@ class HachimokuConfig(HachimokuBaseModel):
 
     # エージェント個別設定
     agents: dict[str, AgentConfig] = Field(default_factory=dict)
+
+    @field_validator("file_extensions")
+    @classmethod
+    def validate_file_extensions(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        """拡張子を正規化する（ドットプレフィックス付き・小文字）。空文字列を拒否する。"""
+        normalized: list[str] = []
+        for ext in v:
+            if not ext:
+                msg = "Empty string is not a valid file extension"
+                raise ValueError(msg)
+            lower_ext = ext.lower()
+            if not lower_ext.startswith("."):
+                lower_ext = f".{lower_ext}"
+            normalized.append(lower_ext)
+        return tuple(normalized)
 
     @field_validator("agents")
     @classmethod
