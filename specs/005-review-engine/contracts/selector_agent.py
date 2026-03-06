@@ -84,6 +84,13 @@ def _prefetch_guardrail(ctx: RunContext[SelectorDeps]) -> str:
     対応するデータの再取得を禁止する指示を動的に生成する。
     pydantic-ai の ``instructions`` パラメータとして Agent に渡される。
 
+    ガードレール対象フィールド:
+        - issue_context: Issue データの再取得禁止（run_gh）。
+        - pr_metadata: PR メタデータの再取得禁止（run_gh）。
+        - project_conventions: 規約ファイルの再読み込み禁止。
+        - directory_tree: ツリーに記載のないパスの推測禁止、
+          ツリー外のディレクトリ探索には list_directory の先行使用を指示。
+
     Args:
         ctx: pydantic-ai の RunContext。deps に SelectorDeps を保持。
 

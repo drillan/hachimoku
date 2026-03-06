@@ -108,6 +108,11 @@ def _build_directory_tree(root: Path | None = None) -> str:
     ``src/`` ディレクトリが存在する場合はそこのみスキャンし、
     存在しない場合は root 全体をスキャンする。
 
+    ファイルシステムエラー（権限不足、壊れたシンボリックリンク等）は
+    個別エントリをスキップし、致命的エラー時は空文字列を返す。
+    ディレクトリツリーは非クリティカルな機能であるため、
+    エラー時にも prefetch 全体を中断しない。
+
     Args:
         root: スキャン起点ディレクトリ。None の場合は CWD。
 
@@ -119,19 +124,25 @@ def _build_directory_tree(root: Path | None = None) -> str:
     scan_root = src_dir if src_dir.is_dir() else base
 
     paths: list[str] = []
-    for entry in sorted(scan_root.rglob("*")):
-        if not entry.is_file():
-            continue
-        rel = entry.relative_to(base)
-        if any(part in _EXCLUDED_DIRS for part in rel.parts):
-            continue
-        if any(part.endswith(".egg-info") for part in rel.parts):
-            continue
-        if entry.suffix in _EXCLUDED_EXTENSIONS:
-            continue
-        paths.append(str(rel))
-        if len(paths) >= DIRECTORY_TREE_MAX_ENTRIES:
-            break
+    try:
+        for entry in sorted(scan_root.rglob("*")):
+            try:
+                if not entry.is_file():
+                    continue
+                rel = entry.relative_to(base)
+                if any(part in _EXCLUDED_DIRS for part in rel.parts):
+                    continue
+                if any(part.endswith(".egg-info") for part in rel.parts):
+                    continue
+                if entry.suffix in _EXCLUDED_EXTENSIONS:
+                    continue
+                paths.append(str(rel))
+                if len(paths) >= DIRECTORY_TREE_MAX_ENTRIES:
+                    break
+            except OSError:
+                continue
+    except OSError:
+        return ""
 
     if not paths:
         return ""

@@ -574,3 +574,35 @@ class TestBuildDirectoryTree:
 
         result = _build_directory_tree(tmp)
         assert "lib/core.py" in result
+
+    def test_permission_error_skips_entry(self, tmp_path: object) -> None:
+        """権限エラーのエントリをスキップする。Issue #295."""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "good.py").write_text("")
+        restricted = tmp / "restricted"
+        restricted.mkdir()
+        (restricted / "secret.py").write_text("")
+        restricted.chmod(0o000)
+
+        try:
+            result = _build_directory_tree(tmp)
+            # restricted ディレクトリの内容がスキップされてもクラッシュしない
+            assert "good.py" in result
+        finally:
+            restricted.chmod(0o755)
+
+    def test_oserror_returns_empty(self, tmp_path: object) -> None:
+        """致命的な OSError 時に空文字列を返す。Issue #295."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        with patch.object(Path, "rglob", side_effect=OSError("disk error")):
+            result = _build_directory_tree(tmp)
+        assert result == ""
