@@ -75,7 +75,7 @@ When the number of files exceeds `max_files_per_review` (default: 100), a confir
 
 ## init
 
-Creates default configuration files and agent definitions in the `.hachimoku/` directory.
+Creates default configuration files and agent definitions in the `.hachimoku/` directory. Works both inside and outside Git repositories. Inside a Git repository, it also adds an entry to `.gitignore`.
 
 ```bash
 8moku init [OPTIONS]
@@ -99,7 +99,7 @@ Created files:
 - `.hachimoku/config.toml` - Configuration file (template with all options commented out)
 - `.hachimoku/agents/*.toml` - Copies of built-in agent definitions
 - `.hachimoku/reviews/` - JSONL accumulation directory for review results
-- Automatic addition of `/.hachimoku/` entry to `.gitignore` (only if not already present)
+- Automatic addition of `/.hachimoku/` entry to `.gitignore` (Git repositories only; only if not already present)
 
 ## agents
 
