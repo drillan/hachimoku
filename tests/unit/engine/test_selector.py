@@ -1251,6 +1251,28 @@ class TestPrefetchGuardrail:
         assert "PR metadata" not in result
         assert "Project conventions" in result
 
+    def test_directory_tree_guardrail(self) -> None:
+        """directory_tree が非空のとき Directory Tree ガードレールを含む。Issue #295."""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(
+            prefetched=PrefetchedContext(directory_tree="src/app.py\nsrc/lib.py")
+        )
+        result = _prefetch_guardrail(mock_ctx)
+        assert "directory tree" in result.lower()
+        assert "Do NOT" in result
+        assert "list_directory" in result
+
+    def test_empty_directory_tree_no_guardrail(self) -> None:
+        """空の directory_tree はガードレールを含まない。Issue #295."""
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        mock_ctx = MagicMock()
+        mock_ctx.deps = SelectorDeps(prefetched=PrefetchedContext(directory_tree=""))
+        result = _prefetch_guardrail(mock_ctx)
+        assert result == ""
+
 
 # =============================================================================
 # run_selector — SelectorDeps 統合（Issue #195）
