@@ -34,7 +34,11 @@ class FileResolutionError(Exception):
     """
 
 
-def resolve_files(raw_paths: tuple[str, ...]) -> ResolvedFiles:
+def resolve_files(
+    raw_paths: tuple[str, ...],
+    *,
+    filter_extensions: tuple[str, ...] = (),
+) -> tuple[ResolvedFiles | None, tuple[str, ...]]:
     """入力パス群を具体的なファイルパスリストに展開する。
 
     処理内容:
@@ -44,12 +48,16 @@ def resolve_files(raw_paths: tuple[str, ...]) -> ResolvedFiles:
     - 相対パス: cwd から解決
     - 絶対パス: そのまま使用
     - シンボリックリンク: resolve() で実体パス取得、循環参照検出
+    - 拡張子フィルタ: filter_extensions 指定時は該当拡張子のみ保持
 
     Args:
         raw_paths: 未展開のパス文字列タプル。
+        filter_extensions: 拡張子フィルタ（ドット付き小文字、例: (".py", ".rst")）。
+            空タプルの場合は全ファイルを対象とする。
 
     Returns:
-        ResolvedFiles: 展開済みファイルパスと警告。
+        (ResolvedFiles | None, warnings): 展開済みファイルパスと警告のタプル。
+        ファイルが見つからない場合は (None, warnings) を返す。
 
     Raises:
         FileResolutionError: 指定パスが存在しない場合。
