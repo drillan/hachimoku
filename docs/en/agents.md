@@ -38,7 +38,7 @@ Like review agents, its configuration is managed via a TOML definition file.
 | `description` | `str` | Yes | Description of the selector |
 | `model` | `str \| None` | No | LLM model name. Default: `None` (resolved via [model resolution priority](#model-resolution-priority)) |
 | `system_prompt` | `str` | Yes | Selector's system prompt |
-| `allowed_tools` | `list[str]` | No | Allowed tool categories. Default: `git_read`, `gh_read`, `file_read` (3 categories, `web_fetch` not included) |
+| `allowed_tools` | `list[str]` | No | Allowed tool categories. Default: empty. The built-in `selector.toml` sets `git_read`, `gh_read`, `file_read` (3 categories, `web_fetch` not included) |
 
 Unlike `AgentDefinition` for review agents, there are no `output_schema`, `phase`, or `applicability` fields.
 The selector's output is always fixed to `SelectorOutput` (list of selected agent names with reasons).
@@ -64,7 +64,7 @@ Placing a custom `selector.toml` at `.hachimoku/agents/selector.toml` overrides 
 
 ### load_selector()
 
-Loads the built-in selector definition. Uses a custom definition if one exists.
+Loads the selector definition. When `custom_dir` is specified and a `selector.toml` exists in that directory, it overrides the built-in.
 
 ```{code-block} python
 from hachimoku.agents import load_selector

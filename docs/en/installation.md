@@ -94,6 +94,8 @@ The following files are created in the `.hachimoku/` directory:
 
 - `config.toml` - Configuration file (template with all options commented out)
 - `agents/*.toml` - Copies of built-in agent definitions
+- `reviews/` - Directory for accumulating review result JSONL files
+- Automatic addition of `/.hachimoku/` entry to `.gitignore` (Git repositories only; only if not already present)
 
 See [Configuration](configuration.md) for configuration details.
 
