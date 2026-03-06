@@ -288,6 +288,11 @@ def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
             f"### Project Conventions\n\n{prefetched.project_conventions}"
         )
 
+    if prefetched.directory_tree:
+        subsections.append(
+            f"### Directory Tree\n\n```\n{prefetched.directory_tree}\n```"
+        )
+
     if not subsections:
         return ""
 

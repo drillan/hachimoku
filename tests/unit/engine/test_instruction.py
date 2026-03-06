@@ -1146,6 +1146,28 @@ class TestBuildPrefetchedSection:
         result = _build_prefetched_section(ctx)
         assert "````" in result
 
+    def test_directory_tree_embedded(self) -> None:
+        """directory_tree が非空なら Directory Tree セクションが出力される。Issue #295."""
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(directory_tree="src/app.py\nsrc/lib.py")
+        result = _build_prefetched_section(ctx)
+        assert "## Pre-fetched Context" in result
+        assert "### Directory Tree" in result
+        assert "src/app.py" in result
+        assert "src/lib.py" in result
+
+    def test_empty_directory_tree_no_section(self) -> None:
+        """空の directory_tree はセクション出力しない。Issue #295."""
+        from hachimoku.engine._instruction import _build_prefetched_section
+        from hachimoku.engine._prefetch import PrefetchedContext
+
+        ctx = PrefetchedContext(directory_tree="")
+        result = _build_prefetched_section(ctx)
+        assert result == ""
+        assert "Directory Tree" not in result
+
 
 class TestBuildSelectorInstructionPrefetched:
     """build_selector_instruction の prefetched_context テスト。Issue #187。"""

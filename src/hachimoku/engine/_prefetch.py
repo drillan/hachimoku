@@ -25,6 +25,38 @@ PR_METADATA_MAX_CHARS: Final[int] = 3000
 CONVENTIONS_MAX_CHARS: Final[int] = 5000
 """プロジェクト規約ファイルの最大文字数（ファイルごと）。"""
 
+DIRECTORY_TREE_MAX_ENTRIES: Final[int] = 500
+"""ディレクトリツリーの最大エントリ数。"""
+
+DIRECTORY_TREE_MAX_CHARS: Final[int] = 5000
+"""ディレクトリツリーの最大文字数。"""
+
+_EXCLUDED_DIRS: Final[frozenset[str]] = frozenset(
+    {
+        "__pycache__",
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".tox",
+        "dist",
+        "build",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        ".eggs",
+    }
+)
+"""ディレクトリツリーから除外するディレクトリ名。"""
+
+_EXCLUDED_EXTENSIONS: Final[frozenset[str]] = frozenset(
+    {
+        ".pyc",
+        ".pyo",
+    }
+)
+"""ディレクトリツリーから除外するファイル拡張子。"""
+
 DEFAULT_CONVENTION_FILES: Final[tuple[str, ...]] = (
     "CLAUDE.md",
     ".hachimoku/config.toml",
@@ -49,6 +81,7 @@ class PrefetchedContext(HachimokuBaseModel):
     issue_context: str = ""
     pr_metadata: str = ""
     project_conventions: str = ""
+    directory_tree: str = ""
 
 
 def _truncate(content: str, max_chars: int) -> str:
@@ -64,6 +97,49 @@ def _truncate(content: str, max_chars: int) -> str:
     if len(content) <= max_chars:
         return content
     return content[:max_chars] + f"\n... (truncated, original: {len(content)} chars)"
+
+
+def _build_directory_tree(root: Path | None = None) -> str:
+    """プロジェクトのソースディレクトリツリーを生成する。
+
+    セレクターエージェントが正確なファイルパスを把握できるよう、
+    軽量なフラットパスリストを生成する。
+
+    ``src/`` ディレクトリが存在する場合はそこのみスキャンし、
+    存在しない場合は root 全体をスキャンする。
+
+    Args:
+        root: スキャン起点ディレクトリ。None の場合は CWD。
+
+    Returns:
+        改行区切りのファイルパスリスト。ファイルがない場合は空文字列。
+    """
+    base = root or Path.cwd()
+    src_dir = base / "src"
+    scan_root = src_dir if src_dir.is_dir() else base
+
+    paths: list[str] = []
+    for entry in sorted(scan_root.rglob("*")):
+        if not entry.is_file():
+            continue
+        rel = entry.relative_to(base)
+        if any(part in _EXCLUDED_DIRS for part in rel.parts):
+            continue
+        if any(part.endswith(".egg-info") for part in rel.parts):
+            continue
+        if entry.suffix in _EXCLUDED_EXTENSIONS:
+            continue
+        paths.append(str(rel))
+        if len(paths) >= DIRECTORY_TREE_MAX_ENTRIES:
+            break
+
+    if not paths:
+        return ""
+
+    result = "\n".join(paths)
+    if len(paths) >= DIRECTORY_TREE_MAX_ENTRIES:
+        result += f"\n... (truncated at {DIRECTORY_TREE_MAX_ENTRIES} entries)"
+    return _truncate(result, DIRECTORY_TREE_MAX_CHARS)
 
 
 async def _run_gh(*args: str) -> str:
@@ -222,9 +298,11 @@ async def prefetch_selector_context(
         pr_metadata = results[idx]
 
     project_conventions = _read_project_conventions(convention_files)
+    directory_tree = _build_directory_tree()
 
     return PrefetchedContext(
         issue_context=issue_context,
         pr_metadata=pr_metadata,
         project_conventions=project_conventions,
+        directory_tree=directory_tree,
     )

@@ -295,6 +295,7 @@ class TestReadProjectConventions:
 _FETCH_ISSUE = "hachimoku.engine._prefetch._fetch_issue_context"
 _FETCH_PR = "hachimoku.engine._prefetch._fetch_pr_metadata"
 _READ_CONVENTIONS = "hachimoku.engine._prefetch._read_project_conventions"
+_BUILD_TREE = "hachimoku.engine._prefetch._build_directory_tree"
 
 
 class TestPrefetchSelectorContext:
@@ -311,6 +312,7 @@ class TestPrefetchSelectorContext:
             ) as mock_issue,
             patch(_FETCH_PR, new_callable=AsyncMock) as mock_pr,
             patch(_READ_CONVENTIONS, return_value="conventions text"),
+            patch(_BUILD_TREE, return_value=""),
         ):
             result = await prefetch_selector_context(
                 target, convention_files=("CLAUDE.md",)
@@ -333,6 +335,7 @@ class TestPrefetchSelectorContext:
                 _FETCH_PR, new_callable=AsyncMock, return_value="PR metadata"
             ) as mock_pr,
             patch(_READ_CONVENTIONS, return_value=""),
+            patch(_BUILD_TREE, return_value=""),
         ):
             result = await prefetch_selector_context(target, convention_files=())
 
@@ -348,6 +351,7 @@ class TestPrefetchSelectorContext:
             patch(_FETCH_ISSUE, new_callable=AsyncMock) as mock_issue,
             patch(_FETCH_PR, new_callable=AsyncMock) as mock_pr,
             patch(_READ_CONVENTIONS, return_value=""),
+            patch(_BUILD_TREE, return_value=""),
         ):
             result = await prefetch_selector_context(target, convention_files=())
 
@@ -365,6 +369,7 @@ class TestPrefetchSelectorContext:
             patch(_FETCH_ISSUE, new_callable=AsyncMock) as mock_issue,
             patch(_FETCH_PR, new_callable=AsyncMock),
             patch(_READ_CONVENTIONS, return_value=""),
+            patch(_BUILD_TREE, return_value=""),
         ):
             result = await prefetch_selector_context(target, convention_files=())
 
@@ -382,6 +387,7 @@ class TestPrefetchSelectorContext:
             patch(_FETCH_ISSUE, new_callable=AsyncMock),
             patch(_FETCH_PR, new_callable=AsyncMock),
             patch(_READ_CONVENTIONS, return_value="custom") as mock_conv,
+            patch(_BUILD_TREE, return_value=""),
         ):
             result = await prefetch_selector_context(
                 target, convention_files=custom_files
@@ -389,3 +395,182 @@ class TestPrefetchSelectorContext:
 
         mock_conv.assert_called_once_with(custom_files)
         assert result.project_conventions == "custom"
+
+    async def test_directory_tree_included(self) -> None:
+        """directory_tree が prefetch 結果に含まれること。Issue #295."""
+        from hachimoku.engine._prefetch import prefetch_selector_context
+        from hachimoku.engine._target import DiffTarget
+
+        target = DiffTarget(base_branch="main")
+        with (
+            patch(_FETCH_ISSUE, new_callable=AsyncMock),
+            patch(_FETCH_PR, new_callable=AsyncMock),
+            patch(_READ_CONVENTIONS, return_value=""),
+            patch(_BUILD_TREE, return_value="src/app.py\nsrc/lib.py"),
+        ):
+            result = await prefetch_selector_context(target, convention_files=())
+
+        assert result.directory_tree == "src/app.py\nsrc/lib.py"
+
+
+# ── Phase 5: ディレクトリツリー生成テスト（Issue #295）──────────
+
+
+class TestBuildDirectoryTree:
+    """_build_directory_tree 関数のテスト。Issue #295."""
+
+    def test_empty_directory_returns_empty(self, tmp_path: object) -> None:
+        """空ディレクトリ → 空文字列。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        result = _build_directory_tree(Path(str(tmp_path)))
+        assert result == ""
+
+    def test_lists_files_recursively(self, tmp_path: object) -> None:
+        """ファイルを再帰的にリストする。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        src = tmp / "src"
+        pkg = src / "myapp"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "main.py").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert "src/myapp/__init__.py" in result
+        assert "src/myapp/main.py" in result
+
+    def test_excludes_pycache(self, tmp_path: object) -> None:
+        """__pycache__ 配下のファイルが除外される。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "src").mkdir()
+        (tmp / "src" / "app.py").write_text("")
+        cache = tmp / "src" / "__pycache__"
+        cache.mkdir()
+        (cache / "app.cpython-313.pyc").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert "app.py" in result
+        assert "__pycache__" not in result
+
+    def test_excludes_dot_git(self, tmp_path: object) -> None:
+        """.git ディレクトリが除外される。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "src").mkdir()
+        (tmp / "src" / "app.py").write_text("")
+        git_dir = tmp / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert "app.py" in result
+        assert ".git" not in result
+
+    def test_excludes_pyc_extension(self, tmp_path: object) -> None:
+        """.pyc ファイルが除外される。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "app.py").write_text("")
+        (tmp / "app.pyc").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert "app.py" in result
+        assert "app.pyc" not in result
+
+    def test_sorted_output(self, tmp_path: object) -> None:
+        """出力がアルファベット順にソートされている。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "z_file.py").write_text("")
+        (tmp / "a_file.py").write_text("")
+        (tmp / "m_file.py").write_text("")
+
+        result = _build_directory_tree(tmp)
+        lines = result.strip().splitlines()
+        assert lines == sorted(lines)
+
+    def test_max_entries_truncation(self, tmp_path: object) -> None:
+        """エントリ数超過時に truncation マーカーが付く。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import (
+            DIRECTORY_TREE_MAX_ENTRIES,
+            _build_directory_tree,
+        )
+
+        tmp = Path(str(tmp_path))
+        # 短いファイル名で文字数上限に先に達しないようにする
+        for i in range(DIRECTORY_TREE_MAX_ENTRIES + 10):
+            (tmp / f"f{i}").write_text("")
+
+        result = _build_directory_tree(tmp)
+        lines = [ln for ln in result.strip().splitlines() if not ln.startswith("...")]
+        assert len(lines) == DIRECTORY_TREE_MAX_ENTRIES
+        assert "truncated" in result
+
+    def test_max_chars_truncation(self, tmp_path: object) -> None:
+        """文字数超過時にトランケーションされる。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import (
+            DIRECTORY_TREE_MAX_CHARS,
+            _build_directory_tree,
+        )
+
+        tmp = Path(str(tmp_path))
+        long_dir = tmp / ("a" * 100)
+        long_dir.mkdir()
+        for i in range(200):
+            (long_dir / f"file_{i:04d}_{'x' * 50}.py").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert len(result) <= DIRECTORY_TREE_MAX_CHARS + 100
+        assert "truncated" in result
+
+    def test_src_directory_preferred(self, tmp_path: object) -> None:
+        """src/ が存在する場合、src/ のみスキャンする。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "src" / "app").mkdir(parents=True)
+        (tmp / "src" / "app" / "main.py").write_text("")
+        (tmp / "other").mkdir()
+        (tmp / "other" / "file.py").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert "src/app/main.py" in result
+        assert "other" not in result
+
+    def test_no_src_scans_cwd(self, tmp_path: object) -> None:
+        """src/ がない場合、CWD 全体をスキャンする。"""
+        from pathlib import Path
+
+        from hachimoku.engine._prefetch import _build_directory_tree
+
+        tmp = Path(str(tmp_path))
+        (tmp / "lib").mkdir()
+        (tmp / "lib" / "core.py").write_text("")
+
+        result = _build_directory_tree(tmp)
+        assert "lib/core.py" in result

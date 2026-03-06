@@ -131,6 +131,16 @@ def _prefetch_guardrail(ctx: RunContext[SelectorDeps]) -> str:
             "Use the pre-fetched data directly."
         )
 
+    if ctx.deps.prefetched.directory_tree:
+        guardrails.append(
+            "IMPORTANT: A directory tree has been provided in the user message "
+            "under '## Pre-fetched Context > ### Directory Tree'. "
+            "Always verify file paths against this tree before using read_file. "
+            "Do NOT guess or assume file paths that are not listed in the tree. "
+            "If you need to explore directories not covered by the tree, "
+            "use the list_directory tool first."
+        )
+
     return "\n\n".join(guardrails)
 
 
