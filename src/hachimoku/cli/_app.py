@@ -204,6 +204,13 @@ def review_callback(
             "--max-files", help="Max files per review (positive integer).", min=1
         ),
     ] = None,
+    ext: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--ext",
+            help="File extension filter (repeatable, e.g. --ext .py --ext .rst).",
+        ),
+    ] = None,
     # per-invocation オプション
     issue: Annotated[
         int | None,
@@ -244,6 +251,7 @@ def review_callback(
         save_reviews=save_reviews,
         show_cost=show_cost,
         max_files=max_files,
+        ext=ext,
     )
 
     # 3. config 解決（DiffTarget の base_branch 取得用）
@@ -278,7 +286,10 @@ def review_callback(
     # 3.6. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
     if isinstance(resolved, FileInput):
         try:
-            resolved_files, file_warnings = resolve_files(resolved.paths)
+            resolved_files, file_warnings = resolve_files(
+                resolved.paths,
+                filter_extensions=config.file_extensions,
+            )
         except FileResolutionError as e:
             print(f"Error: {e}", file=sys.stderr)
             raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
@@ -503,11 +514,13 @@ def _build_config_overrides(
     save_reviews: bool | None,
     show_cost: bool | None,
     max_files: int | None,
+    ext: list[str] | None,
 ) -> dict[str, object]:
     """CLI オプションから config_overrides 辞書を構築する。
 
     None 値は「未指定」として除外する。
     CLI オプション名 --max-files は config キー max_files_per_review に対応する。
+    CLI オプション名 --ext は config キー file_extensions に対応する。
     """
     raw: dict[str, object] = {
         "model": model,
@@ -519,6 +532,7 @@ def _build_config_overrides(
         "save_reviews": save_reviews,
         "show_cost": show_cost,
         "max_files_per_review": max_files,
+        "file_extensions": tuple(ext) if ext is not None else None,
     }
     return {k: v for k, v in raw.items() if v is not None}
 

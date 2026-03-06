@@ -54,6 +54,7 @@ Options for the review command. These override configuration file values.
 | `--save-reviews / --no-save-reviews` | bool | Save review results |
 | `--show-cost / --no-show-cost` | bool | Display cost information |
 | `--max-files INTEGER` | int (min: 1) | Maximum number of files to review |
+| `--ext TEXT` | str (repeatable) | Extension filter (file mode only, e.g. `--ext .py --ext .rst`) |
 | `--issue INTEGER` | int (min: 1) | GitHub Issue number for context |
 | `--no-confirm` | bool | Skip confirmation prompts |
 | `--version` | - | Display version number and exit |
@@ -69,6 +70,7 @@ In file mode, the following processing is performed:
 - Recursive file collection for directory specifications
 - Automatic exclusion of binary files (NULL byte detection in the first 8KB)
 - Symlink loop detection
+- Extension filtering via `--ext` option (all files included when not specified)
 - Results are a sorted, deduplicated list of absolute paths
 
 When the number of files exceeds `max_files_per_review` (default: 100), a confirmation prompt is displayed. Use the `--no-confirm` option to skip the confirmation.

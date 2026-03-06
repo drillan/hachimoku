@@ -649,3 +649,42 @@ class TestOverridableExecutionConfigNotInChildFields:
     def test_aggregation_max_turns_from_parent(self) -> None:
         """AggregationConfig.max_turns が親クラスから継承されていること。"""
         assert "max_turns" not in AggregationConfig.__annotations__
+
+
+class TestHachimokuConfigFileExtensions:
+    """file_extensions フィールドのデフォルト値・正規化・バリデーション。"""
+
+    def test_default_empty(self) -> None:
+        """デフォルトが空タプルであること。"""
+        config = HachimokuConfig()
+        assert config.file_extensions == ()
+
+    def test_with_dot_prefix(self) -> None:
+        """ドット付き拡張子がそのまま受け入れられること。"""
+        config = HachimokuConfig(file_extensions=(".py",))
+        assert config.file_extensions == (".py",)
+
+    def test_without_dot_normalized(self) -> None:
+        """ドットなし拡張子にドットが付与されること。"""
+        config = HachimokuConfig(file_extensions=("py",))
+        assert config.file_extensions == (".py",)
+
+    def test_mixed_normalization(self) -> None:
+        """ドットありなし混在が正規化されること。"""
+        config = HachimokuConfig(file_extensions=("py", ".rst"))
+        assert config.file_extensions == (".py", ".rst")
+
+    def test_uppercase_normalized(self) -> None:
+        """大文字が小文字に正規化されること。"""
+        config = HachimokuConfig(file_extensions=(".PY",))
+        assert config.file_extensions == (".py",)
+
+    def test_empty_string_rejected(self) -> None:
+        """空文字列で ValidationError が発生すること。"""
+        with pytest.raises(ValidationError, match="file_extensions"):
+            HachimokuConfig(file_extensions=("",))
+
+    def test_multiple_accepted(self) -> None:
+        """複数拡張子が受け入れられること。"""
+        config = HachimokuConfig(file_extensions=(".py", ".rst", ".md"))
+        assert config.file_extensions == (".py", ".rst", ".md")
