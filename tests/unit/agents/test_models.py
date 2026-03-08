@@ -467,6 +467,44 @@ class TestAgentDefinitionConstraints:
                 _valid_agent_data(allowed_tools=["nonexistent"])
             )
 
+    def test_individual_tool_name_suggests_category(self) -> None:
+        """個別ツール名を指定した場合、正しいカテゴリ名を案内するエラーメッセージが表示される。"""
+        with pytest.raises(
+            ValidationError,
+            match=r"'list_directory' is not a tool category\. Did you mean 'file_read'\?",
+        ):
+            AgentDefinition.model_validate(
+                _valid_agent_data(allowed_tools=["list_directory"])
+            )
+
+    def test_individual_tool_name_shows_category_contents(self) -> None:
+        """エラーメッセージにカテゴリに含まれるツール名一覧が表示される。"""
+        with pytest.raises(
+            ValidationError,
+            match=r"file_read includes: list_directory, read_file",
+        ):
+            AgentDefinition.model_validate(
+                _valid_agent_data(allowed_tools=["list_directory"])
+            )
+
+    def test_individual_tool_name_run_git_suggests_git_read(self) -> None:
+        """run_git を指定した場合、git_read カテゴリを案内する。"""
+        with pytest.raises(
+            ValidationError,
+            match=r"'run_git' is not a tool category\. Did you mean 'git_read'\?",
+        ):
+            AgentDefinition.model_validate(_valid_agent_data(allowed_tools=["run_git"]))
+
+    def test_unknown_tool_name_no_suggestion(self) -> None:
+        """完全に不明な名前の場合はカテゴリ候補のみ表示する。"""
+        with pytest.raises(
+            ValidationError,
+            match=r"Invalid tool category: 'totally_unknown'\. Valid categories:",
+        ):
+            AgentDefinition.model_validate(
+                _valid_agent_data(allowed_tools=["totally_unknown"])
+            )
+
     def test_agent_name_pattern_is_exported(self) -> None:
         """AGENT_NAME_PATTERN 定数がエクスポートされている。"""
         assert AGENT_NAME_PATTERN == r"^[a-z0-9-]+$"
@@ -677,6 +715,16 @@ class TestSelectorDefinitionConstraints:
         with pytest.raises(ValidationError, match="allowed_tools"):
             SelectorDefinition.model_validate(
                 _valid_selector_data(allowed_tools=["invalid_tool"])
+            )
+
+    def test_individual_tool_name_suggests_category(self) -> None:
+        """個別ツール名を指定した場合、正しいカテゴリ名を案内するエラーメッセージが表示される。"""
+        with pytest.raises(
+            ValidationError,
+            match=r"'list_directory' is not a tool category\. Did you mean 'file_read'\?",
+        ):
+            SelectorDefinition.model_validate(
+                _valid_selector_data(allowed_tools=["list_directory"])
             )
 
 

@@ -7,7 +7,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import StrEnum
+from types import MappingProxyType
+from typing import Final
 
 
 class ToolCategory(StrEnum):
@@ -22,3 +25,14 @@ class ToolCategory(StrEnum):
     GH_READ = "gh_read"
     FILE_READ = "file_read"
     WEB_FETCH = "web_fetch"
+
+
+CATEGORY_TOOL_NAMES: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        ToolCategory.GIT_READ: ("run_git",),
+        ToolCategory.GH_READ: ("run_gh",),
+        ToolCategory.FILE_READ: ("list_directory", "read_file"),
+        ToolCategory.WEB_FETCH: ("web_fetch_tool",),
+    }
+)
+"""カテゴリに含まれる個別ツール名。バリデーションエラーメッセージでの案内に使用する。"""
