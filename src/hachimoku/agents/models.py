@@ -108,12 +108,22 @@ def _validate_tool_categories(
     """allowed_tools の各値が ToolCategory に存在することを検証する。
 
     AgentDefinition と SelectorDefinition の共通バリデーションロジック。
+    個別ツール名が指定された場合は、所属カテゴリを案内する。
     """
-    from hachimoku.models.tool_category import ToolCategory
+    from hachimoku.models.tool_category import CATEGORY_TOOL_NAMES, ToolCategory
 
     valid_values = {tc.value for tc in ToolCategory}
     for tool in v:
         if tool not in valid_values:
+            # 個別ツール名 → カテゴリの逆引き
+            for category, tool_names in CATEGORY_TOOL_NAMES.items():
+                if tool in tool_names:
+                    msg = (
+                        f"'{tool}' is not a tool category. "
+                        f"Did you mean '{category}'? "
+                        f"({category} includes: {', '.join(sorted(tool_names))})"
+                    )
+                    raise ValueError(msg)
             msg = (
                 f"Invalid tool category: '{tool}'. "
                 f"Valid categories: {sorted(valid_values)}"
