@@ -580,8 +580,7 @@ class TestReviewIssueOption:
     ) -> None:
         """PR モード + --issue → PRTarget.issue_number に設定される。"""
         setup_mocks(mock_config, mock_run_review)
-        # NOTE: --issue は位置引数より前に配置する。_ReviewGroup が位置引数を
-        # 消費する際にオプションも含めて protected_args に格納するため。
+        # NOTE: --issue は位置引数の前後どちらでも動作する（#302 修正済み）。
         runner.invoke(app, ["--issue", "50", "123"])
         target = mock_run_review.call_args.kwargs["target"]
         assert isinstance(target, PRTarget)
@@ -602,7 +601,7 @@ class TestReviewIssueOption:
             ResolvedFiles(paths=("/abs/src/auth.py",)),
             (),
         )
-        # NOTE: --issue は位置引数より前に配置する（上記同様の理由）。
+        # NOTE: --issue は位置引数の前後どちらでも動作する（#302 修正済み）。
         runner.invoke(app, ["--issue", "50", "src/auth.py"])
         target = mock_run_review.call_args.kwargs["target"]
         assert isinstance(target, FileTarget)
@@ -1821,6 +1820,153 @@ class TestVersion:
         expected = importlib.metadata.version("hachimoku")
         result = runner.invoke(app, ["--version"])
         assert expected in result.output
+
+
+# --- #302: 位置引数の後にオプションを配置するテスト ---
+
+
+class TestOptionsAfterPositionalArgs:
+    """位置引数の後に配置されたオプションが正しく解析される (#302)。
+
+    Click Group は allow_interspersed_args=False がデフォルトのため、
+    位置引数以降のオプションが未解析のまま review args に含まれる問題を修正する。
+    """
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_after_positional_is_parsed(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """src/auth.py --ext .md → file_extensions が overrides に含まれる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["src/auth.py", "--ext", ".md"])
+        assert result.exit_code == 0
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert overrides.get("file_extensions") == (".md",)
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_multiple_ext_after_positional(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """src/ --ext .md --ext .py → 両方の拡張子が overrides に含まれる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/a.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["src/", "--ext", ".md", "--ext", ".py"])
+        assert result.exit_code == 0
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert overrides.get("file_extensions") == (".md", ".py")
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_model_after_positional_is_parsed(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """src/auth.py --model opus → model が overrides に含まれる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["src/auth.py", "--model", "opus"])
+        assert result.exit_code == 0
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert overrides.get("model") == "opus"
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_issue_after_positional_file_mode(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """src/auth.py --issue 50 → FileTarget.issue_number に設定される。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["src/auth.py", "--issue", "50"])
+        assert result.exit_code == 0
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, FileTarget)
+        assert target.issue_number == 50
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_issue_after_positional_pr_mode(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """123 --issue 50 → PRTarget.issue_number に設定される。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app, ["123", "--issue", "50"])
+        assert result.exit_code == 0
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, PRTarget)
+        assert target.issue_number == 50
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_before_and_after_positional_are_merged(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """--ext .md src/ --ext .py → 両方の拡張子がマージされる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/a.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["--ext", ".md", "src/", "--ext", ".py"])
+        assert result.exit_code == 0
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert set(overrides.get("file_extensions", ())) == {".md", ".py"}
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_positional_args_not_contaminated_by_options(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """src/auth.py --ext .md → resolve_files に --ext, .md が渡されない。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/auth.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["src/auth.py", "--ext", ".md"])
+        assert result.exit_code == 0
+        # resolve_files に渡されたパスに --ext や .md が含まれていない
+        resolve_files_paths = mock_resolve_files.call_args[0][0]
+        assert "--ext" not in resolve_files_paths
+        assert ".md" not in resolve_files_paths
 
 
 class TestBuildTargetExhaustiveness:

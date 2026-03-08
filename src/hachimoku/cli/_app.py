@@ -105,8 +105,9 @@ class _ReviewGroup(TyperGroup):
             is_review_args = True
 
         if is_review_args:
+            positional = self._reparse_interspersed_options(ctx, args)
             ctx.ensure_object(dict)
-            ctx.obj[_REVIEW_ARGS_KEY] = args
+            ctx.obj[_REVIEW_ARGS_KEY] = positional
             ctx.invoked_subcommand = None
             with ctx:
                 return click.Command.invoke(self, ctx)
@@ -123,6 +124,34 @@ class _ReviewGroup(TyperGroup):
             )
             with sub_ctx:
                 return sub_ctx.command.invoke(sub_ctx)
+
+    def _reparse_interspersed_options(
+        self, ctx: click.Context, args: list[str]
+    ) -> list[str]:
+        """位置引数とオプションが混在する args を再解析し、オプションを ctx.params に反映する。
+
+        Click Group の allow_interspersed_args=False では位置引数以降の
+        オプション（--ext 等）が未解析のまま残る。このメソッドは
+        allow_interspersed_args=True で再解析し、オプションを抽出する。
+
+        Note:
+            Click 8.3 の handle_parse_result は ctx.params に既に値がある場合
+            上書きをスキップするため、type_cast_value で変換後に直接代入する。
+        """
+        parser = self.make_parser(ctx)
+        parser.allow_interspersed_args = True
+        try:
+            opts, positional, param_order = parser.parse_args(args=list(args))
+        except click.UsageError:
+            return list(args)
+        for param in self.get_params(ctx):
+            if param.name and param.name in opts:
+                value = param.type_cast_value(ctx, opts[param.name])
+                existing = ctx.params.get(param.name)
+                if param.multiple and existing:
+                    value = (*existing, *value)
+                ctx.params[param.name] = value
+        return positional
 
 
 app = typer.Typer(
