@@ -1929,6 +1929,26 @@ class TestOptionsAfterPositionalArgs:
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_FILES)
     @patch(PATCH_RESOLVE_CONFIG)
+    def test_ext_before_and_after_positional_are_merged(
+        self,
+        mock_config: MagicMock,
+        mock_resolve_files: MagicMock,
+        mock_run_review: AsyncMock,
+    ) -> None:
+        """--ext .md src/ --ext .py → 両方の拡張子がマージされる。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_resolve_files.return_value = (
+            ResolvedFiles(paths=("/abs/src/a.py",)),
+            (),
+        )
+        result = runner.invoke(app, ["--ext", ".md", "src/", "--ext", ".py"])
+        assert result.exit_code == 0
+        overrides = mock_run_review.call_args.kwargs["config_overrides"]
+        assert set(overrides.get("file_extensions", ())) == {".md", ".py"}
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_FILES)
+    @patch(PATCH_RESOLVE_CONFIG)
     def test_positional_args_not_contaminated_by_options(
         self,
         mock_config: MagicMock,

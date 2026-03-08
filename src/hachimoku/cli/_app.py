@@ -147,6 +147,9 @@ class _ReviewGroup(TyperGroup):
         for param in self.get_params(ctx):
             if param.name and param.name in opts:
                 value = param.type_cast_value(ctx, opts[param.name])
+                existing = ctx.params.get(param.name)
+                if param.multiple and existing:
+                    value = (*existing, *value)
                 ctx.params[param.name] = value
         return positional
 
