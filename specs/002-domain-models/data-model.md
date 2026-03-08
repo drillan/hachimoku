@@ -265,6 +265,14 @@ ReviewHistoryRecord = Annotated[
 
 ## バリデーションルール
 
+### BaseAgentOutput
+
+| ルール | 詳細 |
+|--------|------|
+| data エンベロープ unwrap | `model_validator(mode="before")` で `{"data": {...}}` 形式の入力を unwrap |
+| unwrap 条件 | 入力が dict かつキーが `"data"` のみ、かつ `data["data"]` が dict の場合 |
+| 継承適用 | 全サブクラス（6種スキーマ）に自動適用 |
+
 ### Severity
 
 | ルール | 詳細 |
