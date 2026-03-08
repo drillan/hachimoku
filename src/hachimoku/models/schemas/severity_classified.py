@@ -10,7 +10,7 @@ from typing import Any
 from pydantic import model_validator
 
 from hachimoku.models.review import ReviewIssue
-from hachimoku.models.schemas._base import BaseAgentOutput
+from hachimoku.models.schemas._base import BaseAgentOutput, unwrap_data_envelope
 
 
 class SeverityClassified(BaseAgentOutput):
@@ -35,7 +35,11 @@ class SeverityClassified(BaseAgentOutput):
         外部から issues を明示的に渡した場合でも分類リストから再計算する。
         分類リストが欠落している場合は構築をスキップし、
         後続の Pydantic フィールドバリデーションでエラーを検出する。
+
+        Pydantic v2 では子クラスの model_validator(mode="before") が
+        親より先に実行されるため、data エンベロープの unwrap をここで行う。
         """
+        data = unwrap_data_envelope(data)
         if isinstance(data, dict):
             keys = (
                 "critical_issues",
