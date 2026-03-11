@@ -8,6 +8,23 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def resolve_path(project_root: Path, path: str) -> str:
+    """相対パスを project_root 基準で解決する。
+
+    Args:
+        project_root: プロジェクトルートディレクトリ。
+        path: 解決対象のパス。
+
+    Returns:
+        解決済みパス文字列。絶対パスはそのまま、相対パスは
+        project_root を基準に解決される。
+    """
+    p = Path(path)
+    if p.is_absolute():
+        return path
+    return str(project_root / p)
+
+
 def read_file(path: str) -> str:
     """ファイルの内容を読み込む。
 

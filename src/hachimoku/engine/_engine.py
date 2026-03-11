@@ -142,9 +142,10 @@ def _build_context_with_resolved_tools(
     base_user_message: str,
     resolved_content: str,
     selector_context: str,
+    project_root: Path | None = None,
 ) -> AgentExecutionContext:
     """エージェント定義からツールを解決し、実行コンテキストを構築する。"""
-    resolved = resolve_tools(agent.allowed_tools)
+    resolved = resolve_tools(agent.allowed_tools, project_root=project_root)
     return build_execution_context(
         agent_def=agent,
         agent_config=config.agents.get(agent.name),
@@ -166,6 +167,7 @@ async def run_review(
     target: DiffTarget | PRTarget | FileTarget,
     config_overrides: dict[str, object] | None = None,
     custom_agents_dir: Path | None = None,
+    project_root: Path | None = None,
 ) -> EngineResult:
     """レビュー実行パイプラインを実行する。
 
@@ -185,6 +187,8 @@ async def run_review(
         target: レビュー対象（DiffTarget / PRTarget / FileTarget）。
         config_overrides: CLI からの設定オーバーライド。
         custom_agents_dir: カスタムエージェント定義ディレクトリ。
+        project_root: プロジェクトルートディレクトリ。ファイルツールの
+            相対パス解決に使用される。
 
     Returns:
         EngineResult: レビューレポートと終了コード。
@@ -249,6 +253,7 @@ async def run_review(
             global_max_turns=config.max_turns,
             resolved_content=resolved_content,
             prefetched_context=prefetched,
+            project_root=project_root,
         )
     except SelectorError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -291,6 +296,7 @@ async def run_review(
             base_user_message,
             resolved_content,
             selector_context,
+            project_root=project_root,
         )
         for agent in selected_agents
     ]

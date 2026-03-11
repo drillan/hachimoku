@@ -4,6 +4,7 @@ FR-RE-016: カテゴリベースのツール管理。
 """
 
 import asyncio
+from pathlib import Path
 
 import pytest
 from pydantic_ai import Tool
@@ -14,6 +15,7 @@ from hachimoku.engine._catalog import (
     CLAUDECODE_BUILTIN_MAP,
     TOOL_CATALOG,
     ResolvedTools,
+    create_file_tools,
     resolve_tools,
     validate_categories,
 )
@@ -113,6 +115,9 @@ class TestToolCatalogAsync:
     claudecode_model の MCP ブリッジ（create_tool_wrapper）は
     await original_function(**args) で呼び出すため、
     ツール関数は async でなければならない。
+
+    file_read カテゴリは TOOL_CATALOG に含まれず、
+    create_file_tools() で動的生成されるため TestCreateFileTools で検証する。
     """
 
     @pytest.mark.parametrize(
@@ -120,7 +125,6 @@ class TestToolCatalogAsync:
         [
             ("git_read", ["run_git"]),
             ("gh_read", ["run_gh"]),
-            ("file_read", ["read_file", "list_directory"]),
         ],
     )
     def test_tool_functions_are_async(
@@ -138,7 +142,6 @@ class TestToolCatalogAsync:
         [
             ("git_read", ["run_git"]),
             ("gh_read", ["run_gh"]),
-            ("file_read", ["read_file", "list_directory"]),
         ],
     )
     def test_tool_names_preserved(
@@ -150,21 +153,29 @@ class TestToolCatalogAsync:
         assert actual_names == expected_names
 
     def test_tool_names_match_mcp_convention(self) -> None:
-        """TOOL_CATALOG のツール名が CLAUDECODE_BUILTIN_MAP の MCP 名と整合する。"""
+        """TOOL_CATALOG と create_file_tools のツール名が CLAUDECODE_BUILTIN_MAP の MCP 名と整合する。"""
         mcp_prefix = "mcp__pydantic_tools__"
-        for category, tools in TOOL_CATALOG.items():
-            if category not in CLAUDECODE_BUILTIN_MAP:
+        # 静的カタログのツール
+        all_tools: dict[str, list[str]] = {
+            cat: [t.name for t in tools] for cat, tools in TOOL_CATALOG.items()
+        }
+        # 動的生成の file_read ツール
+        all_tools["file_read"] = [t.name for t in create_file_tools()]
+
+        for category, mcp_names in CLAUDECODE_BUILTIN_MAP.items():
+            if category not in all_tools:
                 continue
-            tool_names = [t.name for t in tools]
-            mcp_names = CLAUDECODE_BUILTIN_MAP[category]
+            tool_names = all_tools[category]
             for mcp_name in mcp_names:
+                if category == "web_fetch":
+                    continue
                 assert mcp_name.startswith(mcp_prefix), (
                     f"MCP name '{mcp_name}' missing prefix"
                 )
                 bare_name = mcp_name.removeprefix(mcp_prefix)
                 assert bare_name in tool_names, (
                     f"MCP name '{mcp_name}' has no matching tool "
-                    f"'{bare_name}' in TOOL_CATALOG['{category}']"
+                    f"'{bare_name}' in category '{category}'"
                 )
 
 
@@ -296,3 +307,93 @@ class TestValidateCategories:
         """web_fetch は有効なカテゴリとして認識される。"""
         invalid = validate_categories(("web_fetch",))
         assert invalid == []
+
+
+# =============================================================================
+# create_file_tools
+# =============================================================================
+
+
+class TestCreateFileTools:
+    """create_file_tools ファクトリ関数のテスト。"""
+
+    def test_returns_two_tools(self) -> None:
+        """read_file と list_directory の 2 ツールを返す。"""
+        tools = create_file_tools()
+        assert len(tools) == 2
+
+    def test_tool_names_preserved(self) -> None:
+        """ツール名が read_file, list_directory を維持する。"""
+        tools = create_file_tools()
+        names = [t.name for t in tools]
+        assert names == ["read_file", "list_directory"]
+
+    def test_tools_are_async(self) -> None:
+        """ツール関数が async である。"""
+        tools = create_file_tools()
+        for tool in tools:
+            assert asyncio.iscoroutinefunction(tool.function)
+
+    def test_with_project_root_resolves_relative_path(self, tmp_path: Path) -> None:
+        """project_root 付きで相対パスが解決される。"""
+        subdir = tmp_path / "data"
+        subdir.mkdir()
+        (subdir / "test.txt").write_text("content")
+        tools = create_file_tools(project_root=tmp_path)
+        # list_directory ツールを取得
+        list_dir_tool = tools[1]
+        assert list_dir_tool.name == "list_directory"
+        # 相対パス "data" が tmp_path/data に解決される
+        # takes_ctx=False なので RunContext 不要だが、Tool.function の型は
+        # RunContext を要求するため type: ignore で抑制
+        result = asyncio.run(
+            list_dir_tool.function("data")  # type: ignore[arg-type]
+        )
+        assert "test.txt" in result
+
+    def test_with_project_root_resolves_read_file(self, tmp_path: Path) -> None:
+        """project_root 付きで read_file が相対パスを解決する。"""
+        (tmp_path / "hello.txt").write_text("hello world")
+        tools = create_file_tools(project_root=tmp_path)
+        read_file_tool = tools[0]
+        assert read_file_tool.name == "read_file"
+        # takes_ctx=False なので RunContext 不要だが、Tool.function の型は
+        # RunContext を要求するため type: ignore で抑制
+        result = asyncio.run(
+            read_file_tool.function("hello.txt")  # type: ignore[arg-type]
+        )
+        assert result == "hello world"
+
+    def test_without_project_root_uses_cwd(self) -> None:
+        """project_root なしの場合、現行の cwd 基準動作を維持する。"""
+        tools = create_file_tools()
+        # project_root=None の場合はツールが作成されるが、
+        # パス解決は従来通り cwd 基準
+        assert len(tools) == 2
+
+
+class TestResolveToolsWithProjectRoot:
+    """resolve_tools の project_root 対応テスト。"""
+
+    def test_file_read_uses_project_root(self, tmp_path: Path) -> None:
+        """file_read カテゴリが project_root を使用してツールを作成する。"""
+        resolved = resolve_tools(("file_read",), project_root=tmp_path)
+        # ツールが作成されていることを確認
+        assert len(resolved.tools) == 2
+        tool_names = [t.name for t in resolved.tools]
+        assert "read_file" in tool_names
+        assert "list_directory" in tool_names
+
+    def test_non_file_categories_unaffected(self, tmp_path: Path) -> None:
+        """git_read/gh_read は project_root の影響を受けない。"""
+        resolved_with = resolve_tools(("git_read",), project_root=tmp_path)
+        resolved_without = resolve_tools(("git_read",))
+        assert len(resolved_with.tools) == len(resolved_without.tools)
+
+    def test_mixed_categories_with_project_root(self, tmp_path: Path) -> None:
+        """混在カテゴリで project_root が正しく適用される。"""
+        resolved = resolve_tools(
+            ("git_read", "file_read", "web_fetch"), project_root=tmp_path
+        )
+        assert len(resolved.tools) > 0
+        assert len(resolved.builtin_tools) == 1

@@ -378,3 +378,44 @@ class TestListDirectory:
         result = list_directory(str(tmp_path))
         assert "file.py" in result
         assert "subdir" not in result
+
+
+# =============================================================================
+# resolve_path
+# =============================================================================
+
+
+class TestResolvePath:
+    """resolve_path ヘルパー関数のテスト。
+
+    相対パスを project_root 基準で解決する。
+    """
+
+    def test_relative_path_with_project_root(self, tmp_path: Path) -> None:
+        """相対パスが project_root を基準に解決される。"""
+        from hachimoku.engine._tools._file import resolve_path
+
+        result = resolve_path(tmp_path, "market_analysis")
+        assert result == str(tmp_path / "market_analysis")
+
+    def test_absolute_path_unchanged(self, tmp_path: Path) -> None:
+        """絶対パスは project_root に関わらずそのまま返る。"""
+        from hachimoku.engine._tools._file import resolve_path
+
+        abs_path = "/absolute/path/to/file"
+        result = resolve_path(tmp_path, abs_path)
+        assert result == abs_path
+
+    def test_nested_relative_path(self, tmp_path: Path) -> None:
+        """ネストされた相対パスが正しく解決される。"""
+        from hachimoku.engine._tools._file import resolve_path
+
+        result = resolve_path(tmp_path, "src/models/config.py")
+        assert result == str(tmp_path / "src" / "models" / "config.py")
+
+    def test_dot_relative_path(self, tmp_path: Path) -> None:
+        """ドット付き相対パス（./foo）が解決される。"""
+        from hachimoku.engine._tools._file import resolve_path
+
+        result = resolve_path(tmp_path, "./README.md")
+        assert result == str(tmp_path / "README.md")

@@ -362,6 +362,7 @@ def review_callback(
                 target=target,
                 config_overrides=config_overrides,
                 custom_agents_dir=custom_agents_dir,
+                project_root=project_root,
             )
         )
     except (KeyboardInterrupt, SystemExit):
