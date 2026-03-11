@@ -76,10 +76,13 @@ TOOL_CATALOG: Final[Mapping[str, tuple[Tool[None], ...]]] = MappingProxyType(
     {
         "git_read": (Tool(_run_git_async, takes_ctx=False, name="run_git"),),
         "gh_read": (Tool(_run_gh_async, takes_ctx=False, name="run_gh"),),
-        "file_read": create_file_tools(),
     }
 )
-"""カテゴリ名から pydantic-ai Tool へのマッピング。"""
+"""カテゴリ名から pydantic-ai Tool へのマッピング。
+
+file_read カテゴリは project_root を動的に受け取るため、
+ここには含まない。resolve_tools() 内で create_file_tools() を使用する。
+"""
 
 BUILTIN_TOOL_CATALOG: Final[Mapping[str, tuple[AbstractBuiltinTool, ...]]] = (
     MappingProxyType(
@@ -109,10 +112,18 @@ MCP ツール名は set_agent_toolsets() で MCP サーバー経由で登録さ�
 pydantic-ai ツールに対応する。
 """
 
+_DYNAMIC_CATEGORIES: Final[frozenset[str]] = frozenset({"file_read"})
+"""動的生成カテゴリ名。create_file_tools() で project_root を受け取り動的に生成される。"""
+
 _ALL_CATEGORIES: Final[frozenset[str]] = frozenset(
-    (*TOOL_CATALOG.keys(), *BUILTIN_TOOL_CATALOG.keys(), *CLAUDECODE_BUILTIN_MAP.keys())
+    (
+        *TOOL_CATALOG.keys(),
+        *BUILTIN_TOOL_CATALOG.keys(),
+        *CLAUDECODE_BUILTIN_MAP.keys(),
+        *_DYNAMIC_CATEGORIES,
+    )
 )
-"""全有効カテゴリ名。通常ツール、ビルトインツール、claudecode ビルトインの全カタログを含む。"""
+"""全有効カテゴリ名。通常ツール、ビルトインツール、claudecode ビルトイン、動的カテゴリの全カタログを含む。"""
 
 
 @dataclass(frozen=True)

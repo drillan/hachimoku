@@ -115,6 +115,9 @@ class TestToolCatalogAsync:
     claudecode_model の MCP ブリッジ（create_tool_wrapper）は
     await original_function(**args) で呼び出すため、
     ツール関数は async でなければならない。
+
+    file_read カテゴリは TOOL_CATALOG に含まれず、
+    create_file_tools() で動的生成されるため TestCreateFileTools で検証する。
     """
 
     @pytest.mark.parametrize(
@@ -122,7 +125,6 @@ class TestToolCatalogAsync:
         [
             ("git_read", ["run_git"]),
             ("gh_read", ["run_gh"]),
-            ("file_read", ["read_file", "list_directory"]),
         ],
     )
     def test_tool_functions_are_async(
@@ -140,7 +142,6 @@ class TestToolCatalogAsync:
         [
             ("git_read", ["run_git"]),
             ("gh_read", ["run_gh"]),
-            ("file_read", ["read_file", "list_directory"]),
         ],
     )
     def test_tool_names_preserved(
@@ -152,21 +153,29 @@ class TestToolCatalogAsync:
         assert actual_names == expected_names
 
     def test_tool_names_match_mcp_convention(self) -> None:
-        """TOOL_CATALOG のツール名が CLAUDECODE_BUILTIN_MAP の MCP 名と整合する。"""
+        """TOOL_CATALOG と create_file_tools のツール名が CLAUDECODE_BUILTIN_MAP の MCP 名と整合する。"""
         mcp_prefix = "mcp__pydantic_tools__"
-        for category, tools in TOOL_CATALOG.items():
-            if category not in CLAUDECODE_BUILTIN_MAP:
+        # 静的カタログのツール
+        all_tools: dict[str, list[str]] = {
+            cat: [t.name for t in tools] for cat, tools in TOOL_CATALOG.items()
+        }
+        # 動的生成の file_read ツール
+        all_tools["file_read"] = [t.name for t in create_file_tools()]
+
+        for category, mcp_names in CLAUDECODE_BUILTIN_MAP.items():
+            if category not in all_tools:
                 continue
-            tool_names = [t.name for t in tools]
-            mcp_names = CLAUDECODE_BUILTIN_MAP[category]
+            tool_names = all_tools[category]
             for mcp_name in mcp_names:
+                if category == "web_fetch":
+                    continue
                 assert mcp_name.startswith(mcp_prefix), (
                     f"MCP name '{mcp_name}' missing prefix"
                 )
                 bare_name = mcp_name.removeprefix(mcp_prefix)
                 assert bare_name in tool_names, (
                     f"MCP name '{mcp_name}' has no matching tool "
-                    f"'{bare_name}' in TOOL_CATALOG['{category}']"
+                    f"'{bare_name}' in category '{category}'"
                 )
 
 
@@ -341,6 +350,19 @@ class TestCreateFileTools:
             list_dir_tool.function("data")  # type: ignore[arg-type]
         )
         assert "test.txt" in result
+
+    def test_with_project_root_resolves_read_file(self, tmp_path: Path) -> None:
+        """project_root 付きで read_file が相対パスを解決する。"""
+        (tmp_path / "hello.txt").write_text("hello world")
+        tools = create_file_tools(project_root=tmp_path)
+        read_file_tool = tools[0]
+        assert read_file_tool.name == "read_file"
+        # takes_ctx=False なので RunContext 不要だが、Tool.function の型は
+        # RunContext を要求するため type: ignore で抑制
+        result = asyncio.run(
+            read_file_tool.function("hello.txt")  # type: ignore[arg-type]
+        )
+        assert result == "hello world"
 
     def test_without_project_root_uses_cwd(self) -> None:
         """project_root なしの場合、現行の cwd 基準動作を維持する。"""
