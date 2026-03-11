@@ -9,13 +9,14 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
 from pydantic_ai import Tool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
 
-from hachimoku.engine._tools._file import list_directory, read_file
+from hachimoku.engine._tools._file import list_directory, read_file, resolve_path
 from hachimoku.engine._tools._gh import run_gh
 from hachimoku.engine._tools._git import run_git
 
@@ -38,22 +39,44 @@ async def _run_gh_async(args: list[str]) -> str:
     return await asyncio.to_thread(run_gh, args)
 
 
-async def _read_file_async(path: str) -> str:
-    return await asyncio.to_thread(read_file, path)
+def create_file_tools(
+    project_root: Path | None = None,
+) -> tuple[Tool[None], ...]:
+    """file_read カテゴリのツールを生成する。
 
+    project_root が指定された場合、相対パスを project_root 基準で解決する
+    クロージャを生成する。これにより LLM エージェントが相対パスを使用しても
+    正しいディレクトリで解決される。
 
-async def _list_directory_async(path: str, pattern: str | None = None) -> str:
-    return await asyncio.to_thread(list_directory, path, pattern)
+    Args:
+        project_root: プロジェクトルートディレクトリ。None の場合は cwd 基準。
+
+    Returns:
+        read_file, list_directory の pydantic-ai Tool タプル。
+    """
+
+    def _resolve(path: str) -> str:
+        if project_root is None:
+            return path
+        return resolve_path(project_root, path)
+
+    async def _read_file_async(path: str) -> str:
+        return await asyncio.to_thread(read_file, _resolve(path))
+
+    async def _list_directory_async(path: str, pattern: str | None = None) -> str:
+        return await asyncio.to_thread(list_directory, _resolve(path), pattern)
+
+    return (
+        Tool(_read_file_async, takes_ctx=False, name="read_file"),
+        Tool(_list_directory_async, takes_ctx=False, name="list_directory"),
+    )
 
 
 TOOL_CATALOG: Final[Mapping[str, tuple[Tool[None], ...]]] = MappingProxyType(
     {
         "git_read": (Tool(_run_git_async, takes_ctx=False, name="run_git"),),
         "gh_read": (Tool(_run_gh_async, takes_ctx=False, name="run_gh"),),
-        "file_read": (
-            Tool(_read_file_async, takes_ctx=False, name="read_file"),
-            Tool(_list_directory_async, takes_ctx=False, name="list_directory"),
-        ),
+        "file_read": create_file_tools(),
     }
 )
 """カテゴリ名から pydantic-ai Tool へのマッピング。"""
@@ -107,11 +130,16 @@ class ResolvedTools:
     claudecode_builtin_names: tuple[str, ...]
 
 
-def resolve_tools(categories: tuple[str, ...]) -> ResolvedTools:
+def resolve_tools(
+    categories: tuple[str, ...],
+    project_root: Path | None = None,
+) -> ResolvedTools:
     """カテゴリ名からツールを解決する。通常ツールとビルトインツールを分離して返す。
 
     Args:
         categories: ツールカテゴリ名のタプル（例: ("git_read", "web_fetch")）。
+        project_root: プロジェクトルートディレクトリ。file_read ツールの
+            相対パス解決に使用される。None の場合は cwd 基準。
 
     Returns:
         ResolvedTools: 通常ツール、ビルトインツール、claudecode ビルトイン名を含む。
@@ -128,7 +156,9 @@ def resolve_tools(categories: tuple[str, ...]) -> ResolvedTools:
     claudecode_names: list[str] = []
 
     for category in categories:
-        if category in TOOL_CATALOG:
+        if category == "file_read":
+            tools.extend(create_file_tools(project_root))
+        elif category in TOOL_CATALOG:
             tools.extend(TOOL_CATALOG[category])
         if category in BUILTIN_TOOL_CATALOG:
             builtin_tools.extend(BUILTIN_TOOL_CATALOG[category])

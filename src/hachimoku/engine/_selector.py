@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
@@ -183,6 +184,7 @@ async def run_selector(
     global_max_turns: int,
     resolved_content: str,
     prefetched_context: PrefetchedContext | None = None,
+    project_root: Path | None = None,
 ) -> SelectorOutput:
     """セレクターエージェントを実行し、実行すべきエージェントを選択する。
 
@@ -206,6 +208,8 @@ async def run_selector(
         global_max_turns: グローバル最大ターン数。
         resolved_content: 事前解決されたコンテンツ（diff テキスト、ファイル内容等）。
         prefetched_context: 事前取得されたコンテキスト（Issue #187）。
+        project_root: プロジェクトルートディレクトリ。ファイルツールの
+            相対パス解決に使用される。
 
     Returns:
         SelectorOutput: 選択されたエージェント名リストと選択理由。
@@ -223,7 +227,9 @@ async def run_selector(
     )
 
     try:
-        resolved_tools = resolve_tools(selector_definition.allowed_tools)
+        resolved_tools = resolve_tools(
+            selector_definition.allowed_tools, project_root=project_root
+        )
         user_message = build_selector_instruction(
             target,
             available_agents,
