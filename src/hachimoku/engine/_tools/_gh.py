@@ -24,7 +24,10 @@ _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 
 
 def run_gh(args: list[str]) -> str:
-    """gh コマンドを読み取り専用で実行する。
+    """gh (GitHub CLI) コマンドを読み取り専用で実行する。
+
+    許可コマンド: pr view, pr diff, issue view, api (GET のみ)。
+    git コマンド（diff, log, show 等）には run_git() を使用すること。
 
     Args:
         args: gh サブコマンドと引数のリスト（例: ["pr", "view", "123"]）。

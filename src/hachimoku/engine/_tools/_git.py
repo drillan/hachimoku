@@ -31,6 +31,10 @@ _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 def run_git(args: list[str]) -> str:
     """git コマンドを読み取り専用で実行する。
 
+    許可サブコマンド: diff, grep, log, show, status, merge-base, rev-parse, branch, ls-files。
+    これ以外（pr, push, commit 等）は拒否される。
+    PR 情報が必要な場合は run_gh(["pr", "view", ...]) を使用すること。
+
     Args:
         args: git サブコマンドと引数のリスト（例: ["diff", "main"]）。
 
