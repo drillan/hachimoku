@@ -45,7 +45,10 @@ def read_file(path: str) -> str:
             f"'{path}' is a directory, not a file. Use list_directory to view its contents."
         )
     if not file_path.is_file():
-        raise FileNotFoundError(f"File not found: {path}")
+        raise FileNotFoundError(
+            f"File not found: {path}. "
+            f"Use list_directory to verify which files exist before reading."
+        )
     try:
         return file_path.read_text(encoding="utf-8")
     except UnicodeDecodeError:

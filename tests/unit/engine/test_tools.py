@@ -321,7 +321,7 @@ class TestReadFile:
 
     def test_nonexistent_file_raises_error(self) -> None:
         """存在しないファイルで FileNotFoundError を送出する。"""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError, match="list_directory"):
             read_file("/nonexistent/file.txt")
 
     def test_directory_path_raises_is_a_directory_error(self, tmp_path: Path) -> None:
