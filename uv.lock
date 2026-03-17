@@ -389,7 +389,7 @@ wheels = [
 [[package]]
 name = "claude-agent-sdk"
 version = "0.1.48"
-source = { git = "https://github.com/drillan/claude-agent-sdk-python.git?branch=fix%2Fcombined-fixes#3a996257e907fed7b40e15724547ccb319a68fa1" }
+source = { git = "https://github.com/drillan/claude-agent-sdk-python.git?branch=fix%2Fcombined-fixes#86b262ae88114fb225654e23b28c56c39bb93966" }
 dependencies = [
     { name = "anyio" },
     { name = "mcp" },
@@ -397,8 +397,8 @@ dependencies = [
 
 [[package]]
 name = "claudecode-model"
-version = "0.0.42"
-source = { git = "https://github.com/drillan/claudecode-model.git#09dd1b964513ea37f92e88a8d09a9298441c3cd4" }
+version = "0.0.43"
+source = { git = "https://github.com/drillan/claudecode-model.git#78ce6899bc17ee30e64ad9db44e6577bd39d852b" }
 dependencies = [
     { name = "claude-agent-sdk" },
     { name = "dacite" },
@@ -882,7 +882,7 @@ wheels = [
 
 [[package]]
 name = "hachimoku"
-version = "0.0.22"
+version = "0.0.23"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
