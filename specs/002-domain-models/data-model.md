@@ -269,8 +269,8 @@ ReviewHistoryRecord = Annotated[
 
 | ルール | 詳細 |
 |--------|------|
-| data エンベロープ unwrap | `model_validator(mode="before")` で `{"data": {...}}` 形式の入力を unwrap |
-| unwrap 条件 | 入力が dict かつキーが `"data"` のみ、かつ `data["data"]` が dict の場合 |
+| 単一キーエンベロープ unwrap | `model_validator(mode="before")` で単一キー dict エンベロープを unwrap |
+| unwrap 条件 | 入力が dict かつキーが1つのみ、かつその値が dict の場合（キー名不問） |
 | 継承適用 | 全サブクラス（6種スキーマ）に自動適用 |
 
 ### Severity
