@@ -14,12 +14,16 @@ from hachimoku.models.review import ReviewIssue
 
 
 def unwrap_data_envelope(data: dict[str, Any]) -> dict[str, Any]:
-    """LLM が出力を {"data": {...}} でラップした場合に unwrap する。
+    """LLM が出力を単一キー dict でラップした場合に unwrap する。
 
     LLM がテキスト出力モードで構造化 JSON を返す際、
-    {"data": {...}} エンベロープでラップすることがある。
-    入力が dict かつキーが "data" のみで、その値が dict の場合に
-    内側の dict を取り出す。
+    {"data": {...}} や {"result": {...}} 等の単一キー dict エンベロープで
+    ラップすることがある。入力が dict かつキーが1つのみで、
+    その値が dict の場合に内側の dict を取り出す。
+
+    全出力スキーマは BaseAgentOutput を継承し最低2フィールド
+    （issues, overall_score）を持つため、正当な出力が単一キー dict
+    になることはなく、誤 unwrap のリスクはない。
 
     Pydantic v2 では model_validator(mode="before") の実行順が
     子クラス → 親クラスのため、子クラスが独自の model_validator を
@@ -28,10 +32,10 @@ def unwrap_data_envelope(data: dict[str, Any]) -> dict[str, Any]:
     """
     if (
         isinstance(data, dict)
-        and list(data.keys()) == ["data"]
-        and isinstance(data["data"], dict)
+        and len(data) == 1
+        and isinstance(next(iter(data.values())), dict)
     ):
-        return data["data"]
+        return next(iter(data.values()))
     return data
 
 
@@ -49,5 +53,5 @@ class BaseAgentOutput(HachimokuBaseModel):
     @model_validator(mode="before")
     @classmethod
     def _unwrap_data_envelope(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """data エンベロープの unwrap を model_validator 経由で適用する。"""
+        """単一キー dict エンベロープの unwrap を model_validator 経由で適用する。"""
         return unwrap_data_envelope(data)

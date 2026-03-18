@@ -85,7 +85,7 @@ class TestBaseAgentOutputValid:
 
 
 class TestBaseAgentOutputDataEnvelopeUnwrap:
-    """BaseAgentOutput の data エンベロープ unwrap を検証。"""
+    """BaseAgentOutput の単一キー dict エンベロープ unwrap を検証。"""
 
     def test_data_envelope_unwrapped(self) -> None:
         """{"data": {...}} 形式の入力が unwrap される。"""
@@ -104,20 +104,20 @@ class TestBaseAgentOutputDataEnvelopeUnwrap:
         assert output.issues == []
 
     def test_non_envelope_input_unchanged(self) -> None:
-        """data キー以外を含む通常入力は unwrap されない。"""
+        """複数キーの通常入力は unwrap されない。"""
         output = BaseAgentOutput.model_validate({"issues": [], "overall_score": 5.0})
         assert output.issues == []
         assert output.overall_score == 5.0
 
     def test_data_with_other_keys_not_unwrapped(self) -> None:
-        """data キー以外にもキーがある場合は unwrap されない。"""
+        """複数キーがある場合は unwrap されない。"""
         with pytest.raises(ValidationError):
             BaseAgentOutput.model_validate(
                 {"data": {"issues": [], "overall_score": 5.0}, "extra_key": "x"}
             )
 
     def test_data_value_not_dict_not_unwrapped(self) -> None:
-        """data の値が dict でない場合は unwrap されない。"""
+        """単一キーの値が dict でない場合は unwrap されない。"""
         with pytest.raises(ValidationError):
             BaseAgentOutput.model_validate({"data": "not a dict"})
 
@@ -135,6 +135,54 @@ class TestBaseAgentOutputDataEnvelopeUnwrap:
         )
         assert assessment.overall_score == 8.0
         assert assessment.risk_level == Severity.SUGGESTION
+
+    def test_result_envelope_unwrapped(self) -> None:
+        """{"result": {...}} 形式の入力が unwrap される。"""
+        issue = _make_review_issue()
+        output = BaseAgentOutput.model_validate(
+            {"result": {"issues": [issue.model_dump()], "overall_score": 7.5}}
+        )
+        assert output.issues == [issue]
+        assert output.overall_score == 7.5
+
+    def test_arbitrary_single_key_envelope_unwrapped(self) -> None:
+        """任意の単一キー dict エンベロープが unwrap される。"""
+        output = BaseAgentOutput.model_validate(
+            {"output": {"issues": [], "overall_score": 5.0}}
+        )
+        assert output.issues == []
+        assert output.overall_score == 5.0
+
+    def test_result_envelope_subclass_unwrapped(self) -> None:
+        """サブクラス（TestGapAssessment）でも result エンベロープが unwrap される。"""
+        assessment = TestGapAssessment.model_validate(
+            {
+                "result": {
+                    "issues": [],
+                    "coverage_gaps": [],
+                    "risk_level": "Suggestion",
+                    "overall_score": 8.0,
+                }
+            }
+        )
+        assert assessment.overall_score == 8.0
+        assert assessment.risk_level == Severity.SUGGESTION
+
+    def test_severity_classified_result_envelope_unwrapped(self) -> None:
+        """SeverityClassified でも result エンベロープが unwrap される。"""
+        classified = SeverityClassified.model_validate(
+            {
+                "result": {
+                    "critical_issues": [],
+                    "important_issues": [],
+                    "suggestion_issues": [],
+                    "nitpick_issues": [],
+                    "overall_score": 9.0,
+                }
+            }
+        )
+        assert classified.overall_score == 9.0
+        assert classified.issues == []
 
     def test_severity_classified_inherits_unwrap(self) -> None:
         """SeverityClassified でも data エンベロープが unwrap される。"""
