@@ -53,5 +53,5 @@ class BaseAgentOutput(HachimokuBaseModel):
     @model_validator(mode="before")
     @classmethod
     def _unwrap_data_envelope(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """data エンベロープの unwrap を model_validator 経由で適用する。"""
+        """単一キー dict エンベロープの unwrap を model_validator 経由で適用する。"""
         return unwrap_data_envelope(data)
