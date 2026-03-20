@@ -842,6 +842,37 @@ class TestInitSubcommand:
         result = runner.invoke(app, ["init"])
         assert "--force" in result.output
 
+    @patch(PATCH_RUN_INIT)
+    def test_init_upgrade_passes_flag(self, mock_run_init: MagicMock) -> None:
+        """init --upgrade が upgrade=True で run_init を呼ぶ。"""
+        mock_run_init.return_value = InitResult()
+        runner.invoke(app, ["init", "--upgrade"])
+        _, kwargs = mock_run_init.call_args
+        assert kwargs["upgrade"] is True
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_default_no_upgrade(self, mock_run_init: MagicMock) -> None:
+        """--upgrade なしでは upgrade=False。"""
+        mock_run_init.return_value = InitResult()
+        runner.invoke(app, ["init"])
+        _, kwargs = mock_run_init.call_args
+        assert kwargs["upgrade"] is False
+
+    def test_init_help_shows_upgrade_option(self) -> None:
+        """init --help に --upgrade オプションが表示される。"""
+        result = runner.invoke(app, ["init", "--help"])
+        assert "--upgrade" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_force_and_upgrade_shows_error(self, mock_run_init: MagicMock) -> None:
+        """--force と --upgrade の同時指定でエラーが表示される。"""
+        mock_run_init.side_effect = ValueError(
+            "--force and --upgrade cannot be used together."
+        )
+        result = runner.invoke(app, ["init", "--force", "--upgrade"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+        assert "--force and --upgrade cannot be used together" in result.output
+
 
 # --- US4 テスト（file モード: ファイル解決と確認プロンプト） ---
 

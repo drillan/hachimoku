@@ -86,7 +86,10 @@ Creates default configuration files and agent definitions in the `.hachimoku/` d
 | Option | Description |
 |--------|-------------|
 | `--force` | Overwrite existing files with defaults |
+| `--upgrade` | Add new built-in agent definitions only (preserve existing files) |
 | `--help` | Display help |
+
+`--force` and `--upgrade` cannot be used together.
 
 ```bash
 # Initial setup
@@ -94,6 +97,9 @@ Creates default configuration files and agent definitions in the `.hachimoku/` d
 
 # Reset configuration
 8moku init --force
+
+# Add new agents after version upgrade
+8moku init --upgrade
 ```
 
 Created files:

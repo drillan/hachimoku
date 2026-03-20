@@ -27,10 +27,13 @@ from hachimoku.cli._init_handler import (
 
 BUILTIN_AGENT_NAMES: tuple[str, ...] = (
     "aggregator.toml",
+    "architecture-reviewer.toml",
     "code-reviewer.toml",
     "code-simplifier.toml",
     "comment-analyzer.toml",
+    "performance-analyzer.toml",
     "pr-test-analyzer.toml",
+    "security-analyzer.toml",
     "selector.toml",
     "silent-failure-hunter.toml",
     "type-design-analyzer.toml",
@@ -488,8 +491,9 @@ class TestRunInit:
         (agents_dir / "code-reviewer.toml").write_text("custom")
 
         result = run_init(tmp_path)
-        # config.toml + 7 agents + .gitignore = 9 created
-        assert len(result.created) == 9
+        # config.toml + (builtin agents - 1) + .gitignore
+        expected_created = 1 + (len(BUILTIN_AGENT_NAMES) - 1) + 1
+        assert len(result.created) == expected_created
         # code-reviewer.toml は skipped
         assert len(result.skipped) == 1
 
@@ -563,3 +567,145 @@ class TestRunInit:
 
         with pytest.raises(InitError, match=r"\.gitignore"):
             run_init(tmp_path)
+
+
+# --- TestRunInitUpgrade ---
+
+
+class TestRunInitUpgrade:
+    """run_init(upgrade=True) のテスト。Issue #317."""
+
+    def test_force_and_upgrade_raises_value_error(self, tmp_path: Path) -> None:
+        """force=True と upgrade=True の同時指定で ValueError が送出される。"""
+        with pytest.raises(ValueError, match="force.*upgrade"):
+            run_init(tmp_path, force=True, upgrade=True)
+
+    def test_upgrade_adds_missing_agents(self, tmp_path: Path) -> None:
+        """ビルトインに存在するが agents/ に存在しないエージェントのみ追加される。"""
+        (tmp_path / ".git").mkdir()
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+        # 1つだけ事前作成
+        (agents_dir / "code-reviewer.toml").write_text("custom content")
+
+        result = run_init(tmp_path, upgrade=True)
+        # code-reviewer.toml 以外の全ビルトインが追加される
+        assert len(result.created) == len(BUILTIN_AGENT_NAMES) - 1
+
+    def test_upgrade_skips_existing_agents(self, tmp_path: Path) -> None:
+        """既存のエージェント TOML が上書きされない。"""
+        (tmp_path / ".git").mkdir()
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+        existing = agents_dir / "code-reviewer.toml"
+        existing.write_text("custom content")
+
+        result = run_init(tmp_path, upgrade=True)
+        assert existing in result.skipped
+        assert existing not in result.created
+
+    def test_upgrade_preserves_existing_agent_content(self, tmp_path: Path) -> None:
+        """既存エージェントのカスタマイズ内容が保持される。"""
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+        existing = agents_dir / "code-reviewer.toml"
+        existing.write_text("# user customized content")
+
+        run_init(tmp_path, upgrade=True)
+        assert existing.read_text() == "# user customized content"
+
+    def test_upgrade_skips_config_toml_creation(self, tmp_path: Path) -> None:
+        """upgrade 時に config.toml が作成されない。"""
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+
+        result = run_init(tmp_path, upgrade=True)
+        config_path = hachimoku_dir / "config.toml"
+        assert not config_path.exists()
+        assert config_path not in result.created
+
+    def test_upgrade_skips_existing_config_toml(self, tmp_path: Path) -> None:
+        """upgrade 時に既存の config.toml が変更されない。"""
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+        config_path = hachimoku_dir / "config.toml"
+        config_path.write_text("# user custom config")
+
+        result = run_init(tmp_path, upgrade=True)
+        assert config_path.read_text() == "# user custom config"
+        assert config_path not in result.created
+        assert config_path not in result.skipped
+
+    def test_upgrade_skips_gitignore(self, tmp_path: Path) -> None:
+        """upgrade 時に .gitignore が変更されない。"""
+        (tmp_path / ".git").mkdir()
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+
+        result = run_init(tmp_path, upgrade=True)
+        gitignore = tmp_path / ".gitignore"
+        assert not gitignore.exists()
+        assert gitignore not in result.created
+
+    def test_upgrade_creates_agents_dir_if_missing(self, tmp_path: Path) -> None:
+        """agents/ ディレクトリが存在しない場合に作成される。"""
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+
+        result = run_init(tmp_path, upgrade=True)
+        agents_dir = hachimoku_dir / "agents"
+        assert agents_dir.is_dir()
+        assert len(result.created) == len(BUILTIN_AGENT_NAMES)
+
+    def test_upgrade_creates_hachimoku_dir_if_missing(self, tmp_path: Path) -> None:
+        """.hachimoku/ ディレクトリが存在しない場合に作成される。"""
+        result = run_init(tmp_path, upgrade=True)
+        assert (tmp_path / ".hachimoku" / "agents").is_dir()
+        assert len(result.created) == len(BUILTIN_AGENT_NAMES)
+
+    def test_upgrade_result_only_contains_agents(self, tmp_path: Path) -> None:
+        """upgrade の結果にはエージェントファイルのみが含まれる。"""
+        (tmp_path / ".git").mkdir()
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+
+        result = run_init(tmp_path, upgrade=True)
+        for path in (*result.created, *result.skipped):
+            assert path.parent == agents_dir
+
+    def test_upgrade_preserves_custom_agents(self, tmp_path: Path) -> None:
+        """ユーザー独自のカスタムエージェントが影響を受けない。"""
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+        custom_agent = agents_dir / "scope-drift-detector.toml"
+        custom_agent.write_text("# custom agent")
+
+        run_init(tmp_path, upgrade=True)
+        assert custom_agent.exists()
+        assert custom_agent.read_text() == "# custom agent"
+
+    def test_upgrade_noop_when_all_present(self, tmp_path: Path) -> None:
+        """全ビルトインエージェントが既に存在する場合、何も作成されない。"""
+        (tmp_path / ".git").mkdir()
+        # 通常の init で全ファイル作成
+        run_init(tmp_path)
+
+        result = run_init(tmp_path, upgrade=True)
+        assert len(result.created) == 0
+        assert len(result.skipped) == len(BUILTIN_AGENT_NAMES)

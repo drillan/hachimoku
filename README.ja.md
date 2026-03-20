@@ -85,7 +85,7 @@ uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
 | コマンド | 説明 |
 |---------|------|
 | `8moku [OPTIONS] [ARGS]` | コードレビューを実行（デフォルト） |
-| `8moku init [--force]` | `.hachimoku/` ディレクトリを初期化 |
+| `8moku init [--force \| --upgrade]` | `.hachimoku/` ディレクトリを初期化 |
 | `8moku agents [NAME]` | エージェント定義の一覧・詳細表示 |
 
 主なレビューオプション:
