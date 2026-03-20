@@ -28,6 +28,7 @@ from hachimoku.cli._init_handler import (
 BUILTIN_AGENT_NAMES: tuple[str, ...] = (
     "aggregator.toml",
     "architecture-reviewer.toml",
+    "breaking-change-detector.toml",
     "code-reviewer.toml",
     "code-simplifier.toml",
     "comment-analyzer.toml",

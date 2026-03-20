@@ -55,6 +55,7 @@ system_prompt = "You are a test agent."
 BUILTIN_AGENT_NAMES = frozenset(
     {
         "architecture-reviewer",
+        "breaking-change-detector",
         "code-reviewer",
         "code-simplifier",
         "comment-analyzer",
@@ -337,6 +338,7 @@ class TestBuiltinAgentSchemas:
         ("agent_name", "expected_schema"),
         [
             ("architecture-reviewer", "severity_classified"),
+            ("breaking-change-detector", "severity_classified"),
             ("code-reviewer", "scored_issues"),
             ("code-simplifier", "improvement_suggestions"),
             ("comment-analyzer", "category_classification"),
@@ -370,6 +372,7 @@ class TestBuiltinAgentPhases:
         ("agent_name", "expected_phase"),
         [
             ("architecture-reviewer", Phase.MAIN),
+            ("breaking-change-detector", Phase.MAIN),
             ("code-reviewer", Phase.MAIN),
             ("code-simplifier", Phase.FINAL),
             ("comment-analyzer", Phase.FINAL),
@@ -446,6 +449,12 @@ class TestBuiltinAgentApplicability:
         self, builtin_agents: tuple[AgentDefinition, ...]
     ) -> None:
         agent = _find_agent(builtin_agents, "performance-analyzer")
+        assert len(agent.applicability.content_patterns) > 0
+
+    def test_breaking_change_detector_has_content_patterns(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        agent = _find_agent(builtin_agents, "breaking-change-detector")
         assert len(agent.applicability.content_patterns) > 0
 
     def test_dependency_auditor_has_content_patterns(

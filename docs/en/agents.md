@@ -11,10 +11,11 @@ Built-in agents are provided as standard, and project-specific custom agents can
 
 ## Built-in Agents
 
-The following seven agents are included in the package.
+The following agents are included in the package.
 
 | Agent Name | Description | Output Schema | Phase | Applicability |
 |------------|-------------|---------------|-------|---------------|
+| breaking-change-detector | Detection of breaking changes in public APIs, data models, CLI interfaces, and configuration formats | severity_classified | main | content_patterns |
 | code-reviewer | Code quality and bug detection | scored_issues | main | Always applied |
 | dependency-auditor | Dependency security and health auditing | severity_classified | main | content_patterns |
 | silent-failure-hunter | Detection of silent failures | severity_classified | main | content_patterns |
@@ -141,6 +142,7 @@ Condition evaluation logic:
 
 | Agent | Condition | Patterns |
 |-------|-----------|----------|
+| breaking-change-detector | content_patterns | `def\s+\w+\s*\(`, `class\s+\w+`, `async\s+def\s+\w+`, `__all__\s*=`, `app\.command`, `typer\.Option`, `typer\.Argument`, `BaseModel`, `\[tool\.`, `\[project\]` |
 | code-reviewer | `always = true` | - |
 | dependency-auditor | content_patterns | `\[dependencies\]`, `\[project\.dependencies\]`, `\[project\.optional-dependencies\]`, `\[tool\.uv`, `uv\.lock`, `requirements`, `\[build-system\]`, `"dependencies"\s*:`, `"devDependencies"\s*:`, `\[dependencies\.\w+\]`, `\[dev-dependencies\]` |
 | silent-failure-hunter | content_patterns | `try\s*:`, `except\s`, `catch\s*\(`, `\.catch\s*\(` |
@@ -174,13 +176,12 @@ Holds successfully loaded definitions and skipped error information separately.
 
 ### load_builtin_agents()
 
-Loads the seven built-in agent definitions included in the package.
+Loads built-in agent definitions included in the package.
 
 ```{code-block} python
 from hachimoku.agents import load_builtin_agents
 
 result = load_builtin_agents()
-print(len(result.agents))  # 7
 ```
 
 ### load_custom_agents(custom_dir)
