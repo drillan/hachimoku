@@ -86,23 +86,42 @@ Creates default configuration files and agent definitions in the `.hachimoku/` d
 | Option | Description |
 |--------|-------------|
 | `--force` | Overwrite existing files with defaults |
-| `--upgrade` | Add new built-in agent definitions only (preserve existing files) |
+| `--upgrade` | Update built-in agent definitions using hash comparison |
 | `--help` | Display help |
-
-`--force` and `--upgrade` cannot be used together.
 
 ```bash
 # Initial setup
 8moku init
 
-# Reset configuration
+# Reset all files to defaults (including config.toml)
 8moku init --force
 
-# Add new agents after version upgrade
+# Update agent definitions after version upgrade (skip customized files)
 8moku init --upgrade
+
+# Force update all agent definitions including customized ones (config.toml preserved)
+8moku init --upgrade --force
 ```
 
-Created files:
+### Flag behavior scope
+
+| Target | `init` | `--force` | `--upgrade` | `--upgrade --force` |
+|--------|--------|-----------|-------------|---------------------|
+| `config.toml` | Create | Overwrite | Not affected | Not affected |
+| `agents/*.toml` | Create | Overwrite | Hash-based update | Force overwrite |
+| `reviews/` | Create | Create | Not affected | Not affected |
+| `.gitignore` | Add entry | Add entry | Not affected | Not affected |
+
+### upgrade hash comparison
+
+`--upgrade` compares the SHA-256 hash of local files against built-in definitions and determines the action:
+
+- **File does not exist**: Add new file (`Added`)
+- **Hash matches**: Already up to date (`Skipped (up to date)`)
+- **Hash differs**: Skip as customized (`Skipped (customized)`)
+- **Hash differs + `--force`**: Force overwrite (`Updated`)
+
+Created files (`init` / `--force`):
 
 - `.hachimoku/config.toml` - Configuration file (template with all options commented out)
 - `.hachimoku/agents/*.toml` - Copies of built-in agent definitions
