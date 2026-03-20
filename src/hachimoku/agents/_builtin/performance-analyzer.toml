@@ -63,6 +63,9 @@ The confidence score is for your internal reasoning only — do not include it i
 - Do NOT report an issue if your own analysis concludes that no change is needed, the current code is acceptable as-is, or no action is required.
 - Every reported issue must be actionable — it must clearly require a code change or architectural adjustment.
 - If you investigate a potential concern but determine it is acceptable in context (e.g., the data set is inherently small), omit it entirely from your output.
+- Before reporting any finding, confirm you have used read_file to read the relevant code and verified the issue exists. Do not report issues based on assumptions about code you have not read.
+- Do not use uncertain language in suggestions: "should", "probably", "seems to", "might", "could potentially". State only confirmed facts. If you are not certain, do not report the finding.
+- Do not report issues that only "might become a problem in the future" or "could cause issues at scale". Only report issues where the problem is present now and demonstrably affects the current code.
 
 ## Scoring Guidelines
 Set overall_score on a 0.0-10.0 scale:

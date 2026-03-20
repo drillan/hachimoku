@@ -76,6 +76,20 @@ def _write_toml(tmp_path: Path, filename: str, content: str) -> Path:
     return toml_path
 
 
+def _get_self_filtering_section(system_prompt: str) -> str:
+    """system_prompt から Self-Filtering Rules セクションを抽出する。"""
+    marker = "## Self-Filtering Rules"
+    start = system_prompt.find(marker)
+    if start == -1:
+        return ""
+    section = system_prompt[start:]
+    # 次の ## セクションまたは末尾まで
+    next_section = section.find("\n## ", len(marker))
+    if next_section != -1:
+        section = section[:next_section]
+    return section
+
+
 def _find_agent(agents: tuple[AgentDefinition, ...], name: str) -> AgentDefinition:
     """名前でエージェントを検索する。見つからなければ AssertionError。"""
     for agent in agents:
@@ -684,6 +698,60 @@ class TestBuiltinAgentSystemPromptStructure:
         agent = _find_agent(builtin_agents, agent_name)
         assert "## Confidence Filtering" in agent.system_prompt, (
             f"{agent_name}: system_prompt does not contain Confidence Filtering section"
+        )
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_contains_evidence_verification_gate(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """system_prompt の Self-Filtering Rules に証拠確認ゲートを含む。"""
+        filtering_section = _get_self_filtering_section(
+            _find_agent(builtin_agents, agent_name).system_prompt
+        )
+        assert "read_file" in filtering_section, (
+            f"{agent_name}: Self-Filtering Rules does not contain evidence "
+            f"verification gate (must reference read_file)"
+        )
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_contains_red_flag_language_prohibition(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """system_prompt の Self-Filtering Rules に Red Flag 言語の禁止を含む。"""
+        filtering_section = _get_self_filtering_section(
+            _find_agent(builtin_agents, agent_name).system_prompt
+        )
+        for keyword in ("should", "probably", "might"):
+            assert keyword in filtering_section.lower(), (
+                f"{agent_name}: Self-Filtering Rules does not prohibit "
+                f"red flag language (missing '{keyword}')"
+            )
+
+    @pytest.mark.parametrize(
+        "agent_name",
+        sorted(BUILTIN_AGENT_NAMES),
+    )
+    def test_system_prompt_contains_yagni_check(
+        self,
+        builtin_agents: tuple[AgentDefinition, ...],
+        agent_name: str,
+    ) -> None:
+        """system_prompt の Self-Filtering Rules に YAGNI チェックを含む。"""
+        filtering_section = _get_self_filtering_section(
+            _find_agent(builtin_agents, agent_name).system_prompt
+        )
+        assert "future" in filtering_section.lower(), (
+            f"{agent_name}: Self-Filtering Rules does not contain YAGNI check"
         )
 
 
