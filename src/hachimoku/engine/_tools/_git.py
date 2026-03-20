@@ -24,6 +24,9 @@ ALLOWED_GIT_SUBCOMMANDS: Final[frozenset[str]] = frozenset(
 )
 """読み取り専用の git サブコマンド。"""
 
+_NO_MATCH_EXIT_CODE_SUBCOMMANDS: Final[frozenset[str]] = frozenset({"grep"})
+"""exit code 1 が「マッチなし」を意味するサブコマンド。"""
+
 _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 """subprocess.run のタイムアウト秒数。"""
 
@@ -40,16 +43,20 @@ def run_git(args: list[str]) -> str:
 
     Returns:
         git コマンドの stdout 出力。
+        git grep でマッチなしの場合（exit code 1）は空文字列を返す。
 
     Raises:
         ValueError: args[0] がホワイトリスト外のサブコマンドの場合。
-        RuntimeError: git コマンドが非ゼロで終了した場合、
+        RuntimeError: git コマンドが非ゼロで終了した場合
+            （ただし grep の exit code 1 を除く）、
             git が PATH 上に見つからない場合、
             またはタイムアウトした場合。
     """
     if not args or args[0] not in ALLOWED_GIT_SUBCOMMANDS:
         subcmd = args[0] if args else "(empty)"
         raise ValueError(f"git subcommand '{subcmd}' is not allowed")
+
+    subcmd = args[0]
 
     try:
         result = subprocess.run(
@@ -68,6 +75,8 @@ def run_git(args: list[str]) -> str:
             f"git command timed out after {_SUBPROCESS_TIMEOUT_SECONDS}s"
         ) from e
     except subprocess.CalledProcessError as e:
+        if e.returncode == 1 and subcmd in _NO_MATCH_EXIT_CODE_SUBCOMMANDS:
+            return ""
         raise RuntimeError(f"git command failed: {e.stderr}") from e
 
     return result.stdout
