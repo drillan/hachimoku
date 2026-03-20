@@ -58,6 +58,7 @@ BUILTIN_AGENT_NAMES = frozenset(
         "code-reviewer",
         "code-simplifier",
         "comment-analyzer",
+        "dependency-auditor",
         "performance-analyzer",
         "pr-test-analyzer",
         "security-analyzer",
@@ -339,6 +340,7 @@ class TestBuiltinAgentSchemas:
             ("code-reviewer", "scored_issues"),
             ("code-simplifier", "improvement_suggestions"),
             ("comment-analyzer", "category_classification"),
+            ("dependency-auditor", "severity_classified"),
             ("performance-analyzer", "severity_classified"),
             ("pr-test-analyzer", "test_gap_assessment"),
             ("security-analyzer", "severity_classified"),
@@ -371,6 +373,7 @@ class TestBuiltinAgentPhases:
             ("code-reviewer", Phase.MAIN),
             ("code-simplifier", Phase.FINAL),
             ("comment-analyzer", Phase.FINAL),
+            ("dependency-auditor", Phase.MAIN),
             ("performance-analyzer", Phase.MAIN),
             ("pr-test-analyzer", Phase.MAIN),
             ("security-analyzer", Phase.MAIN),
@@ -443,6 +446,12 @@ class TestBuiltinAgentApplicability:
         self, builtin_agents: tuple[AgentDefinition, ...]
     ) -> None:
         agent = _find_agent(builtin_agents, "performance-analyzer")
+        assert len(agent.applicability.content_patterns) > 0
+
+    def test_dependency_auditor_has_content_patterns(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        agent = _find_agent(builtin_agents, "dependency-auditor")
         assert len(agent.applicability.content_patterns) > 0
 
     def test_security_analyzer_has_content_patterns(

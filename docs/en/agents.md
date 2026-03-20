@@ -2,7 +2,7 @@
 
 hachimoku's review agents are defined in TOML files.
 It adopts a data-driven architecture that allows adding and customizing agents without code changes.
-Six built-in agents are provided as standard, and project-specific custom agents can also be added.
+Built-in agents are provided as standard, and project-specific custom agents can also be added.
 
 ```{contents}
 :depth: 2
@@ -16,6 +16,7 @@ The following six agents are included in the package.
 | Agent Name | Description | Output Schema | Phase | Applicability |
 |------------|-------------|---------------|-------|---------------|
 | code-reviewer | Code quality and bug detection | scored_issues | main | Always applied |
+| dependency-auditor | Dependency security and health auditing | severity_classified | main | content_patterns |
 | silent-failure-hunter | Detection of silent failures | severity_classified | main | content_patterns |
 | pr-test-analyzer | Test coverage assessment | test_gap_assessment | main | file_patterns |
 | type-design-analyzer | Practical analysis of type annotations and type safety | multi_dimensional_analysis | main | file_patterns + content_patterns |
@@ -141,6 +142,7 @@ Condition evaluation logic:
 | Agent | Condition | Patterns |
 |-------|-----------|----------|
 | code-reviewer | `always = true` | - |
+| dependency-auditor | content_patterns | `\[dependencies\]`, `\[project\.optional-dependencies\]`, `uv\.lock`, `requirements` |
 | silent-failure-hunter | content_patterns | `try\s*:`, `except\s`, `catch\s*\(`, `\.catch\s*\(` |
 | pr-test-analyzer | file_patterns | `test_*.py`, `*_test.py`, `*.test.ts`, `*.test.js`, `*.spec.ts`, `*.spec.js` |
 | type-design-analyzer | file_patterns + content_patterns | Files: `*.py`, `*.ts`, `*.tsx` / Content: `class\s+\w+`, `interface\s+\w+`, `type\s+\w+\s*=` |
