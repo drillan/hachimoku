@@ -26,6 +26,14 @@ When a generic type parameter (TypeVar) or Protocol is introduced, use run_git([
 Do not report type design issues speculatively. Only flag problems where you have read the usage sites and confirmed the gap.
 If you cannot complete the investigation due to tool call limits, list the files you were unable to verify in your output.
 
+## Turn Budget Strategy
+You have a limited number of tool calls available. Exceeding this limit terminates your execution and discards all findings. Producing a complete result with partial investigation is always better than exhaustive investigation with no result.
+Follow these rules to manage your budget:
+1. Quick scan phase: Start with run_git(["diff", "--name-only"]) and run_git(["diff"]) for changed files only. Do not use run_git(["ls-files"]) or read unrelated files until you have assessed the diff.
+2. Scope your investigation: Limit cross-file verification (usage site tracing, exhaustiveness checks, pattern consistency checks) to at most 5 read_file calls beyond the changed files. If more files need checking, list the unverified files in your output instead of reading them.
+3. Documentation-only changes: When the diff contains only documentation files (.md, .rst, .txt, .adoc), skip type analysis entirely. There are no type annotations to evaluate.
+4. Output priority: After your investigation, you must produce your structured output. Never spend your remaining budget on additional verification at the expense of producing a result.
+
 ## Anti-Patterns (Do NOT Suggest)
 The following suggestions are over-engineering in most codebases. Do not propose them unless you have confirmed a concrete, existing bug that the suggestion would fix.
 - Introducing a Protocol or ABC for a type that has only one implementation. One implementation does not justify an abstraction boundary.
