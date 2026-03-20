@@ -6,6 +6,7 @@ FR-CLI-008: 既存ファイルのスキップと --force による上書き。
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -28,11 +29,17 @@ class InitResult(HachimokuBaseModel):
 
     Attributes:
         created: 新規作成されたファイル/ディレクトリのパスタプル。
-        skipped: 既存のためスキップされたファイル/ディレクトリのパスタプル。
+        updated: ビルトイン更新により上書きされたファイルのパスタプル。
+        skipped: 既存のためスキップされたファイル/ディレクトリのパスタプル（通常 init 用）。
+        skipped_up_to_date: ビルトインと同一ハッシュのためスキップされたファイル（upgrade 用）。
+        skipped_customized: カスタマイズ済みのためスキップされたファイル（upgrade 用）。
     """
 
     created: tuple[Path, ...] = ()
+    updated: tuple[Path, ...] = ()
     skipped: tuple[Path, ...] = ()
+    skipped_up_to_date: tuple[Path, ...] = ()
+    skipped_customized: tuple[Path, ...] = ()
 
 
 _CONFIG_TEMPLATE: str = """\
@@ -184,6 +191,78 @@ def _copy_builtin_agents(
     return created, skipped
 
 
+def _compute_file_hash(path: Path) -> str:
+    """ファイルの SHA-256 ハッシュを 16 進数文字列で返す。
+
+    Args:
+        path: ハッシュを計算するファイルのパス。
+
+    Returns:
+        SHA-256 ハッシュの 16 進数文字列。
+    """
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _compute_bytes_hash(data: bytes) -> str:
+    """バイト列の SHA-256 ハッシュを 16 進数文字列で返す。
+
+    Args:
+        data: ハッシュを計算するバイト列。
+
+    Returns:
+        SHA-256 ハッシュの 16 進数文字列。
+    """
+    return hashlib.sha256(data).hexdigest()
+
+
+def _upgrade_builtin_agents(
+    agents_dir: Path, *, force: bool
+) -> tuple[list[Path], list[Path], list[Path], list[Path]]:
+    """ハッシュ比較により、ビルトインエージェント定義を更新する。
+
+    ローカルファイルのハッシュとビルトインのハッシュを比較し、
+    カスタマイズの有無を判定する。
+
+    Args:
+        agents_dir: エージェント定義ディレクトリ。
+        force: True の場合、カスタマイズ済みファイルも上書きする。
+
+    Returns:
+        (created, updated, skipped_up_to_date, skipped_customized)
+    """
+    builtin_package = files("hachimoku.agents._builtin")
+    created: list[Path] = []
+    updated: list[Path] = []
+    skipped_up_to_date: list[Path] = []
+    skipped_customized: list[Path] = []
+
+    for resource in sorted(builtin_package.iterdir(), key=lambda r: r.name):
+        if not resource.name.endswith(".toml"):
+            continue
+        dest = agents_dir / resource.name
+
+        with as_file(resource) as src_path:
+            builtin_content = src_path.read_bytes()
+
+        if not dest.exists():
+            dest.write_bytes(builtin_content)
+            created.append(dest)
+            continue
+
+        local_hash = _compute_file_hash(dest)
+        builtin_hash = _compute_bytes_hash(builtin_content)
+
+        if local_hash == builtin_hash:
+            skipped_up_to_date.append(dest)
+        elif force:
+            dest.write_bytes(builtin_content)
+            updated.append(dest)
+        else:
+            skipped_customized.append(dest)
+
+    return created, updated, skipped_up_to_date, skipped_customized
+
+
 def run_init(
     project_root: Path, *, force: bool = False, upgrade: bool = False
 ) -> InitResult:
@@ -197,73 +276,77 @@ def run_init(
     5. Git リポジトリ内のみ、.gitignore に /.hachimoku/ エントリを追加
 
     upgrade モード（upgrade=True）:
-    エージェント定義のみを対象とし、ビルトインに存在するが
-    .hachimoku/agents/ に存在しないエージェントのみ追加する。
+    ハッシュ比較によりビルトインエージェント定義を更新する。
+    config.toml、reviews/、.gitignore には一切触れない。
+
+    upgrade + force モード（upgrade=True, force=True）:
+    カスタマイズ済みファイルも含め全ビルトイン TOML を更新する。
     config.toml、reviews/、.gitignore には一切触れない。
 
     Args:
         project_root: プロジェクトルートディレクトリ。
         force: True の場合、既存ファイルを上書きする。
-        upgrade: True の場合、新規エージェント定義のみ追加する。
+        upgrade: True の場合、ハッシュ比較でエージェント定義を更新する。
 
     Returns:
-        InitResult: 作成・スキップされたファイル情報。
+        InitResult: 作成・スキップ・更新されたファイル情報。
 
     Raises:
         InitError: ファイルシステム操作エラー等。
-        ValueError: force と upgrade が同時に True の場合。
     """
-    if force and upgrade:
-        raise ValueError("--force and --upgrade cannot be used together.")
-
     hachimoku_dir = project_root / ".hachimoku"
     agents_dir = hachimoku_dir / "agents"
 
-    created: list[Path] = []
-    skipped: list[Path] = []
-
     try:
         if upgrade:
-            # upgrade モード: エージェント定義のみ追加
+            # upgrade モード: ハッシュ比較でエージェント定義を更新
             hachimoku_dir.mkdir(parents=True, exist_ok=True)
             agents_dir.mkdir(exist_ok=True)
 
-            agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=False)
-            created.extend(agent_created)
-            skipped.extend(agent_skipped)
+            agent_created, agent_updated, agent_up_to_date, agent_customized = (
+                _upgrade_builtin_agents(agents_dir, force=force)
+            )
+            return InitResult(
+                created=tuple(agent_created),
+                updated=tuple(agent_updated),
+                skipped_up_to_date=tuple(agent_up_to_date),
+                skipped_customized=tuple(agent_customized),
+            )
+
+        # 通常モード
+        created: list[Path] = []
+        skipped: list[Path] = []
+        config_path = hachimoku_dir / "config.toml"
+        reviews_dir = hachimoku_dir / "reviews"
+
+        hachimoku_dir.mkdir(parents=True, exist_ok=True)
+        agents_dir.mkdir(exist_ok=True)
+        reviews_dir.mkdir(exist_ok=True)
+
+        # config.toml 生成
+        if config_path.exists() and not force:
+            skipped.append(config_path)
         else:
-            # 通常モード
-            config_path = hachimoku_dir / "config.toml"
-            reviews_dir = hachimoku_dir / "reviews"
+            config_path.write_text(_generate_config_template(), encoding="utf-8")
+            created.append(config_path)
 
-            hachimoku_dir.mkdir(parents=True, exist_ok=True)
-            agents_dir.mkdir(exist_ok=True)
-            reviews_dir.mkdir(exist_ok=True)
+        # ビルトインエージェント定義コピー
+        agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
+        created.extend(agent_created)
+        skipped.extend(agent_skipped)
 
-            # config.toml 生成
-            if config_path.exists() and not force:
-                skipped.append(config_path)
+        # .gitignore に /.hachimoku/ エントリを追加（Git リポジトリ内のみ）
+        if (project_root / ".git").exists():
+            gitignore_path = project_root / ".gitignore"
+            gitignore_result = _ensure_gitignore(project_root)
+            if gitignore_result == "created":
+                created.append(gitignore_path)
             else:
-                config_path.write_text(_generate_config_template(), encoding="utf-8")
-                created.append(config_path)
+                skipped.append(gitignore_path)
 
-            # ビルトインエージェント定義コピー
-            agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
-            created.extend(agent_created)
-            skipped.extend(agent_skipped)
-
-            # .gitignore に /.hachimoku/ エントリを追加（Git リポジトリ内のみ）
-            if (project_root / ".git").exists():
-                gitignore_path = project_root / ".gitignore"
-                gitignore_result = _ensure_gitignore(project_root)
-                if gitignore_result == "created":
-                    created.append(gitignore_path)
-                else:
-                    skipped.append(gitignore_path)
+        return InitResult(created=tuple(created), skipped=tuple(skipped))
     except OSError as e:
         raise InitError(
             f"Failed to initialize .hachimoku/: {e}\n"
             "Check directory permissions and available disk space."
         ) from e
-
-    return InitResult(created=tuple(created), skipped=tuple(skipped))

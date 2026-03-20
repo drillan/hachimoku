@@ -864,14 +864,74 @@ class TestInitSubcommand:
         assert "--upgrade" in result.output
 
     @patch(PATCH_RUN_INIT)
-    def test_init_force_and_upgrade_shows_error(self, mock_run_init: MagicMock) -> None:
-        """--force と --upgrade の同時指定でエラーが表示される。"""
-        mock_run_init.side_effect = ValueError(
-            "--force and --upgrade cannot be used together."
+    def test_init_upgrade_force_passes_flags(self, mock_run_init: MagicMock) -> None:
+        """--upgrade --force が force=True, upgrade=True で run_init を呼ぶ。"""
+        mock_run_init.return_value = InitResult()
+        runner.invoke(app, ["init", "--upgrade", "--force"])
+        _, kwargs = mock_run_init.call_args
+        assert kwargs["force"] is True
+        assert kwargs["upgrade"] is True
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_upgrade_shows_added_status(self, mock_run_init: MagicMock) -> None:
+        """upgrade 結果で Added: が表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            created=(Path("/tmp/new-agent.toml"),),
         )
-        result = runner.invoke(app, ["init", "--force", "--upgrade"])
-        assert result.exit_code == ExitCode.INPUT_ERROR
-        assert "--force and --upgrade cannot be used together" in result.output
+        result = runner.invoke(app, ["init", "--upgrade"])
+        assert "Added:" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_upgrade_shows_updated_status(self, mock_run_init: MagicMock) -> None:
+        """upgrade 結果で Updated: が表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            updated=(Path("/tmp/code-reviewer.toml"),),
+        )
+        result = runner.invoke(app, ["init", "--upgrade"])
+        assert "Updated:" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_upgrade_shows_skipped_customized(
+        self, mock_run_init: MagicMock
+    ) -> None:
+        """upgrade 結果で Skipped (customized): が表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            skipped_customized=(Path("/tmp/code-reviewer.toml"),),
+        )
+        result = runner.invoke(app, ["init", "--upgrade"])
+        assert "Skipped (customized):" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_upgrade_shows_skipped_up_to_date(
+        self, mock_run_init: MagicMock
+    ) -> None:
+        """upgrade 結果で Skipped (up to date): が表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            skipped_up_to_date=(Path("/tmp/code-reviewer.toml"),),
+        )
+        result = runner.invoke(app, ["init", "--upgrade"])
+        assert "Skipped (up to date):" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    def test_init_upgrade_all_up_to_date_message(
+        self, mock_run_init: MagicMock
+    ) -> None:
+        """全て最新時のメッセージが表示される。"""
+        from pathlib import Path
+
+        mock_run_init.return_value = InitResult(
+            skipped_up_to_date=(Path("/tmp/a.toml"),),
+        )
+        result = runner.invoke(app, ["init", "--upgrade"])
+        assert "up to date" in result.output
 
 
 # --- US4 テスト（file モード: ファイル解決と確認プロンプト） ---
