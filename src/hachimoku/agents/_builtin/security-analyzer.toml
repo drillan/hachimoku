@@ -24,6 +24,22 @@ When a diff modifies file operations, subprocess calls, or database queries, che
 Never assume input is safe based on variable names alone. Always trace the actual data flow before concluding that input is properly validated.
 If you cannot complete the investigation due to tool call limits, list the files or code paths you were unable to verify in your output.
 
+## Exploitability Verification
+Before reporting any finding, verify all three of the following conditions. Only report when all three confirm the vulnerability is genuine:
+
+1. **Is the input attacker-controlled?** Environment variables, configuration files, and hardcoded constants are server-controlled, not attacker-controlled. Only inputs that an external user or untrusted source can directly influence qualify.
+2. **Does the framework automatically mitigate?** Many frameworks provide built-in protections (see Safe Patterns below). If the framework handles the risk, do not report unless the code explicitly bypasses the protection.
+3. **Is there upstream validation?** Check whether callers or earlier stages of the pipeline already sanitize or validate the input before it reaches the operation in question.
+
+## Safe Patterns
+The following patterns are considered safe by default. Only report them when the code explicitly bypasses the built-in protection:
+
+- **ORM parameterized queries** (e.g., Django ORM, SQLAlchemy Core/ORM, ActiveRecord) — Safe. Bypass indicators: raw(), extra(), text() with string interpolation, or manual SQL string concatenation.
+- **Template auto-escaping** (e.g., Django templates, Jinja2 with autoescape, React JSX) — Safe. Bypass indicators: mark_safe(), |safe filter, dangerouslySetInnerHTML, Markup() with untrusted input.
+- **subprocess with list arguments** (e.g., subprocess.run(["cmd", arg])) — Safe. Bypass indicators: shell=True, os.system(), os.popen(), string concatenation in command arguments.
+
+When you encounter one of these safe patterns, do not report it as a vulnerability. When you encounter a bypass indicator, report it with a clear explanation of why the bypass undermines the framework protection.
+
 ## Severity Classification
 Place each issue in the appropriate list:
 - critical_issues: Injection vulnerabilities, authentication bypass, hardcoded credentials in production paths, broken access control allowing privilege escalation.

@@ -54,12 +54,15 @@ system_prompt = "You are a test agent."
 
 BUILTIN_AGENT_NAMES = frozenset(
     {
+        "architecture-reviewer",
         "code-reviewer",
-        "silent-failure-hunter",
-        "pr-test-analyzer",
-        "type-design-analyzer",
-        "comment-analyzer",
         "code-simplifier",
+        "comment-analyzer",
+        "performance-analyzer",
+        "pr-test-analyzer",
+        "security-analyzer",
+        "silent-failure-hunter",
+        "type-design-analyzer",
     }
 )
 
@@ -217,16 +220,16 @@ class TestLoadBuiltinAgents:
         """戻り値が LoadResult インスタンスである。"""
         assert isinstance(builtin_result, LoadResult)
 
-    def test_loads_six_agents(
+    def test_loads_all_agents(
         self, builtin_agents: tuple[AgentDefinition, ...]
     ) -> None:
-        """6つのエージェントが読み込まれる。"""
-        assert len(builtin_agents) == 6
+        """全ビルトインエージェントが読み込まれる。"""
+        assert len(builtin_agents) == len(BUILTIN_AGENT_NAMES)
 
     def test_all_agent_names_present(
         self, builtin_agents: tuple[AgentDefinition, ...]
     ) -> None:
-        """6つの名前が全て存在する。"""
+        """全ての名前が存在する。"""
         loaded_names = {agent.name for agent in builtin_agents}
         assert loaded_names == BUILTIN_AGENT_NAMES
 
@@ -315,7 +318,7 @@ class TestLoadBuiltinAgentsErrorCollection:
                 title="AgentDefinition", line_errors=[]
             ),
         )
-        assert len(result.agents) == 5
+        assert len(result.agents) == len(BUILTIN_AGENT_NAMES) - 1
         assert len(result.errors) == 1
         loaded_names = {agent.name for agent in result.agents}
         assert "code-reviewer" not in loaded_names
@@ -332,12 +335,15 @@ class TestBuiltinAgentSchemas:
     @pytest.mark.parametrize(
         ("agent_name", "expected_schema"),
         [
+            ("architecture-reviewer", "severity_classified"),
             ("code-reviewer", "scored_issues"),
-            ("silent-failure-hunter", "severity_classified"),
-            ("pr-test-analyzer", "test_gap_assessment"),
-            ("type-design-analyzer", "multi_dimensional_analysis"),
-            ("comment-analyzer", "category_classification"),
             ("code-simplifier", "improvement_suggestions"),
+            ("comment-analyzer", "category_classification"),
+            ("performance-analyzer", "severity_classified"),
+            ("pr-test-analyzer", "test_gap_assessment"),
+            ("security-analyzer", "severity_classified"),
+            ("silent-failure-hunter", "severity_classified"),
+            ("type-design-analyzer", "multi_dimensional_analysis"),
         ],
     )
     def test_output_schema(
@@ -361,12 +367,15 @@ class TestBuiltinAgentPhases:
     @pytest.mark.parametrize(
         ("agent_name", "expected_phase"),
         [
+            ("architecture-reviewer", Phase.MAIN),
             ("code-reviewer", Phase.MAIN),
-            ("silent-failure-hunter", Phase.MAIN),
-            ("pr-test-analyzer", Phase.MAIN),
-            ("type-design-analyzer", Phase.MAIN),
-            ("comment-analyzer", Phase.FINAL),
             ("code-simplifier", Phase.FINAL),
+            ("comment-analyzer", Phase.FINAL),
+            ("performance-analyzer", Phase.MAIN),
+            ("pr-test-analyzer", Phase.MAIN),
+            ("security-analyzer", Phase.MAIN),
+            ("silent-failure-hunter", Phase.MAIN),
+            ("type-design-analyzer", Phase.MAIN),
         ],
     )
     def test_phase(
@@ -423,6 +432,24 @@ class TestBuiltinAgentApplicability:
     ) -> None:
         agent = _find_agent(builtin_agents, "code-simplifier")
         assert agent.applicability.always is True
+
+    def test_architecture_reviewer_has_content_patterns(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        agent = _find_agent(builtin_agents, "architecture-reviewer")
+        assert len(agent.applicability.content_patterns) > 0
+
+    def test_performance_analyzer_has_content_patterns(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        agent = _find_agent(builtin_agents, "performance-analyzer")
+        assert len(agent.applicability.content_patterns) > 0
+
+    def test_security_analyzer_has_content_patterns(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        agent = _find_agent(builtin_agents, "security-analyzer")
+        assert len(agent.applicability.content_patterns) > 0
 
 
 # =============================================================================
@@ -522,7 +549,7 @@ class TestLoadAgents:
     def test_builtin_only_when_no_custom_dir(self) -> None:
         """custom_dir=None でビルトインのみが読み込まれる。"""
         result = load_agents(custom_dir=None)
-        assert len(result.agents) == 6
+        assert len(result.agents) == len(BUILTIN_AGENT_NAMES)
         loaded_names = {a.name for a in result.agents}
         assert loaded_names == BUILTIN_AGENT_NAMES
 
@@ -530,7 +557,7 @@ class TestLoadAgents:
         """新名前のカスタムがビルトインに追加される。"""
         _write_toml(tmp_path, "my-custom.toml", VALID_TOML)
         result = load_agents(custom_dir=tmp_path)
-        assert len(result.agents) == 7
+        assert len(result.agents) == len(BUILTIN_AGENT_NAMES) + 1
         loaded_names = {a.name for a in result.agents}
         assert "test-agent" in loaded_names
         assert BUILTIN_AGENT_NAMES.issubset(loaded_names)
@@ -544,7 +571,7 @@ class TestLoadAgents:
         result = load_agents(custom_dir=tmp_path)
         agent = _find_agent(result.agents, "code-reviewer")
         assert agent.description == "Custom code reviewer"
-        assert len(result.agents) == 6
+        assert len(result.agents) == len(BUILTIN_AGENT_NAMES)
 
     def test_invalid_custom_does_not_override_builtin(self, tmp_path: Path) -> None:
         """不正なカスタムが同名ビルトインを上書きしない。"""
@@ -640,6 +667,76 @@ class TestBuiltinAgentSystemPromptStructure:
         assert "## Confidence Filtering" in agent.system_prompt, (
             f"{agent_name}: system_prompt does not contain Confidence Filtering section"
         )
+
+
+# =============================================================================
+# security-analyzer — system_prompt 固有検証
+# =============================================================================
+
+
+class TestSecurityAnalyzerPromptSections:
+    """security-analyzer の system_prompt に Issue #320 で追加されたセクションを検証。"""
+
+    @pytest.fixture()
+    def security_prompt(self, builtin_agents: tuple[AgentDefinition, ...]) -> str:
+        """security-analyzer の system_prompt を返す。"""
+        agent = _find_agent(builtin_agents, "security-analyzer")
+        return agent.system_prompt
+
+    def test_contains_exploitability_verification_section(
+        self, security_prompt: str
+    ) -> None:
+        """Exploitability Verification セクションが存在する。"""
+        assert "## Exploitability Verification" in security_prompt
+
+    def test_exploitability_checklist_attacker_controlled(
+        self, security_prompt: str
+    ) -> None:
+        """チェックリスト項目: 攻撃者制御可能性の確認。"""
+        assert "attacker" in security_prompt.lower()
+
+    def test_exploitability_checklist_framework_mitigation(
+        self, security_prompt: str
+    ) -> None:
+        """チェックリスト項目: フレームワーク自動緩和の確認。"""
+        assert "framework" in security_prompt.lower()
+
+    def test_exploitability_checklist_upstream_validation(
+        self, security_prompt: str
+    ) -> None:
+        """チェックリスト項目: 上流バリデーションの確認。"""
+        assert "upstream" in security_prompt.lower()
+
+    def test_contains_safe_patterns_section(self, security_prompt: str) -> None:
+        """安全パターンセクションが存在する。"""
+        assert "## Safe Patterns" in security_prompt
+
+    def test_safe_patterns_orm_parameterized(self, security_prompt: str) -> None:
+        """安全パターン: ORM パラメータ化クエリ。"""
+        assert "parameterized" in security_prompt.lower()
+
+    def test_safe_patterns_template_auto_escaping(self, security_prompt: str) -> None:
+        """安全パターン: テンプレート自動エスケープ。"""
+        assert (
+            "auto-escaping" in security_prompt.lower()
+            or "auto escaping" in security_prompt.lower()
+        )
+
+    def test_safe_patterns_subprocess_list_args(self, security_prompt: str) -> None:
+        """安全パターン: subprocess リスト引数。"""
+        assert "subprocess" in security_prompt.lower()
+
+    def test_bypass_patterns_raw_sql(self, security_prompt: str) -> None:
+        """バイパスパターン: raw SQL。"""
+        assert "raw()" in security_prompt
+
+    def test_bypass_patterns_mark_safe(self, security_prompt: str) -> None:
+        """バイパスパターン: mark_safe。"""
+        assert "mark_safe()" in security_prompt
+
+    def test_bypass_patterns_shell_true(self, security_prompt: str) -> None:
+        """バイパスパターン: shell=True。"""
+        assert "shell=True" in security_prompt
 
 
 # =============================================================================
