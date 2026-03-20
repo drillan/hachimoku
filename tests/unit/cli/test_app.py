@@ -870,7 +870,8 @@ class TestInitSubcommand:
             "--force and --upgrade cannot be used together."
         )
         result = runner.invoke(app, ["init", "--force", "--upgrade"])
-        assert result.exit_code != 0
+        assert result.exit_code == ExitCode.INPUT_ERROR
+        assert "--force and --upgrade cannot be used together" in result.output
 
 
 # --- US4 テスト（file モード: ファイル解決と確認プロンプト） ---

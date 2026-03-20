@@ -441,7 +441,8 @@ def init(
             )
         else:
             print(
-                "\nAll files already exist. Use --force to overwrite.",
+                "\nAll files already exist."
+                " Use --force to overwrite, or --upgrade to add new agents only.",
                 file=sys.stderr,
             )
 
