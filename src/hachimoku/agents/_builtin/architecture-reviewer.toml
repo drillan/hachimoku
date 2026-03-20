@@ -87,8 +87,8 @@ Set overall_score on a 0.0-10.0 scale:
 
 [applicability]
 content_patterns = [
-    "class\\s+\\w+", "from\\s+.*\\s+import\\s+",
-    "import\\s+\\w+", "def\\s+__init__",
-    "@abstractmethod", "@staticmethod", "@classmethod",
-    "ABC\\)", "Protocol\\)"
+    "class\\s+\\w+\\(", "def\\s+__init__",
+    "@abstractmethod", "@overload",
+    "ABC\\)", "Protocol\\)",
+    "from\\s+\\w+\\.\\w+.*\\s+import\\s+"
 ]

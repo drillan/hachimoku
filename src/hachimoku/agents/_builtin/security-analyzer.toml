@@ -80,11 +80,10 @@ Set overall_score on a 0.0-10.0 scale:
 
 [applicability]
 content_patterns = [
-    "subprocess", "os\\.system", "os\\.popen",
+    "subprocess", "os\\.system", "os\\.popen", "shlex",
     "eval\\(", "exec\\(",
     "password", "secret", "token", "api_key", "credential",
     "hashlib", "hmac", "encrypt", "decrypt",
     "\\.execute\\(", "query\\(",
-    "open\\(", "input\\(",
-    "urllib", "requests\\.", "http\\."
+    "urllib", "requests\\."
 ]
