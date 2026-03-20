@@ -43,10 +43,12 @@ def run_git(args: list[str]) -> str:
 
     Returns:
         git コマンドの stdout 出力。
+        git grep でマッチなしの場合（exit code 1）は空文字列を返す。
 
     Raises:
         ValueError: args[0] がホワイトリスト外のサブコマンドの場合。
-        RuntimeError: git コマンドが非ゼロで終了した場合、
+        RuntimeError: git コマンドが非ゼロで終了した場合
+            （ただし grep の exit code 1 を除く）、
             git が PATH 上に見つからない場合、
             またはタイムアウトした場合。
     """
