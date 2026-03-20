@@ -2,7 +2,7 @@
 
 hachimoku's review agents are defined in TOML files.
 It adopts a data-driven architecture that allows adding and customizing agents without code changes.
-Six built-in agents are provided as standard, and project-specific custom agents can also be added.
+Built-in agents are provided as standard, and project-specific custom agents can also be added.
 
 ```{contents}
 :depth: 2
@@ -11,11 +11,12 @@ Six built-in agents are provided as standard, and project-specific custom agents
 
 ## Built-in Agents
 
-The following six agents are included in the package.
+The following seven agents are included in the package.
 
 | Agent Name | Description | Output Schema | Phase | Applicability |
 |------------|-------------|---------------|-------|---------------|
 | code-reviewer | Code quality and bug detection | scored_issues | main | Always applied |
+| dependency-auditor | Dependency security and health auditing | severity_classified | main | content_patterns |
 | silent-failure-hunter | Detection of silent failures | severity_classified | main | content_patterns |
 | pr-test-analyzer | Test coverage assessment | test_gap_assessment | main | file_patterns |
 | type-design-analyzer | Practical analysis of type annotations and type safety | multi_dimensional_analysis | main | file_patterns + content_patterns |
@@ -141,6 +142,7 @@ Condition evaluation logic:
 | Agent | Condition | Patterns |
 |-------|-----------|----------|
 | code-reviewer | `always = true` | - |
+| dependency-auditor | content_patterns | `\[dependencies\]`, `\[project\.dependencies\]`, `\[project\.optional-dependencies\]`, `\[tool\.uv`, `uv\.lock`, `requirements`, `\[build-system\]`, `"dependencies"\s*:`, `"devDependencies"\s*:`, `\[dependencies\.\w+\]`, `\[dev-dependencies\]` |
 | silent-failure-hunter | content_patterns | `try\s*:`, `except\s`, `catch\s*\(`, `\.catch\s*\(` |
 | pr-test-analyzer | file_patterns | `test_*.py`, `*_test.py`, `*.test.ts`, `*.test.js`, `*.spec.ts`, `*.spec.js` |
 | type-design-analyzer | file_patterns + content_patterns | Files: `*.py`, `*.ts`, `*.tsx` / Content: `class\s+\w+`, `interface\s+\w+`, `type\s+\w+\s*=` |
@@ -172,13 +174,13 @@ Holds successfully loaded definitions and skipped error information separately.
 
 ### load_builtin_agents()
 
-Loads the six built-in agent definitions included in the package.
+Loads the seven built-in agent definitions included in the package.
 
 ```{code-block} python
 from hachimoku.agents import load_builtin_agents
 
 result = load_builtin_agents()
-print(len(result.agents))  # 6
+print(len(result.agents))  # 7
 ```
 
 ### load_custom_agents(custom_dir)

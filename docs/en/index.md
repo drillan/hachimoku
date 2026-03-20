@@ -15,9 +15,10 @@ Specify the review target using one of three modes.
 
 ### Agents
 
-Six built-in agents are provided out of the box.
+Seven built-in agents are provided out of the box.
 
 - code-reviewer: Code quality and bug detection
+- dependency-auditor: Dependency security and health auditing
 - silent-failure-hunter: Detection of silent failures
 - pr-test-analyzer: Test coverage assessment
 - type-design-analyzer: Practical analysis of type annotations and type safety

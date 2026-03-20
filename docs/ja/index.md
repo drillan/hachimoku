@@ -15,9 +15,10 @@ hachimoku（8moku）は、複数の専門エージェントを用いてコード
 
 ### エージェント
 
-6つのビルトインエージェントを標準提供します。
+7つのビルトインエージェントを標準提供します。
 
 - code-reviewer: コード品質・バグ検出
+- dependency-auditor: 依存関係のセキュリティ・健全性監査
 - silent-failure-hunter: サイレント障害の検出
 - pr-test-analyzer: テストカバレッジの評価
 - type-design-analyzer: 型アノテーション・型安全性の実用分析
