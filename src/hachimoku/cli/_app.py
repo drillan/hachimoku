@@ -396,16 +396,13 @@ def init(
         bool,
         typer.Option(
             "--upgrade",
-            help="Add new built-in agent definitions only (preserve existing files).",
+            help="Update built-in agent definitions using hash comparison.",
         ),
     ] = False,
 ) -> None:
     """Initialize .hachimoku/ directory with default configuration and agent definitions."""
     try:
         result = run_init(Path.cwd(), force=force, upgrade=upgrade)
-    except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
     except InitError as e:
         print(f"Error: {e}", file=sys.stderr)
         raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
@@ -413,18 +410,25 @@ def init(
     if upgrade:
         for path in result.created:
             print(f"  Added: {path}", file=sys.stderr)
-        for path in result.skipped:
-            print(f"  Skipped (already exists): {path}", file=sys.stderr)
+        for path in result.updated:
+            print(f"  Updated: {path}", file=sys.stderr)
+        for path in result.skipped_customized:
+            print(f"  Skipped (customized): {path}", file=sys.stderr)
+        for path in result.skipped_up_to_date:
+            print(f"  Skipped (up to date): {path}", file=sys.stderr)
 
-        if result.created:
+        total_changed = len(result.created) + len(result.updated)
+        total_skipped = len(result.skipped_customized) + len(result.skipped_up_to_date)
+        if total_changed:
             print(
-                f"\nUpgraded: {len(result.created)} agent(s) added, "
-                f"{len(result.skipped)} already present.",
+                f"\nUpgraded: {len(result.created)} added, "
+                f"{len(result.updated)} updated, "
+                f"{total_skipped} skipped.",
                 file=sys.stderr,
             )
         else:
             print(
-                "\nAll built-in agents already present. Nothing to upgrade.",
+                "\nAll built-in agents are up to date. Nothing to upgrade.",
                 file=sys.stderr,
             )
     else:

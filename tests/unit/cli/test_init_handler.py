@@ -17,9 +17,12 @@ from hachimoku.cli._init_handler import (
     GITIGNORE_SECTION,
     InitError,
     InitResult,
+    _compute_bytes_hash,
+    _compute_file_hash,
     _copy_builtin_agents,
     _ensure_gitignore,
     _generate_config_template,
+    _upgrade_builtin_agents,
     run_init,
 )
 
@@ -49,10 +52,13 @@ class TestInitResult:
     """InitResult モデルのバリデーションを検証する。"""
 
     def test_default_empty_tuples(self) -> None:
-        """デフォルトコンストラクタで created=(), skipped=() となる。"""
+        """デフォルトコンストラクタで全フィールドが空タプルとなる。"""
         result = InitResult()
         assert result.created == ()
+        assert result.updated == ()
         assert result.skipped == ()
+        assert result.skipped_up_to_date == ()
+        assert result.skipped_customized == ()
 
     def test_with_paths(self, tmp_path: Path) -> None:
         """Path オブジェクトのタプルを受け付ける。"""
@@ -61,6 +67,24 @@ class TestInitResult:
         result = InitResult(created=(p1,), skipped=(p2,))
         assert result.created == (p1,)
         assert result.skipped == (p2,)
+
+    def test_updated_field(self, tmp_path: Path) -> None:
+        """updated フィールドが設定可能である。"""
+        p1 = tmp_path / "a.toml"
+        result = InitResult(updated=(p1,))
+        assert result.updated == (p1,)
+
+    def test_skipped_up_to_date_field(self, tmp_path: Path) -> None:
+        """skipped_up_to_date フィールドが設定可能である。"""
+        p1 = tmp_path / "a.toml"
+        result = InitResult(skipped_up_to_date=(p1,))
+        assert result.skipped_up_to_date == (p1,)
+
+    def test_skipped_customized_field(self, tmp_path: Path) -> None:
+        """skipped_customized フィールドが設定可能である。"""
+        p1 = tmp_path / "a.toml"
+        result = InitResult(skipped_customized=(p1,))
+        assert result.skipped_customized == (p1,)
 
     def test_is_frozen(self, tmp_path: Path) -> None:
         """frozen モデルであること。"""
@@ -297,6 +321,137 @@ class TestEnsureGitignore:
 
         with pytest.raises(InitError, match=r"Convert .gitignore to UTF-8"):
             _ensure_gitignore(tmp_path)
+
+
+# --- TestComputeFileHash / TestComputeBytesHash ---
+
+
+class TestComputeFileHash:
+    """_compute_file_hash の動作を検証する。"""
+
+    def test_returns_sha256_hex_string(self, tmp_path: Path) -> None:
+        """SHA-256 の 16 進数文字列（64文字）が返される。"""
+        f = tmp_path / "test.toml"
+        f.write_text("content")
+        result = _compute_file_hash(f)
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_same_content_same_hash(self, tmp_path: Path) -> None:
+        """同一内容のファイルは同一ハッシュを返す。"""
+        f1 = tmp_path / "a.toml"
+        f2 = tmp_path / "b.toml"
+        f1.write_text("same content")
+        f2.write_text("same content")
+        assert _compute_file_hash(f1) == _compute_file_hash(f2)
+
+    def test_different_content_different_hash(self, tmp_path: Path) -> None:
+        """異なる内容のファイルは異なるハッシュを返す。"""
+        f1 = tmp_path / "a.toml"
+        f2 = tmp_path / "b.toml"
+        f1.write_text("content A")
+        f2.write_text("content B")
+        assert _compute_file_hash(f1) != _compute_file_hash(f2)
+
+
+class TestComputeBytesHash:
+    """_compute_bytes_hash の動作を検証する。"""
+
+    def test_returns_sha256_hex_string(self) -> None:
+        """SHA-256 の 16 進数文字列（64文字）が返される。"""
+        result = _compute_bytes_hash(b"content")
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_matches_file_hash(self, tmp_path: Path) -> None:
+        """ファイルのハッシュとバイト列のハッシュが一致する。"""
+        content = b"test content for hash"
+        f = tmp_path / "test.toml"
+        f.write_bytes(content)
+        assert _compute_file_hash(f) == _compute_bytes_hash(content)
+
+
+# --- TestUpgradeBuiltinAgents ---
+
+
+class TestUpgradeBuiltinAgents:
+    """_upgrade_builtin_agents の動作を検証する。"""
+
+    def test_adds_missing_agents(self, tmp_path: Path) -> None:
+        """存在しないエージェントが全て追加される。"""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        created, updated, up_to_date, customized = _upgrade_builtin_agents(
+            agents_dir, force=False
+        )
+        assert len(created) == len(BUILTIN_AGENT_NAMES)
+        assert updated == []
+        assert up_to_date == []
+        assert customized == []
+
+    def test_skips_up_to_date_agents(self, tmp_path: Path) -> None:
+        """ビルトインと同一内容のファイルは up to date としてスキップされる。"""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        # 初回コピーでビルトインと同一内容を配置
+        _copy_builtin_agents(agents_dir, force=False)
+
+        created, updated, up_to_date, customized = _upgrade_builtin_agents(
+            agents_dir, force=False
+        )
+        assert created == []
+        assert updated == []
+        assert len(up_to_date) == len(BUILTIN_AGENT_NAMES)
+        assert customized == []
+
+    def test_skips_customized_agents(self, tmp_path: Path) -> None:
+        """カスタマイズ済みファイルはスキップされる。"""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        # ビルトインと異なる内容で配置
+        existing = agents_dir / "code-reviewer.toml"
+        existing.write_text("# customized by user")
+
+        created, _updated, _up_to_date, customized = _upgrade_builtin_agents(
+            agents_dir, force=False
+        )
+        assert existing in customized
+        assert existing not in created
+
+    def test_customized_content_preserved(self, tmp_path: Path) -> None:
+        """カスタマイズ済みファイルの内容が変更されない。"""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        existing = agents_dir / "code-reviewer.toml"
+        existing.write_text("# customized by user")
+
+        _upgrade_builtin_agents(agents_dir, force=False)
+        assert existing.read_text() == "# customized by user"
+
+    def test_force_updates_customized_agents(self, tmp_path: Path) -> None:
+        """force=True でカスタマイズ済みファイルが上書きされる。"""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        existing = agents_dir / "code-reviewer.toml"
+        existing.write_text("# customized by user")
+
+        _created, updated, _up_to_date, _customized = _upgrade_builtin_agents(
+            agents_dir, force=True
+        )
+        assert existing in updated
+        assert existing.read_text() != "# customized by user"
+
+    def test_force_skips_up_to_date(self, tmp_path: Path) -> None:
+        """force=True でもビルトインと同一のファイルはスキップされる。"""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        _copy_builtin_agents(agents_dir, force=False)
+
+        _created, updated, up_to_date, _customized = _upgrade_builtin_agents(
+            agents_dir, force=True
+        )
+        assert updated == []
+        assert len(up_to_date) == len(BUILTIN_AGENT_NAMES)
 
 
 # --- TestCopyBuiltinAgents ---
@@ -575,12 +730,7 @@ class TestRunInit:
 
 
 class TestRunInitUpgrade:
-    """run_init(upgrade=True) のテスト。Issue #317."""
-
-    def test_force_and_upgrade_raises_value_error(self, tmp_path: Path) -> None:
-        """force=True と upgrade=True の同時指定で ValueError が送出される。"""
-        with pytest.raises(ValueError, match="force.*upgrade"):
-            run_init(tmp_path, force=True, upgrade=True)
+    """run_init(upgrade=True) のテスト。Issue #317, #330."""
 
     def test_upgrade_adds_missing_agents(self, tmp_path: Path) -> None:
         """ビルトインに存在するが agents/ に存在しないエージェントのみ追加される。"""
@@ -589,15 +739,15 @@ class TestRunInitUpgrade:
         hachimoku_dir.mkdir()
         agents_dir = hachimoku_dir / "agents"
         agents_dir.mkdir()
-        # 1つだけ事前作成
+        # 1つだけ事前作成（カスタマイズ内容）
         (agents_dir / "code-reviewer.toml").write_text("custom content")
 
         result = run_init(tmp_path, upgrade=True)
         # code-reviewer.toml 以外の全ビルトインが追加される
         assert len(result.created) == len(BUILTIN_AGENT_NAMES) - 1
 
-    def test_upgrade_skips_existing_agents(self, tmp_path: Path) -> None:
-        """既存のエージェント TOML が上書きされない。"""
+    def test_upgrade_skips_customized_agents(self, tmp_path: Path) -> None:
+        """カスタマイズ済みエージェント TOML が skipped_customized に分類される。"""
         (tmp_path / ".git").mkdir()
         hachimoku_dir = tmp_path / ".hachimoku"
         hachimoku_dir.mkdir()
@@ -607,7 +757,7 @@ class TestRunInitUpgrade:
         existing.write_text("custom content")
 
         result = run_init(tmp_path, upgrade=True)
-        assert existing in result.skipped
+        assert existing in result.skipped_customized
         assert existing not in result.created
 
     def test_upgrade_preserves_existing_agent_content(self, tmp_path: Path) -> None:
@@ -646,7 +796,6 @@ class TestRunInitUpgrade:
         result = run_init(tmp_path, upgrade=True)
         assert config_path.read_text() == "# user custom config"
         assert config_path not in result.created
-        assert config_path not in result.skipped
 
     def test_upgrade_skips_gitignore(self, tmp_path: Path) -> None:
         """upgrade 時に .gitignore が変更されない。"""
@@ -686,7 +835,13 @@ class TestRunInitUpgrade:
         agents_dir.mkdir()
 
         result = run_init(tmp_path, upgrade=True)
-        for path in (*result.created, *result.skipped):
+        all_paths = (
+            *result.created,
+            *result.updated,
+            *result.skipped_up_to_date,
+            *result.skipped_customized,
+        )
+        for path in all_paths:
             assert path.parent == agents_dir
 
     def test_upgrade_preserves_custom_agents(self, tmp_path: Path) -> None:
@@ -702,12 +857,92 @@ class TestRunInitUpgrade:
         assert custom_agent.exists()
         assert custom_agent.read_text() == "# custom agent"
 
-    def test_upgrade_noop_when_all_present(self, tmp_path: Path) -> None:
-        """全ビルトインエージェントが既に存在する場合、何も作成されない。"""
+    def test_upgrade_up_to_date_when_all_match(self, tmp_path: Path) -> None:
+        """全ビルトインがローカルと同一ハッシュの場合、skipped_up_to_date に分類される。"""
         (tmp_path / ".git").mkdir()
-        # 通常の init で全ファイル作成
+        # 通常の init で全ファイル作成（ビルトインと同一内容）
         run_init(tmp_path)
 
         result = run_init(tmp_path, upgrade=True)
         assert len(result.created) == 0
-        assert len(result.skipped) == len(BUILTIN_AGENT_NAMES)
+        assert len(result.updated) == 0
+        assert len(result.skipped_up_to_date) == len(BUILTIN_AGENT_NAMES)
+        assert len(result.skipped_customized) == 0
+
+    def test_upgrade_hash_mismatch_classified_as_customized(
+        self, tmp_path: Path
+    ) -> None:
+        """ハッシュ不一致のファイルが skipped_customized に分類される。"""
+        (tmp_path / ".git").mkdir()
+        run_init(tmp_path)
+        # 1つのファイルをカスタマイズ
+        agents_dir = tmp_path / ".hachimoku" / "agents"
+        customized = agents_dir / "code-reviewer.toml"
+        customized.write_text("# user modified")
+
+        result = run_init(tmp_path, upgrade=True)
+        assert customized in result.skipped_customized
+        assert len(result.skipped_up_to_date) == len(BUILTIN_AGENT_NAMES) - 1
+
+
+class TestRunInitUpgradeForce:
+    """run_init(upgrade=True, force=True) のテスト。Issue #330."""
+
+    def test_upgrade_force_overwrites_customized(self, tmp_path: Path) -> None:
+        """--upgrade --force でカスタマイズ済みファイルが上書きされる。"""
+        (tmp_path / ".git").mkdir()
+        run_init(tmp_path)
+        agents_dir = tmp_path / ".hachimoku" / "agents"
+        customized = agents_dir / "code-reviewer.toml"
+        customized.write_text("# user modified")
+
+        result = run_init(tmp_path, force=True, upgrade=True)
+        assert customized in result.updated
+        assert customized.read_text() != "# user modified"
+
+    def test_upgrade_force_skips_up_to_date(self, tmp_path: Path) -> None:
+        """--upgrade --force でも最新ファイルはスキップされる。"""
+        (tmp_path / ".git").mkdir()
+        run_init(tmp_path)
+
+        result = run_init(tmp_path, force=True, upgrade=True)
+        assert len(result.updated) == 0
+        assert len(result.skipped_up_to_date) == len(BUILTIN_AGENT_NAMES)
+
+    def test_upgrade_force_skips_config_toml(self, tmp_path: Path) -> None:
+        """--upgrade --force でも config.toml には触れない。"""
+        hachimoku_dir = tmp_path / ".hachimoku"
+        hachimoku_dir.mkdir()
+        agents_dir = hachimoku_dir / "agents"
+        agents_dir.mkdir()
+        config_path = hachimoku_dir / "config.toml"
+        config_path.write_text("# user config")
+
+        run_init(tmp_path, force=True, upgrade=True)
+        assert config_path.read_text() == "# user config"
+
+    def test_upgrade_force_skips_gitignore(self, tmp_path: Path) -> None:
+        """--upgrade --force でも .gitignore には触れない。"""
+        (tmp_path / ".git").mkdir()
+
+        run_init(tmp_path, force=True, upgrade=True)
+        assert not (tmp_path / ".gitignore").exists()
+
+    def test_upgrade_force_skips_reviews_dir(self, tmp_path: Path) -> None:
+        """--upgrade --force でも reviews/ ディレクトリは作成されない。"""
+        run_init(tmp_path, force=True, upgrade=True)
+        assert not (tmp_path / ".hachimoku" / "reviews").exists()
+
+    def test_upgrade_force_result_has_updated(self, tmp_path: Path) -> None:
+        """--upgrade --force の結果に updated フィールドが正しく含まれる。"""
+        (tmp_path / ".git").mkdir()
+        run_init(tmp_path)
+        # 全ファイルをカスタマイズ
+        agents_dir = tmp_path / ".hachimoku" / "agents"
+        for toml_file in agents_dir.glob("*.toml"):
+            toml_file.write_text("# modified")
+
+        result = run_init(tmp_path, force=True, upgrade=True)
+        assert len(result.updated) == len(BUILTIN_AGENT_NAMES)
+        assert len(result.created) == 0
+        assert len(result.skipped_up_to_date) == 0
