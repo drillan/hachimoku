@@ -19,6 +19,8 @@ from hachimoku.models.agent_result import (
 )
 from hachimoku.models.report import (
     AggregatedReport,
+    Contradiction,
+    QualityFilteredIssue,
     ReviewReport,
     ReviewSummary,
 )
@@ -212,7 +214,33 @@ def _format_aggregated(aggregated: AggregatedReport) -> str:
         failure_lines = "\n".join(f"- {f}" for f in aggregated.agent_failures)
         parts.append(f"\n### Agent Failures\n\n{failure_lines}")
 
+    if aggregated.contradictions:
+        parts.append(_format_contradictions(aggregated.contradictions))
+
+    if aggregated.quality_filtered:
+        parts.append(_format_quality_filtered(aggregated.quality_filtered))
+
     return "\n".join(parts)
+
+
+def _format_contradictions(contradictions: list[Contradiction]) -> str:
+    lines: list[str] = []
+    for c in contradictions:
+        agents = ", ".join(c.agent_names)
+        line = f"- {c.description} (agents: {agents})"
+        if c.file_path is not None:
+            line += f" at `{c.file_path}`"
+        lines.append(line)
+    return "\n### Contradictions\n\n" + "\n".join(lines)
+
+
+def _format_quality_filtered(
+    quality_filtered: list[QualityFilteredIssue],
+) -> str:
+    lines: list[str] = []
+    for qf in quality_filtered:
+        lines.append(f"- **{qf.agent_name}**: {qf.description} — *{qf.reason}*")
+    return "\n### Quality Filtered\n\n" + "\n".join(lines)
 
 
 # ── Load Errors ──────────────────────────────────────────

@@ -340,6 +340,8 @@
   - `recommended_actions: list[RecommendedAction]`（優先度付き対応推奨。RecommendedAction は `description: str` と `priority: Priority` を持つ。Priority enum を使用）
   - `agent_failures: list[str]`（失敗したエージェント名のリスト。集約結果のみを参照する消費者にレビューの不完全性を通知する）
   - `overall_score: float`（0.0-10.0、総合品質スコア。各エージェントのスコアと指摘内容に基づいて集約エージェントが算出する。Issue #280）
+  - `contradictions: list[Contradiction]`（検出された矛盾リスト。Contradiction は `description: str`、`agent_names: list[str]`、`file_path: str | None` を持つ。デフォルト空リスト。Issue #322）
+  - `quality_filtered: list[QualityFilteredIssue]`（品質ゲートで除外された指摘リスト。QualityFilteredIssue は `agent_name: str`、`description: str`、`reason: str` を持つ。デフォルト空リスト。Issue #322）
 
 - **FR-RE-019**: システムは設定で LLM ベース集約の有効/無効を切替可能にしなければならない（Issue #152）。デフォルトは有効（`aggregation.enabled = true`）。無効の場合、FR-RE-002 Step 9.5 をスキップし `ReviewReport.aggregated = None` となる
 
@@ -360,7 +362,9 @@
 - **SelectorAgent（セレクターエージェント）**: pydantic-ai エージェントとして実行されるエージェント選択処理。SelectorDefinition（TOML 定義）からシステムプロンプト・モデル・許可ツールを取得し、SelectorConfig（設定）によるオーバーライド（モデル・タイムアウト・ターン数）を適用する。レビュー指示情報と利用可能なエージェント定義一覧（名前・説明・適用ルール・フェーズ）をプロンプトで受け取り、SelectorDefinition.allowed_tools で許可されたツールでレビュー対象を調査した上で、実行すべきエージェント名のリストをフェーズ順で構造化出力として返す。003-agent-definition の `file_patterns` / `content_patterns` は判断ガイダンスとして機能する
 - **ToolCatalog（ツールカタログ）**: エージェントに許可されるツールのカテゴリ定義と、カテゴリ名から pydantic-ai ツールオブジェクトへのマッピングを管理する処理。読み取り専用の4カテゴリ（`git_read`, `gh_read`, `file_read`, `web_fetch`）を登録する。`git_read`・`gh_read`・`file_read` は pydantic-ai の `Tool` として登録し、`web_fetch` は pydantic-ai の `WebFetchTool` ビルトインとして登録する。エージェント定義の `allowed_tools` バリデーション（ガードレール）と、実行時のツール解決を担当する
 - **AggregatorDefinition（集約エージェント定義）**: 集約エージェントの TOML 定義情報。SelectorDefinition と同じアーキテクチャパターンに従う。名前（`"aggregator"` 固定）、説明、モデル名、システムプロンプトを保持する。ビルトインの `aggregator.toml` から読み込まれ、カスタムの `aggregator.toml` で上書き可能。`allowed_tools` は持たない（Issue #152）
-- **AggregatedReport（集約レポート）**: 集約エージェントの構造化出力。重複排除された `issues`（`ReviewIssue`）、`strengths`（`list[str]`）、優先度付き `recommended_actions`（`list[RecommendedAction]`）、`agent_failures`（`list[str]`）を含む（Issue #152）
+- **AggregatedReport（集約レポート）**: 集約エージェントの構造化出力。重複排除された `issues`（`ReviewIssue`）、`strengths`（`list[str]`）、優先度付き `recommended_actions`（`list[RecommendedAction]`）、`agent_failures`（`list[str]`）、矛盾検出結果 `contradictions`（`list[Contradiction]`）、品質フィルタリング結果 `quality_filtered`（`list[QualityFilteredIssue]`）を含む（Issue #152, #322）
+- **Contradiction（矛盾検出）**: 複数エージェント間の矛盾する指摘。`description: str`（矛盾の説明）、`agent_names: list[str]`（関与エージェント名）、`file_path: str | None`（発生箇所）を持つ（Issue #322）
+- **QualityFilteredIssue（品質フィルタリング結果）**: 品質ゲートで除外された指摘の記録。`agent_name: str`（元のエージェント名）、`description: str`（指摘概要）、`reason: str`（フィルタリング理由）を持つ（Issue #322）
 - **RecommendedAction（推奨アクション）**: 集約エージェントが生成する対応推奨。`description: str`（推奨内容）と `priority: Priority`（high/medium/low）を持つ（Issue #152）
 
 ## Success Criteria *(mandatory)*
