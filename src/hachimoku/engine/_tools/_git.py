@@ -24,6 +24,9 @@ ALLOWED_GIT_SUBCOMMANDS: Final[frozenset[str]] = frozenset(
 )
 """読み取り専用の git サブコマンド。"""
 
+_NO_MATCH_EXIT_CODE_SUBCOMMANDS: Final[frozenset[str]] = frozenset({"grep"})
+"""exit code 1 が「マッチなし」を意味するサブコマンド。"""
+
 _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 """subprocess.run のタイムアウト秒数。"""
 
@@ -51,6 +54,8 @@ def run_git(args: list[str]) -> str:
         subcmd = args[0] if args else "(empty)"
         raise ValueError(f"git subcommand '{subcmd}' is not allowed")
 
+    subcmd = args[0]
+
     try:
         result = subprocess.run(
             ["git", *args],
@@ -68,6 +73,8 @@ def run_git(args: list[str]) -> str:
             f"git command timed out after {_SUBPROCESS_TIMEOUT_SECONDS}s"
         ) from e
     except subprocess.CalledProcessError as e:
+        if e.returncode == 1 and subcmd in _NO_MATCH_EXIT_CODE_SUBCOMMANDS:
+            return ""
         raise RuntimeError(f"git command failed: {e.stderr}") from e
 
     return result.stdout

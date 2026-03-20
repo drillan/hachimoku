@@ -67,6 +67,37 @@ class TestRunGitWhitelist:
                 run_git([cmd])
 
 
+class TestRunGitGrepNoMatch:
+    """git grep でマッチなしの場合（exit code 1）のテスト。"""
+
+    def test_grep_no_match_returns_empty_string(self) -> None:
+        """git grep でマッチなしの exit code 1 は空文字列を返す。"""
+        with patch("hachimoku.engine._tools._git.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1, ["git", "grep", "pattern"], output="", stderr=""
+            )
+            result = run_git(["grep", "pattern"])
+            assert result == ""
+
+    def test_grep_error_raises_runtime_error(self) -> None:
+        """git grep のエラー（exit code 2）は RuntimeError を送出する。"""
+        with patch("hachimoku.engine._tools._git.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                2, ["git", "grep", "pattern"], stderr="fatal: bad regex"
+            )
+            with pytest.raises(RuntimeError, match="git command failed"):
+                run_git(["grep", "pattern"])
+
+    def test_diff_error_still_raises_runtime_error(self) -> None:
+        """git grep 以外（diff 等）の exit code 1 は引き続き RuntimeError。"""
+        with patch("hachimoku.engine._tools._git.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1, ["git", "diff"], stderr="fatal error"
+            )
+            with pytest.raises(RuntimeError, match="git command failed"):
+                run_git(["diff", "main"])
+
+
 class TestRunGitExecution:
     """run_git のコマンド実行を検証。"""
 
