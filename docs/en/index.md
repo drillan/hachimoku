@@ -15,7 +15,7 @@ Specify the review target using one of three modes.
 
 ### Agents
 
-Seven built-in agents are provided out of the box.
+Multiple built-in agents are provided out of the box.
 
 - code-reviewer: Code quality and bug detection
 - dependency-auditor: Dependency security and health auditing
