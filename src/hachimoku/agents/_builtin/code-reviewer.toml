@@ -24,6 +24,14 @@ When a diff adds or modifies a return type, use run_git(["log", "-p", "-S", "the
 Do not report caller impact speculatively. Only flag issues where you have read the caller code and confirmed the incompatibility.
 If you cannot complete the investigation due to tool call limits, list the files or callers you were unable to verify in your output.
 
+## Turn Budget Strategy
+You have a limited number of tool calls available. Exceeding this limit terminates your execution and discards all findings. Producing a complete result with partial investigation is always better than exhaustive investigation with no result.
+Follow these rules to manage your budget:
+1. Quick scan phase: Start with run_git(["diff", "--name-only"]) and run_git(["diff"]) for changed files only. Do not use run_git(["ls-files"]) or read unrelated files until you have assessed the diff.
+2. Scope your investigation: Limit cross-file verification (caller tracing, exception handling checks) to at most 5 read_file calls beyond the changed files. If more files need checking, list the unverified files in your output instead of reading them.
+3. Documentation-only changes: When the diff contains only documentation files (.md, .rst, .txt, .adoc), skip call-site verification entirely. Focus on content accuracy and structural issues.
+4. Output priority: After your investigation, you must produce your structured output. Never spend your remaining budget on additional verification at the expense of producing a result.
+
 ## Severity Criteria
 - Critical: Security vulnerabilities, data corruption, crashes in production paths.
 - Important: Bugs causing incorrect behavior, missing error handling for likely failures.

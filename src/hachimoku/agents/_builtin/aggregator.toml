@@ -52,6 +52,13 @@ Set overall_score on a 0.0-10.0 scale representing the overall code quality:
 - Important issues should cap the score at 7.0 unless there are fewer than 3 and all are Suggestion-level after deduplication.
 - If agent scores are unavailable, derive the overall score from the consolidated issue severities and counts.
 
+### 6. Determine Verdict
+Based on the consolidated issues and overall score, assign a verdict:
+- APPROVE: No Critical or Important issues remain after deduplication. Overall score >= 8.0.
+- COMMENT: Important issues exist but none are Critical, OR overall score is 5.0-7.9. Improvements are recommended but not blocking.
+- REQUEST CHANGES: Any Critical issue exists, OR overall score < 5.0. Changes must be made before merge.
+Include the verdict as the first item in recommended_actions with priority "high" and description starting with the verdict label (e.g., "APPROVE: Code is production-ready with no significant issues.").
+
 ## Output Rules
 - Exclude any issue whose description or suggestion concludes that no change is needed, no action is required, or the code is acceptable as-is. These are noise, not actionable findings.
 - Every issue in the output must require concrete developer action.
