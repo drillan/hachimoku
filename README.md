@@ -85,7 +85,7 @@ Default configuration files and agent definitions are created in the `.hachimoku
 | Command | Description |
 |---------|-------------|
 | `8moku [OPTIONS] [ARGS]` | Run a code review (default) |
-| `8moku init [--force]` | Initialize the `.hachimoku/` directory |
+| `8moku init [--force \| --upgrade]` | Initialize the `.hachimoku/` directory |
 | `8moku agents [NAME]` | List or show details of agent definitions |
 
 Main review options:

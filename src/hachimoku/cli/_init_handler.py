@@ -184,60 +184,82 @@ def _copy_builtin_agents(
     return created, skipped
 
 
-def run_init(project_root: Path, *, force: bool = False) -> InitResult:
+def run_init(
+    project_root: Path, *, force: bool = False, upgrade: bool = False
+) -> InitResult:
     """init コマンドのビジネスロジックを実行する。
 
-    手順:
+    手順（通常モード）:
     1. .hachimoku/ ディレクトリ作成
     2. .hachimoku/config.toml 生成（コメント付きテンプレート）
     3. .hachimoku/agents/ にビルトインエージェント定義コピー
     4. .hachimoku/reviews/ ディレクトリ作成
     5. Git リポジトリ内のみ、.gitignore に /.hachimoku/ エントリを追加
 
+    upgrade モード（upgrade=True）:
+    エージェント定義のみを対象とし、ビルトインに存在するが
+    .hachimoku/agents/ に存在しないエージェントのみ追加する。
+    config.toml、reviews/、.gitignore には一切触れない。
+
     Args:
         project_root: プロジェクトルートディレクトリ。
         force: True の場合、既存ファイルを上書きする。
+        upgrade: True の場合、新規エージェント定義のみ追加する。
 
     Returns:
         InitResult: 作成・スキップされたファイル情報。
 
     Raises:
         InitError: ファイルシステム操作エラー等。
+        ValueError: force と upgrade が同時に True の場合。
     """
+    if force and upgrade:
+        raise ValueError("--force and --upgrade cannot be used together.")
+
     hachimoku_dir = project_root / ".hachimoku"
-    config_path = hachimoku_dir / "config.toml"
     agents_dir = hachimoku_dir / "agents"
-    reviews_dir = hachimoku_dir / "reviews"
 
     created: list[Path] = []
     skipped: list[Path] = []
 
     try:
-        # ディレクトリ作成（常に exist_ok=True で安全）
-        hachimoku_dir.mkdir(parents=True, exist_ok=True)
-        agents_dir.mkdir(exist_ok=True)
-        reviews_dir.mkdir(exist_ok=True)
+        if upgrade:
+            # upgrade モード: エージェント定義のみ追加
+            hachimoku_dir.mkdir(parents=True, exist_ok=True)
+            agents_dir.mkdir(exist_ok=True)
 
-        # config.toml 生成
-        if config_path.exists() and not force:
-            skipped.append(config_path)
+            agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=False)
+            created.extend(agent_created)
+            skipped.extend(agent_skipped)
         else:
-            config_path.write_text(_generate_config_template(), encoding="utf-8")
-            created.append(config_path)
+            # 通常モード
+            config_path = hachimoku_dir / "config.toml"
+            reviews_dir = hachimoku_dir / "reviews"
 
-        # ビルトインエージェント定義コピー
-        agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
-        created.extend(agent_created)
-        skipped.extend(agent_skipped)
+            hachimoku_dir.mkdir(parents=True, exist_ok=True)
+            agents_dir.mkdir(exist_ok=True)
+            reviews_dir.mkdir(exist_ok=True)
 
-        # .gitignore に /.hachimoku/ エントリを追加（Git リポジトリ内のみ）
-        if (project_root / ".git").exists():
-            gitignore_path = project_root / ".gitignore"
-            gitignore_result = _ensure_gitignore(project_root)
-            if gitignore_result == "created":
-                created.append(gitignore_path)
+            # config.toml 生成
+            if config_path.exists() and not force:
+                skipped.append(config_path)
             else:
-                skipped.append(gitignore_path)
+                config_path.write_text(_generate_config_template(), encoding="utf-8")
+                created.append(config_path)
+
+            # ビルトインエージェント定義コピー
+            agent_created, agent_skipped = _copy_builtin_agents(agents_dir, force=force)
+            created.extend(agent_created)
+            skipped.extend(agent_skipped)
+
+            # .gitignore に /.hachimoku/ エントリを追加（Git リポジトリ内のみ）
+            if (project_root / ".git").exists():
+                gitignore_path = project_root / ".gitignore"
+                gitignore_result = _ensure_gitignore(project_root)
+                if gitignore_result == "created":
+                    created.append(gitignore_path)
+                else:
+                    skipped.append(gitignore_path)
     except OSError as e:
         raise InitError(
             f"Failed to initialize .hachimoku/: {e}\n"

@@ -392,30 +392,58 @@ def init(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files with defaults.")
     ] = False,
+    upgrade: Annotated[
+        bool,
+        typer.Option(
+            "--upgrade",
+            help="Add new built-in agent definitions only (preserve existing files).",
+        ),
+    ] = False,
 ) -> None:
     """Initialize .hachimoku/ directory with default configuration and agent definitions."""
     try:
-        result = run_init(Path.cwd(), force=force)
+        result = run_init(Path.cwd(), force=force, upgrade=upgrade)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
     except InitError as e:
         print(f"Error: {e}", file=sys.stderr)
         raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
 
-    for path in result.created:
-        print(f"  Created: {path}", file=sys.stderr)
-    for path in result.skipped:
-        print(f"  Skipped (already exists): {path}", file=sys.stderr)
+    if upgrade:
+        for path in result.created:
+            print(f"  Added: {path}", file=sys.stderr)
+        for path in result.skipped:
+            print(f"  Skipped (already exists): {path}", file=sys.stderr)
 
-    if result.created:
-        print(
-            f"\nInitialized .hachimoku/ "
-            f"({len(result.created)} created, {len(result.skipped)} skipped).",
-            file=sys.stderr,
-        )
+        if result.created:
+            print(
+                f"\nUpgraded: {len(result.created)} agent(s) added, "
+                f"{len(result.skipped)} already present.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "\nAll built-in agents already present. Nothing to upgrade.",
+                file=sys.stderr,
+            )
     else:
-        print(
-            "\nAll files already exist. Use --force to overwrite.",
-            file=sys.stderr,
-        )
+        for path in result.created:
+            print(f"  Created: {path}", file=sys.stderr)
+        for path in result.skipped:
+            print(f"  Skipped (already exists): {path}", file=sys.stderr)
+
+        if result.created:
+            print(
+                f"\nInitialized .hachimoku/ "
+                f"({len(result.created)} created, {len(result.skipped)} skipped).",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "\nAll files already exist. Use --force to overwrite.",
+                file=sys.stderr,
+            )
 
 
 @app.command()
