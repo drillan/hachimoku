@@ -84,6 +84,9 @@ content_patterns = [
     "\\.fetchall\\(", "\\.fetchone\\(",
     "\\.read\\(", "\\.write\\(", "\\.readlines\\(",
     "sleep\\(", "Lock\\(", "Semaphore\\(",
-    "async\\s+def", "await\\s+",
-    "\\.connect\\(", "\\.close\\("
+    "async\\s+def", "async\\s+fn",
+    "await\\s+", "\\.await",
+    "\\.connect\\(", "\\.close\\(",
+    "spawn", "Mutex", "RwLock",
+    "checkpoint", "batch", "throttle"
 ]

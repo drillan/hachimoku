@@ -90,5 +90,8 @@ content_patterns = [
     "class\\s+\\w+\\(", "def\\s+__init__",
     "@abstractmethod", "@overload",
     "ABC\\)", "Protocol\\)",
-    "from\\s+\\w+\\.\\w+.*\\s+import\\s+"
+    "from\\s+\\w+\\.\\w+.*\\s+import\\s+",
+    "trait\\s+\\w+", "impl\\s+\\w+\\s+for",
+    "dyn\\s+\\w+", "pub\\s+mod\\s+",
+    "interface\\s+\\w+", "extends\\s+\\w+"
 ]

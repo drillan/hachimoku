@@ -85,5 +85,7 @@ content_patterns = [
     "password", "secret", "token", "api_key", "credential",
     "hashlib", "hmac", "encrypt", "decrypt",
     "\\.execute\\(", "query\\(",
-    "urllib", "requests\\."
+    "urllib", "requests\\.",
+    "unsafe\\s", "Command::new", "std::process",
+    "sql!", "raw_sql", "sqlx::query"
 ]
