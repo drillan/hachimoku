@@ -17,7 +17,9 @@ from hachimoku.models.agent_result import (
 )
 from hachimoku.models.report import (
     AggregatedReport,
+    Contradiction,
     Priority,
+    QualityFilteredIssue,
     RecommendedAction,
     ReviewReport,
     ReviewSummary,
@@ -656,3 +658,264 @@ class TestAggregatedReportOverallScore:
                 agent_failures=[],
                 overall_score=10.1,
             )
+
+
+# =============================================================================
+# Contradiction (Issue #322)
+# =============================================================================
+
+
+class TestContradictionValid:
+    """Contradiction の正常系を検証。"""
+
+    def test_valid_contradiction(self) -> None:
+        """正常値でインスタンス生成が成功する。"""
+        c = Contradiction(
+            description="Agent A says over-engineering, Agent B says SOLID violation",
+            agent_names=["security-analyzer", "code-reviewer"],
+            file_path="src/auth.py",
+        )
+        assert (
+            c.description
+            == "Agent A says over-engineering, Agent B says SOLID violation"
+        )
+        assert c.agent_names == ["security-analyzer", "code-reviewer"]
+        assert c.file_path == "src/auth.py"
+
+    def test_file_path_none_accepted(self) -> None:
+        """file_path=None（箇所特定不可）で成功する。"""
+        c = Contradiction(
+            description="Contradicting advice on error handling strategy",
+            agent_names=["agent-a", "agent-b"],
+        )
+        assert c.file_path is None
+
+    def test_multiple_agents(self) -> None:
+        """3つ以上のエージェント名で成功する。"""
+        c = Contradiction(
+            description="Three-way conflict",
+            agent_names=["a", "b", "c"],
+        )
+        assert len(c.agent_names) == 3
+
+
+class TestContradictionConstraints:
+    """Contradiction の制約違反を検証。"""
+
+    def test_empty_description_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="description"):
+            Contradiction(
+                description="",
+                agent_names=["a", "b"],
+            )
+
+    def test_missing_description_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            Contradiction(agent_names=["a", "b"])  # type: ignore[call-arg]
+
+    def test_missing_agent_names_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            Contradiction(description="conflict")  # type: ignore[call-arg]
+
+    def test_extra_field_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            Contradiction(
+                description="conflict",
+                agent_names=["a", "b"],
+                severity="high",  # type: ignore[call-arg]
+            )
+
+    def test_frozen(self) -> None:
+        """frozen=True のためフィールド変更が拒否される。"""
+        c = Contradiction(
+            description="conflict",
+            agent_names=["a", "b"],
+        )
+        with pytest.raises(ValidationError):
+            c.description = "changed"  # type: ignore[misc]
+
+
+# =============================================================================
+# QualityFilteredIssue (Issue #322)
+# =============================================================================
+
+
+class TestQualityFilteredIssueValid:
+    """QualityFilteredIssue の正常系を検証。"""
+
+    def test_valid_quality_filtered_issue(self) -> None:
+        """正常値でインスタンス生成が成功する。"""
+        qf = QualityFilteredIssue(
+            agent_name="code-reviewer",
+            description="Vague suggestion about code quality",
+            reason="Suggestion lacks concrete action",
+        )
+        assert qf.agent_name == "code-reviewer"
+        assert qf.description == "Vague suggestion about code quality"
+        assert qf.reason == "Suggestion lacks concrete action"
+
+
+class TestQualityFilteredIssueConstraints:
+    """QualityFilteredIssue の制約違反を検証。"""
+
+    def test_empty_description_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="description"):
+            QualityFilteredIssue(
+                agent_name="agent",
+                description="",
+                reason="empty description",
+            )
+
+    def test_empty_reason_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="reason"):
+            QualityFilteredIssue(
+                agent_name="agent",
+                description="some issue",
+                reason="",
+            )
+
+    def test_missing_agent_name_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            QualityFilteredIssue(  # type: ignore[call-arg]
+                description="issue",
+                reason="reason",
+            )
+
+    def test_extra_field_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            QualityFilteredIssue(
+                agent_name="agent",
+                description="issue",
+                reason="reason",
+                severity="high",  # type: ignore[call-arg]
+            )
+
+    def test_frozen(self) -> None:
+        """frozen=True のためフィールド変更が拒否される。"""
+        qf = QualityFilteredIssue(
+            agent_name="agent",
+            description="issue",
+            reason="reason",
+        )
+        with pytest.raises(ValidationError):
+            qf.description = "changed"  # type: ignore[misc]
+
+
+# =============================================================================
+# AggregatedReport with contradictions / quality_filtered (Issue #322)
+# =============================================================================
+
+
+class TestAggregatedReportContradictions:
+    """AggregatedReport の contradictions フィールドを検証。"""
+
+    def test_contradictions_default_empty(self) -> None:
+        """contradictions 省略時に空リストとなる。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=8.0,
+        )
+        assert agg.contradictions == []
+
+    def test_contradictions_accepts_list(self) -> None:
+        """contradictions に Contradiction リストを渡せる。"""
+        c = Contradiction(
+            description="Over-engineering vs SOLID violation",
+            agent_names=["agent-a", "agent-b"],
+            file_path="src/handler.py",
+        )
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=7.0,
+            contradictions=[c],
+        )
+        assert len(agg.contradictions) == 1
+        assert (
+            agg.contradictions[0].description == "Over-engineering vs SOLID violation"
+        )
+
+    def test_multiple_contradictions(self) -> None:
+        """複数の矛盾を保持できる。"""
+        cs = [
+            Contradiction(
+                description="Conflict 1",
+                agent_names=["a", "b"],
+            ),
+            Contradiction(
+                description="Conflict 2",
+                agent_names=["c", "d"],
+                file_path="src/main.py",
+            ),
+        ]
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=6.0,
+            contradictions=cs,
+        )
+        assert len(agg.contradictions) == 2
+
+
+class TestAggregatedReportQualityFiltered:
+    """AggregatedReport の quality_filtered フィールドを検証。"""
+
+    def test_quality_filtered_default_empty(self) -> None:
+        """quality_filtered 省略時に空リストとなる。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=8.0,
+        )
+        assert agg.quality_filtered == []
+
+    def test_quality_filtered_accepts_list(self) -> None:
+        """quality_filtered に QualityFilteredIssue リストを渡せる。"""
+        qf = QualityFilteredIssue(
+            agent_name="code-reviewer",
+            description="Be careful with this code",
+            reason="Suggestion lacks concrete action",
+        )
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=7.0,
+            quality_filtered=[qf],
+        )
+        assert len(agg.quality_filtered) == 1
+        assert agg.quality_filtered[0].reason == "Suggestion lacks concrete action"
+
+    def test_multiple_quality_filtered(self) -> None:
+        """複数の品質フィルタリング結果を保持できる。"""
+        qfs = [
+            QualityFilteredIssue(
+                agent_name="agent-a",
+                description="Empty suggestion",
+                reason="Description is empty",
+            ),
+            QualityFilteredIssue(
+                agent_name="agent-b",
+                description="File not in diff",
+                reason="Location references file not in diff",
+            ),
+        ]
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=6.0,
+            quality_filtered=qfs,
+        )
+        assert len(agg.quality_filtered) == 2

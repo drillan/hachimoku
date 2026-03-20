@@ -191,10 +191,30 @@ Severity（問題重大度）とは別の概念で、RecommendedAction で使用
 | `description` | `str` | Yes | 空文字列不可 |
 | `priority` | `Priority` | Yes | - |
 
+## Contradiction（矛盾検出）
+
+エージェント間の矛盾する指摘の検出結果です。異なるエージェントが同一箇所で相反する推奨を出した場合に記録されます。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `description` | `str` | Yes | 空文字列不可 |
+| `agent_names` | `list[str]` | Yes | 矛盾に関与するエージェント名 |
+| `file_path` | `str \| None` | No | デフォルト `None`。矛盾が発生した箇所 |
+
+## QualityFilteredIssue（品質フィルタリング結果）
+
+出力品質ゲートで除外された指摘の記録です。元の指摘の概要とフィルタリング理由を含みます。
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|---|------|------|
+| `agent_name` | `str` | Yes | 元のエージェント名 |
+| `description` | `str` | Yes | 空文字列不可 |
+| `reason` | `str` | Yes | 空文字列不可。フィルタリング理由 |
+
 ## AggregatedReport（集約レポート）
 
 LLM ベース集約エージェントの構造化出力です。
-重複排除された指摘、ポジティブフィードバック、推奨アクション、失敗エージェント情報を含みます。
+重複排除された指摘、ポジティブフィードバック、推奨アクション、失敗エージェント情報、矛盾検出結果、品質フィルタリング結果を含みます。
 
 | フィールド | 型 | 必須 | 制約 |
 |-----------|---|------|------|
@@ -203,6 +223,8 @@ LLM ベース集約エージェントの構造化出力です。
 | `recommended_actions` | `list[RecommendedAction]` | Yes | 空リスト許容 |
 | `agent_failures` | `list[str]` | Yes | 失敗エージェント名。空リスト許容 |
 | `overall_score` | `float` | Yes | 0.0 以上 10.0 以下 |
+| `contradictions` | `list[Contradiction]` | No | デフォルト空リスト。検出された矛盾 |
+| `quality_filtered` | `list[QualityFilteredIssue]` | No | デフォルト空リスト。品質ゲートで除外された指摘 |
 
 ## ReviewReport（レビューレポート）
 

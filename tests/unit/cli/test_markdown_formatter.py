@@ -17,7 +17,9 @@ from hachimoku.models.agent_result import (
 )
 from hachimoku.models.report import (
     AggregatedReport,
+    Contradiction,
     Priority,
+    QualityFilteredIssue,
     RecommendedAction,
     ReviewReport,
     ReviewSummary,
@@ -416,6 +418,96 @@ class TestAggregatedSection:
         report = _make_report(aggregated=None)
         result = format_markdown(report)
         assert "## Aggregated Analysis" not in result
+
+    def test_contradictions_shown(self) -> None:
+        """矛盾検出結果が表示される。"""
+        c = Contradiction(
+            description="Agent A says over-engineering, Agent B says SOLID violation",
+            agent_names=["security-analyzer", "code-reviewer"],
+            file_path="src/handler.py",
+        )
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=7.0,
+            contradictions=[c],
+        )
+        report = _make_report(aggregated=agg)
+        result = format_markdown(report)
+        assert "### Contradictions" in result
+        assert "over-engineering" in result
+        assert "security-analyzer" in result
+        assert "code-reviewer" in result
+        assert "src/handler.py" in result
+
+    def test_contradictions_without_file_path(self) -> None:
+        """file_path=None の矛盾でも表示される。"""
+        c = Contradiction(
+            description="Conflicting error handling advice",
+            agent_names=["a", "b"],
+        )
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=7.0,
+            contradictions=[c],
+        )
+        report = _make_report(aggregated=agg)
+        result = format_markdown(report)
+        assert "### Contradictions" in result
+        assert "Conflicting error handling advice" in result
+
+    def test_no_contradictions_section_when_empty(self) -> None:
+        """矛盾がない場合はセクションが表示されない。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=8.0,
+        )
+        report = _make_report(aggregated=agg)
+        result = format_markdown(report)
+        assert "### Contradictions" not in result
+
+    def test_quality_filtered_shown(self) -> None:
+        """品質フィルタリング結果が表示される。"""
+        qf = QualityFilteredIssue(
+            agent_name="code-reviewer",
+            description="Be careful with this code",
+            reason="Suggestion lacks concrete action",
+        )
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=7.0,
+            quality_filtered=[qf],
+        )
+        report = _make_report(aggregated=agg)
+        result = format_markdown(report)
+        assert "### Quality Filtered" in result
+        assert "Be careful with this code" in result
+        assert "Suggestion lacks concrete action" in result
+        assert "code-reviewer" in result
+
+    def test_no_quality_filtered_section_when_empty(self) -> None:
+        """品質フィルタリング結果がない場合はセクションが表示されない。"""
+        agg = AggregatedReport(
+            issues=[],
+            strengths=[],
+            recommended_actions=[],
+            agent_failures=[],
+            overall_score=8.0,
+        )
+        report = _make_report(aggregated=agg)
+        result = format_markdown(report)
+        assert "### Quality Filtered" not in result
 
 
 # ── Load Errors セクション ───────────────────────────────

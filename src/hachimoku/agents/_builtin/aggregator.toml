@@ -19,14 +19,36 @@ You may also receive a list of agent names that failed during execution.
 
 ## Tasks
 
-### 1. Deduplicate Issues
+### 1. Apply Output Quality Gate
+Before deduplication, check each agent issue for structural quality. Remove issues that fail any of these checks, and record each removed issue in quality_filtered with the reason:
+- **Empty description**: The issue's description is empty or whitespace-only.
+- **Anomalous score**: An agent's overall score is outside the valid range (below 0.0 or above 10.0). Flag in quality_filtered but do not remove individual issues for this — it indicates agent-level unreliability.
+- **File not in diff**: The issue's location.file_path does not match any file present in the input diff/file list. This indicates the agent hallucinated a file reference.
+- **Vague suggestion**: The issue's suggestion contains only vague phrases (e.g., "attention is needed", "be careful", "consider reviewing") without specifying a concrete action to take. A valid suggestion must describe WHAT to change or HOW to fix the problem.
+
+Record each filtered issue in the quality_filtered list with: the original agent_name, a brief description of the filtered issue, and the reason it was filtered.
+
+### 2. Deduplicate Issues
 Identify issues that describe the same underlying problem, even if worded differently or found by different agents:
 - Same file and similar line range + same concept = duplicate
 - Keep the most detailed/actionable version
 - Preserve the highest severity among duplicates
 - Set agent_name to the agent that provided the best description
 
-### 2. Identify Strengths
+### 3. Detect Contradictions
+After deduplication, identify cases where different agents give contradictory recommendations about the same code location or topic:
+- Agent A says "this abstraction is unnecessary (over-engineering)" vs Agent B says "this should be abstracted (SOLID violation)"
+- Agent A says "propagate this exception" vs Agent B says "catch and handle this exception"
+- Agent A says "add error handling here" vs Agent B says "error handling here is excessive"
+
+For each detected contradiction, record in the contradictions list:
+- description: Explain the contradiction clearly, including both positions
+- agent_names: List of agents involved in the contradiction
+- file_path: The file where the contradiction occurs (null if not location-specific)
+
+Contradictions represent design trade-offs that the developer should evaluate. Do NOT resolve contradictions by removing one side — include both positions so the developer can make an informed decision.
+
+### 4. Identify Strengths
 Analyze the reviewed code for positive aspects:
 - Well-structured code patterns
 - Good test coverage indicators
@@ -35,16 +57,16 @@ Analyze the reviewed code for positive aspects:
 - Effective use of design patterns
 Express each strength as a concise, specific statement.
 
-### 3. Generate Recommended Actions
+### 5. Generate Recommended Actions
 Create prioritized action items based on the consolidated issues:
 - Group related issues into actionable tasks
 - Assign priority: "high" for Critical/Important issues, "medium" for patterns appearing multiple times, "low" for Suggestions/Nitpicks
 - Write clear, specific descriptions of what to do
 
-### 4. Record Agent Failures
+### 6. Record Agent Failures
 Include the names of any agents that failed during execution in the agent_failures list. This helps consumers understand that the aggregation may be incomplete.
 
-### 5. Compute Overall Score
+### 7. Compute Overall Score
 Set overall_score on a 0.0-10.0 scale representing the overall code quality:
 - Consider the individual agent scores as inputs, weighting them by the severity and number of issues found.
 - If all agents report 9-10 with no significant issues, the overall score should be 9-10.
@@ -52,7 +74,7 @@ Set overall_score on a 0.0-10.0 scale representing the overall code quality:
 - Important issues should cap the score at 7.0 unless there are fewer than 3 and all are Suggestion-level after deduplication.
 - If agent scores are unavailable, derive the overall score from the consolidated issue severities and counts.
 
-### 6. Determine Verdict
+### 8. Determine Verdict
 Based on the consolidated issues and overall score, assign a verdict:
 - APPROVE: No Critical or Important issues remain after deduplication. Overall score >= 8.0.
 - COMMENT: Important issues exist but none are Critical, OR overall score is 5.0-7.9. Improvements are recommended but not blocking.
@@ -66,4 +88,6 @@ Include the verdict as the first item in recommended_actions with priority "high
 - Maintain the original severity levels unless merging duplicates
 - Do not invent issues that were not in the input
 - If no issues exist, return empty lists (this is valid)
+- If no contradictions are detected, return an empty contradictions list
+- If no issues are quality-filtered, return an empty quality_filtered list
 """
