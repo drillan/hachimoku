@@ -258,8 +258,7 @@ async def run_selector(
         if isinstance(resolved, ClaudeCodeModel):
             # mypy が FunctionToolset.tools の dict[str, Tool[Any]] を
             # AgentToolset.tools の dict[str, PydanticAITool] と互換とみなせないため。
-            # set_agent_toolsets の docstring が agent._function_toolset を使用例として記載。
-            resolved.set_agent_toolsets(agent._function_toolset)  # type: ignore[arg-type]
+            resolved.set_agent_toolsets(agent.toolsets[0])  # type: ignore[arg-type]
 
         result = await run_agent_safe(
             agent,

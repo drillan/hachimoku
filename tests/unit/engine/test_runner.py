@@ -384,9 +384,7 @@ class TestRunAgentResolveModel:
         ctx = _make_context()
         await run_agent(ctx)
 
-        mock_model.set_agent_toolsets.assert_called_once_with(
-            mock_instance._function_toolset
-        )
+        mock_model.set_agent_toolsets.assert_called_once_with(mock_instance.toolsets[0])
 
     @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model", side_effect=lambda m, **_kw: m)

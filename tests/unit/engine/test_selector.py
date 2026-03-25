@@ -801,9 +801,7 @@ class TestRunSelectorResolveModel:
             resolved_content="test diff content",
         )
 
-        mock_model.set_agent_toolsets.assert_called_once_with(
-            mock_instance._function_toolset
-        )
+        mock_model.set_agent_toolsets.assert_called_once_with(mock_instance.toolsets[0])
 
     @patch("hachimoku.engine._selector.resolve_model", side_effect=_PASSTHROUGH_RESOLVE)
     @patch("hachimoku.engine._selector.run_agent_safe")
