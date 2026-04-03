@@ -76,6 +76,22 @@ def _is_git_repository() -> bool:
         return False
 
 
+def _prompt_missing_project(config_overrides: dict[str, object]) -> None:
+    """.hachimoku/ 未検出時にユーザーへ選択肢を提示する。
+
+    FR-INIT-001: レビュー前チェック。
+    FR-INIT-002: 3 択プロンプト（init / 続行 / キャンセル）。
+    FR-INIT-003: 非インタラクティブ環境ではエラー終了。
+    FR-INIT-004: init 失敗時はエラー終了。
+    """
+    if not sys.stdin.isatty():
+        print(
+            "Error: .hachimoku/ directory not found. Run '8moku init' to initialize.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+
 class _ReviewGroup(TyperGroup):
     """Typer Group のサブコマンド解決をオーバーライドし、位置引数との共存を実現する。
 
@@ -282,6 +298,10 @@ def review_callback(
         max_files=max_files,
         ext=ext,
     )
+
+    # 2.5. .hachimoku/ 存在チェック（FR-INIT-001）
+    if find_project_root(Path.cwd()) is None:
+        _prompt_missing_project(config_overrides)
 
     # 3. config 解決（DiffTarget の base_branch 取得用）
     try:

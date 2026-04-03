@@ -48,6 +48,8 @@ from tests.unit.cli.conftest import (
 )
 
 PATCH_RUN_INIT = "hachimoku.cli._app.run_init"
+PATCH_STDIN = "sys.stdin"
+PATCH_PROMPT_MISSING_PROJECT = "hachimoku.cli._app._prompt_missing_project"
 
 runner = CliRunner()
 
@@ -1737,6 +1739,33 @@ class TestEdgeCases:
         mock_run_review.assert_called_once()
 
 
+# --- init 未実行時プロンプトテスト (FR-INIT-001〜005) ---
+
+
+class TestInitPrompt:
+    """init 未実行時のプロンプト動作を検証する（FR-INIT-001〜005）。"""
+
+    @patch(PATCH_STDIN)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_non_interactive_exits_with_input_error(
+        self, _mock_root: MagicMock, mock_stdin: MagicMock
+    ) -> None:
+        """非 TTY 環境 + .hachimoku/ なし → INPUT_ERROR で終了。"""
+        mock_stdin.isatty.return_value = False
+        result = runner.invoke(app)
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_STDIN)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_non_interactive_shows_init_hint(
+        self, _mock_root: MagicMock, mock_stdin: MagicMock
+    ) -> None:
+        """非 TTY 環境のエラーメッセージに init コマンドのヒントが含まれる。"""
+        mock_stdin.isatty.return_value = False
+        result = runner.invoke(app)
+        assert "Run '8moku init'" in result.output
+
+
 # --- _save_review_result テスト (I-1) ---
 
 
@@ -1772,6 +1801,7 @@ class TestSaveReviewResult:
         runner.invoke(app)
         mock_save.assert_not_called()
 
+    @patch(PATCH_PROMPT_MISSING_PROJECT)
     @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -1780,6 +1810,7 @@ class TestSaveReviewResult:
         mock_config: MagicMock,
         mock_run_review: AsyncMock,
         _mock_root: MagicMock,
+        _mock_prompt: MagicMock,
     ) -> None:
         """find_project_root=None → 警告出力、終了コード不変。"""
         setup_mocks(mock_config, mock_run_review)
@@ -1864,6 +1895,7 @@ class TestCustomAgentsDirPassedToRunReview:
         actual = mock_run_review.call_args.kwargs["custom_agents_dir"]
         assert actual == Path("/mock/project/.hachimoku/agents")
 
+    @patch(PATCH_PROMPT_MISSING_PROJECT)
     @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -1872,6 +1904,7 @@ class TestCustomAgentsDirPassedToRunReview:
         mock_config: MagicMock,
         mock_run_review: AsyncMock,
         mock_find_root: MagicMock,
+        _mock_prompt: MagicMock,
     ) -> None:
         """diff モード: project_root なし → None が渡される。"""
         setup_mocks(mock_config, mock_run_review)
