@@ -1854,6 +1854,25 @@ class TestInitPrompt:
     @patch(PATCH_RUN_INIT)
     @patch(PATCH_IS_INTERACTIVE, return_value=True)
     @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_1_shows_created_paths(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """選択肢 1 → init 結果の Created パスが表示される。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_run_init.return_value = InitResult(created=(Path("/tmp/.hachimoku"),))
+        result = runner.invoke(app, input="1\n")
+        assert "Created:" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
     def test_choice_1_init_error_exits_with_execution_error(
         self,
         _mock_root: MagicMock,
