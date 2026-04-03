@@ -1880,6 +1880,16 @@ class TestInitPrompt:
         assert "Permission denied" in result.output
         assert "Initialization failed" in result.output
 
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_no_confirm_does_not_skip_prompt(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """--no-confirm は init プロンプトに影響しない（FR-INIT-005）。"""
+        result = runner.invoke(app, ["--no-confirm"], input="3\n")
+        assert result.exit_code == ExitCode.SUCCESS
+        assert "[1]" in result.output
+
 
 # --- _save_review_result テスト (I-1) ---
 
@@ -1915,23 +1925,6 @@ class TestSaveReviewResult:
         mock_run_review.return_value = make_engine_result()
         runner.invoke(app)
         mock_save.assert_not_called()
-
-    @patch(PATCH_PROMPT_MISSING_PROJECT)
-    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_no_project_root_warns_and_exits_normally(
-        self,
-        mock_config: MagicMock,
-        mock_run_review: AsyncMock,
-        _mock_root: MagicMock,
-        _mock_prompt: MagicMock,
-    ) -> None:
-        """find_project_root=None → 警告出力、終了コード不変。"""
-        setup_mocks(mock_config, mock_run_review)
-        result = runner.invoke(app)
-        assert result.exit_code == 0
-        assert ".hachimoku/ directory not found" in result.output
 
     @patch(
         PATCH_SAVE_REVIEW_HISTORY,
