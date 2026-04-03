@@ -30,6 +30,18 @@ def _prevent_review_history_writes() -> Iterator[None]:
         yield
 
 
+@pytest.fixture(autouse=True)
+def _mock_project_root() -> Iterator[None]:
+    """テスト環境に依存しないプロジェクトルートを提供する。
+
+    review_callback の .hachimoku/ 存在チェック（FR-INIT-001）が
+    テスト実行環境のファイルシステムに依存しないようにする。
+    個別テストで @patch(PATCH_FIND_PROJECT_ROOT, return_value=None) でオーバーライド可能。
+    """
+    with patch(PATCH_FIND_PROJECT_ROOT, return_value=Path("/mock/root")):
+        yield
+
+
 def make_engine_result(exit_code: ExitCode = ExitCode.SUCCESS) -> EngineResult:
     """テスト用の最小 EngineResult を生成する。"""
     return EngineResult(
