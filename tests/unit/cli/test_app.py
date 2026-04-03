@@ -1830,6 +1830,56 @@ class TestInitPrompt:
         assert "[2]" in result.output
         assert "[3]" in result.output
 
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_1_runs_init_and_continues_review(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """選択肢 1 → run_init 実行後、レビュー続行。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_run_init.return_value = InitResult()
+        result = runner.invoke(app, input="1\n")
+        assert result.exit_code == 0
+        mock_run_init.assert_called_once()
+        mock_run_review.assert_called_once()
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_choice_1_init_error_exits_with_execution_error(
+        self,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """選択肢 1 で InitError → EXECUTION_ERROR で終了。"""
+        mock_run_init.side_effect = InitError("Permission denied")
+        result = runner.invoke(app, input="1\n")
+        assert result.exit_code == ExitCode.EXECUTION_ERROR
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_choice_1_init_error_shows_message(
+        self,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """InitError のメッセージが出力される。"""
+        mock_run_init.side_effect = InitError("Permission denied")
+        result = runner.invoke(app, input="1\n")
+        assert "Permission denied" in result.output
+        assert "Initialization failed" in result.output
+
 
 # --- _save_review_result テスト (I-1) ---
 
