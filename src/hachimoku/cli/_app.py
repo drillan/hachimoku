@@ -76,6 +76,14 @@ def _is_git_repository() -> bool:
         return False
 
 
+def _is_interactive() -> bool:
+    """stdin が TTY（インタラクティブ端末）かどうかを返す。
+
+    テストで差し替え可能にするため独立した関数として定義する。
+    """
+    return sys.stdin.isatty()
+
+
 def _prompt_missing_project(config_overrides: dict[str, object]) -> None:
     """.hachimoku/ 未検出時にユーザーへ選択肢を提示する。
 
@@ -84,12 +92,50 @@ def _prompt_missing_project(config_overrides: dict[str, object]) -> None:
     FR-INIT-003: 非インタラクティブ環境ではエラー終了。
     FR-INIT-004: init 失敗時はエラー終了。
     """
-    if not sys.stdin.isatty():
+    if not _is_interactive():
         print(
             "Error: .hachimoku/ directory not found. Run '8moku init' to initialize.",
             file=sys.stderr,
         )
         raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+    print(
+        ".hachimoku/ directory not found.\n\n"
+        "  [1] Run 8moku init (recommended)\n"
+        "  [2] Continue without saving reviews\n"
+        "  [3] Cancel\n",
+        file=sys.stderr,
+    )
+
+    while True:
+        try:
+            choice = click.prompt("Select [1/2/3]", type=str, err=True)
+        except (EOFError, click.Abort):
+            raise typer.Exit(code=ExitCode.SUCCESS) from None
+
+        if choice == "1":
+            try:
+                result = run_init(Path.cwd())
+            except InitError as e:
+                print(f"Error: Initialization failed: {e}", file=sys.stderr)
+                raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None
+            for path in result.created:
+                print(f"  Created: {path}", file=sys.stderr)
+            for path in result.skipped:
+                print(f"  Skipped (already exists): {path}", file=sys.stderr)
+            return
+
+        if choice == "2":
+            config_overrides["save_reviews"] = False
+            return
+
+        if choice == "3":
+            raise typer.Exit(code=ExitCode.SUCCESS)
+
+        click.echo(
+            f"Error: Invalid choice '{choice}'. Please enter 1, 2, or 3.",
+            err=True,
+        )
 
 
 class _ReviewGroup(TyperGroup):

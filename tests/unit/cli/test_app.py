@@ -49,6 +49,7 @@ from tests.unit.cli.conftest import (
 
 PATCH_RUN_INIT = "hachimoku.cli._app.run_init"
 PATCH_STDIN = "sys.stdin"
+PATCH_IS_INTERACTIVE = "hachimoku.cli._app._is_interactive"
 PATCH_PROMPT_MISSING_PROJECT = "hachimoku.cli._app._prompt_missing_project"
 
 runner = CliRunner()
@@ -1764,6 +1765,70 @@ class TestInitPrompt:
         mock_stdin.isatty.return_value = False
         result = runner.invoke(app)
         assert "Run '8moku init'" in result.output
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_choice_3_cancels_with_success(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """選択肢 3 → ExitCode.SUCCESS で終了、レビュー実行なし。"""
+        result = runner.invoke(app, input="3\n")
+        assert result.exit_code == ExitCode.SUCCESS
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_2_continues_without_saving(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+    ) -> None:
+        """選択肢 2 → save_reviews=False でレビュー続行。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app, input="2\n")
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_2_sets_save_reviews_false(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+    ) -> None:
+        """選択肢 2 → resolve_config に save_reviews=False が渡される。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app, input="2\n")
+        cli_overrides = mock_config.call_args.kwargs["cli_overrides"]
+        assert cli_overrides["save_reviews"] is False
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_invalid_then_cancel(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """無効入力 → 再プロンプト → 選択肢 3 で終了。"""
+        result = runner.invoke(app, input="x\n3\n")
+        assert result.exit_code == ExitCode.SUCCESS
+        assert "Invalid choice" in result.output
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_prompt_shows_menu(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """プロンプトに 3 択メニューが表示される。"""
+        result = runner.invoke(app, input="3\n")
+        assert "[1]" in result.output
+        assert "[2]" in result.output
+        assert "[3]" in result.output
 
 
 # --- _save_review_result テスト (I-1) ---
