@@ -48,6 +48,9 @@ from tests.unit.cli.conftest import (
 )
 
 PATCH_RUN_INIT = "hachimoku.cli._app.run_init"
+PATCH_STDIN = "sys.stdin"
+PATCH_IS_INTERACTIVE = "hachimoku.cli._app._is_interactive"
+PATCH_PROMPT_MISSING_PROJECT = "hachimoku.cli._app._prompt_missing_project"
 
 runner = CliRunner()
 
@@ -1737,6 +1740,176 @@ class TestEdgeCases:
         mock_run_review.assert_called_once()
 
 
+# --- init 未実行時プロンプトテスト (FR-INIT-001〜005) ---
+
+
+class TestInitPrompt:
+    """init 未実行時のプロンプト動作を検証する（FR-INIT-001〜005）。"""
+
+    @patch(PATCH_STDIN)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_non_interactive_exits_with_input_error(
+        self, _mock_root: MagicMock, mock_stdin: MagicMock
+    ) -> None:
+        """非 TTY 環境 + .hachimoku/ なし → INPUT_ERROR で終了。"""
+        mock_stdin.isatty.return_value = False
+        result = runner.invoke(app)
+        assert result.exit_code == ExitCode.INPUT_ERROR
+
+    @patch(PATCH_STDIN)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_non_interactive_shows_init_hint(
+        self, _mock_root: MagicMock, mock_stdin: MagicMock
+    ) -> None:
+        """非 TTY 環境のエラーメッセージに init コマンドのヒントが含まれる。"""
+        mock_stdin.isatty.return_value = False
+        result = runner.invoke(app)
+        assert "Run '8moku init'" in result.output
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_choice_3_cancels_with_success(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """選択肢 3 → ExitCode.SUCCESS で終了、レビュー実行なし。"""
+        result = runner.invoke(app, input="3\n")
+        assert result.exit_code == ExitCode.SUCCESS
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_2_continues_without_saving(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+    ) -> None:
+        """選択肢 2 → save_reviews=False でレビュー続行。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app, input="2\n")
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_2_sets_save_reviews_false(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+    ) -> None:
+        """選択肢 2 → resolve_config に save_reviews=False が渡される。"""
+        setup_mocks(mock_config, mock_run_review)
+        runner.invoke(app, input="2\n")
+        cli_overrides = mock_config.call_args.kwargs["cli_overrides"]
+        assert cli_overrides["save_reviews"] is False
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_invalid_then_cancel(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """無効入力 → 再プロンプト → 選択肢 3 で終了。"""
+        result = runner.invoke(app, input="x\n3\n")
+        assert result.exit_code == ExitCode.SUCCESS
+        assert "Invalid choice" in result.output
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_prompt_shows_menu(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """プロンプトに 3 択メニューが表示される。"""
+        result = runner.invoke(app, input="3\n")
+        assert "[1]" in result.output
+        assert "[2]" in result.output
+        assert "[3]" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_1_runs_init_and_continues_review(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """選択肢 1 → run_init 実行後、レビュー続行。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_run_init.return_value = InitResult()
+        result = runner.invoke(app, input="1\n")
+        assert result.exit_code == 0
+        mock_run_init.assert_called_once()
+        mock_run_review.assert_called_once()
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_choice_1_shows_created_paths(
+        self,
+        mock_config: MagicMock,
+        mock_run_review: AsyncMock,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """選択肢 1 → init 結果の Created パスが表示される。"""
+        setup_mocks(mock_config, mock_run_review)
+        mock_run_init.return_value = InitResult(created=(Path("/tmp/.hachimoku"),))
+        result = runner.invoke(app, input="1\n")
+        assert "Created:" in result.output
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_choice_1_init_error_exits_with_execution_error(
+        self,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """選択肢 1 で InitError → EXECUTION_ERROR で終了。"""
+        mock_run_init.side_effect = InitError("Permission denied")
+        result = runner.invoke(app, input="1\n")
+        assert result.exit_code == ExitCode.EXECUTION_ERROR
+
+    @patch(PATCH_RUN_INIT)
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_choice_1_init_error_shows_message(
+        self,
+        _mock_root: MagicMock,
+        _mock_interactive: MagicMock,
+        mock_run_init: MagicMock,
+    ) -> None:
+        """InitError のメッセージが出力される。"""
+        mock_run_init.side_effect = InitError("Permission denied")
+        result = runner.invoke(app, input="1\n")
+        assert "Permission denied" in result.output
+        assert "Initialization failed" in result.output
+
+    @patch(PATCH_IS_INTERACTIVE, return_value=True)
+    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
+    def test_no_confirm_does_not_skip_prompt(
+        self, _mock_root: MagicMock, _mock_interactive: MagicMock
+    ) -> None:
+        """--no-confirm は init プロンプトに影響しない（FR-INIT-005）。"""
+        result = runner.invoke(app, ["--no-confirm"], input="3\n")
+        assert result.exit_code == ExitCode.SUCCESS
+        assert "[1]" in result.output
+
+
 # --- _save_review_result テスト (I-1) ---
 
 
@@ -1771,21 +1944,6 @@ class TestSaveReviewResult:
         mock_run_review.return_value = make_engine_result()
         runner.invoke(app)
         mock_save.assert_not_called()
-
-    @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_no_project_root_warns_and_exits_normally(
-        self,
-        mock_config: MagicMock,
-        mock_run_review: AsyncMock,
-        _mock_root: MagicMock,
-    ) -> None:
-        """find_project_root=None → 警告出力、終了コード不変。"""
-        setup_mocks(mock_config, mock_run_review)
-        result = runner.invoke(app)
-        assert result.exit_code == 0
-        assert ".hachimoku/ directory not found" in result.output
 
     @patch(
         PATCH_SAVE_REVIEW_HISTORY,
@@ -1864,6 +2022,7 @@ class TestCustomAgentsDirPassedToRunReview:
         actual = mock_run_review.call_args.kwargs["custom_agents_dir"]
         assert actual == Path("/mock/project/.hachimoku/agents")
 
+    @patch(PATCH_PROMPT_MISSING_PROJECT)
     @patch(PATCH_FIND_PROJECT_ROOT, return_value=None)
     @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
     @patch(PATCH_RESOLVE_CONFIG)
@@ -1872,6 +2031,7 @@ class TestCustomAgentsDirPassedToRunReview:
         mock_config: MagicMock,
         mock_run_review: AsyncMock,
         mock_find_root: MagicMock,
+        _mock_prompt: MagicMock,
     ) -> None:
         """diff モード: project_root なし → None が渡される。"""
         setup_mocks(mock_config, mock_run_review)
