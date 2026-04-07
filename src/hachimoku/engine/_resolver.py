@@ -30,7 +30,7 @@ async def resolve_content(
     """ターゲットに応じてレビュー対象コンテンツを事前解決する。
 
     Args:
-        target: レビュー対象（DiffTarget / PRTarget / FileTarget）。
+        target: レビュー対象（DiffTarget / PRTarget / FileTarget / CommitTarget）。
 
     Returns:
         解決されたコンテンツ文字列。空 diff の場合は空文字列。

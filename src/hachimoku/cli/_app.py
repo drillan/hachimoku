@@ -330,33 +330,12 @@ def review_callback(
     if ctx.invoked_subcommand is not None:
         return
 
-    # 0. --commit 排他制御
+    # 0. 入力モード判定
     obj = ctx.ensure_object(dict)
     raw_args: list[str] = obj.get(_REVIEW_ARGS_KEY, [])
 
     if commit is not None:
-        if raw_args:
-            print(
-                "Error: --commit cannot be used with positional arguments.\n"
-                "Use --commit alone, or specify files/PR number without --commit.",
-                file=sys.stderr,
-            )
-            raise typer.Exit(code=ExitCode.INPUT_ERROR)
-        if base_branch is not None:
-            print(
-                "Error: --commit cannot be used with --base-branch.\n"
-                "--base-branch is for diff mode only.",
-                file=sys.stderr,
-            )
-            raise typer.Exit(code=ExitCode.INPUT_ERROR)
-
-    # 1. 入力モード判定
-    if commit is not None:
-        try:
-            from_ref, to_ref = _parse_commit_arg(commit)
-        except InputError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+        commit_target = _resolve_commit_mode(commit, raw_args, base_branch, issue)
     else:
         try:
             resolved = resolve_input(raw_args or None)
@@ -401,23 +380,17 @@ def review_callback(
         raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
 
     # 3.5. diff/PR/commit モード: Git リポジトリチェック
-    if commit is not None and not _is_git_repository():
-        print(
-            "Error: commit mode requires a Git repository.\n"
-            "Run 'git init' to initialize a Git repository, "
-            "or use file mode to review specific files.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+    git_mode_name: str | None = None
+    if commit is not None:
+        git_mode_name = "commit"
+    elif isinstance(resolved, DiffInput):
+        git_mode_name = "diff"
+    elif isinstance(resolved, PRInput):
+        git_mode_name = "PR"
 
-    if (
-        commit is None
-        and isinstance(resolved, (DiffInput, PRInput))
-        and not _is_git_repository()
-    ):
-        mode = "diff" if isinstance(resolved, DiffInput) else "PR"
+    if git_mode_name is not None and not _is_git_repository():
         print(
-            f"Error: {mode} mode requires a Git repository.\n"
+            f"Error: {git_mode_name} mode requires a Git repository.\n"
             "Run 'git init' to initialize a Git repository, "
             "or use file mode to review specific files.",
             file=sys.stderr,
@@ -461,7 +434,7 @@ def review_callback(
     # 4. ReviewTarget 構築
     target: DiffTarget | PRTarget | FileTarget | CommitTarget
     if commit is not None:
-        target = CommitTarget(from_ref=from_ref, to_ref=to_ref, issue_number=issue)
+        target = commit_target
     else:
         target = _build_target(resolved, config, issue)
 
@@ -729,6 +702,53 @@ def _build_target(
     if isinstance(resolved, FileInput):
         return FileTarget(paths=resolved.paths, issue_number=issue)
     assert_never(resolved)
+
+
+def _resolve_commit_mode(
+    commit: str,
+    raw_args: list[str],
+    base_branch: str | None,
+    issue: int | None,
+) -> CommitTarget:
+    """--commit オプションのバリデーションと CommitTarget 構築を行う。
+
+    排他制御（位置引数・--base-branch との併用禁止）、
+    commit ref のパース、CommitTarget の構築を1箇所に集約する。
+
+    Args:
+        commit: --commit オプションの値。
+        raw_args: 位置引数のリスト。
+        base_branch: --base-branch オプションの値。
+        issue: --issue オプションの値。
+
+    Returns:
+        構築された CommitTarget。
+
+    Raises:
+        typer.Exit: 排他制御違反またはパースエラー時。
+    """
+    if raw_args:
+        print(
+            "Error: --commit cannot be used with positional arguments.\n"
+            "Use --commit alone, or specify files/PR number without --commit.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+    if base_branch is not None:
+        print(
+            "Error: --commit cannot be used with --base-branch.\n"
+            "--base-branch is for diff mode only.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+    try:
+        from_ref, to_ref = _parse_commit_arg(commit)
+    except InputError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+
+    return CommitTarget(from_ref=from_ref, to_ref=to_ref, issue_number=issue)
 
 
 def _parse_commit_arg(value: str) -> tuple[str, str]:

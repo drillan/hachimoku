@@ -135,8 +135,8 @@ def _build_record(
     Args:
         target: レビュー対象。
         report: レビューレポート。
-        commit_hash: コミットハッシュ（diff/PR モード用）。
-        branch_name: ブランチ名（diff/PR モード用）。
+        commit_hash: コミットハッシュ（diff/PR/commit モード用）。
+        branch_name: ブランチ名（diff/PR/commit モード用）。
         reviewed_at: レビュー実行日時。
 
     Returns:
@@ -188,7 +188,7 @@ def save_review_history(
     """レビュー結果を JSONL ファイルに追記する。
 
     FR-025 のメインエントリポイント。
-    1. git 情報取得（diff/PR モードのみ）
+    1. git 情報取得（diff/PR/commit モード）
     2. ReviewHistoryRecord 構築
     3. JSONL ファイルへの追記
 
@@ -202,7 +202,7 @@ def save_review_history(
 
     Raises:
         HistoryWriteError: ディレクトリ作成失敗、I/O エラー時。
-        GitInfoError: git 情報取得失敗時（diff/PR モード）。
+        GitInfoError: git 情報取得失敗時（diff/PR/commit モード）。
     """
     try:
         reviews_dir.mkdir(exist_ok=True)
