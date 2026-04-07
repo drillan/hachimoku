@@ -101,8 +101,32 @@ class FileReviewRecord(HachimokuBaseModel):
         return v
 
 
+class CommitReviewRecord(HachimokuBaseModel):
+    """commit レビューの履歴レコード。判別キー: review_mode="commit"。
+
+    Attributes:
+        review_mode: 判別キー。固定値 "commit"。
+        commit_hash: コミットハッシュ（レビュー時の HEAD、40文字16進小文字）。
+        from_ref: 差分の開始参照（コミット SHA、ブランチ名、相対参照等）。
+        to_ref: 差分の終了参照。
+        branch_name: ブランチ名（空文字不可）。
+        reviewed_at: レビュー実行日時。
+        results: エージェント結果のリスト。
+        summary: レビュー結果のサマリー。
+    """
+
+    review_mode: Literal["commit"] = "commit"
+    commit_hash: CommitHash
+    from_ref: str = Field(min_length=1)
+    to_ref: str = Field(min_length=1)
+    branch_name: str = Field(min_length=1)
+    reviewed_at: datetime
+    results: list[AgentResult]
+    summary: ReviewSummary
+
+
 ReviewHistoryRecord = Annotated[
-    Union[DiffReviewRecord, PRReviewRecord, FileReviewRecord],
+    Union[DiffReviewRecord, PRReviewRecord, FileReviewRecord, CommitReviewRecord],
     Field(discriminator="review_mode"),
 ]
 """レビュー履歴レコードの判別共用体。review_mode フィールドの値で型を自動選択する。"""

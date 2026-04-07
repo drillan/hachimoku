@@ -11,6 +11,7 @@ from hachimoku.models.agent_result import (
 )
 from hachimoku.models.history import (
     CommitHash,
+    CommitReviewRecord,
     DiffReviewRecord,
     FileReviewRecord,
     PRReviewRecord,
@@ -60,6 +61,7 @@ __all__ = [
     "BaseAgentOutput",
     "CategoryClassification",
     "CommitHash",
+    "CommitReviewRecord",
     "CostInfo",
     "CoverageGap",
     "DiffReviewRecord",

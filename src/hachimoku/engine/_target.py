@@ -22,6 +22,7 @@ class ReviewMode(StrEnum):
     DIFF = "diff"
     PR = "pr"
     FILE = "file"
+    COMMIT = "commit"
 
 
 class DiffTarget(HachimokuBaseModel):
@@ -60,8 +61,21 @@ class FileTarget(HachimokuBaseModel):
     issue_number: int | None = Field(default=None, gt=0)
 
 
+class CommitTarget(HachimokuBaseModel):
+    """commit モードのレビュー対象。
+
+    特定のコミット間の差分をレビューする。
+    from_ref から to_ref までの git diff を取得する。
+    """
+
+    mode: Literal["commit"] = "commit"
+    from_ref: str = Field(min_length=1)
+    to_ref: str = Field(default="HEAD", min_length=1)
+    issue_number: int | None = Field(default=None, gt=0)
+
+
 ReviewTarget = Annotated[
-    Union[DiffTarget, PRTarget, FileTarget],
+    Union[DiffTarget, PRTarget, FileTarget, CommitTarget],
     Field(discriminator="mode"),
 ]
 """レビュー対象の判別共用体。mode フィールドの値で型を自動選択する。"""

@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Final, assert_never
 
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.history import (
+    CommitReviewRecord,
     DiffReviewRecord,
     FileReviewRecord,
     PRReviewRecord,
@@ -34,11 +35,12 @@ _GIT_TIMEOUT_SECONDS: Final[int] = 5
 _DIFF_FILENAME: Final[str] = "diff.jsonl"
 _FILES_FILENAME: Final[str] = "files.jsonl"
 _PR_FILENAME_TEMPLATE: Final[str] = "pr-{pr_number}.jsonl"
+_COMMIT_FILENAME: Final[str] = "commit.jsonl"
 
 
 def _resolve_jsonl_path(
     reviews_dir: Path,
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
 ) -> Path:
     """ターゲットに応じた JSONL ファイルパスを解決する。
 
@@ -55,6 +57,8 @@ def _resolve_jsonl_path(
         return reviews_dir / _PR_FILENAME_TEMPLATE.format(pr_number=target.pr_number)
     if isinstance(target, FileTarget):
         return reviews_dir / _FILES_FILENAME
+    if isinstance(target, CommitTarget):
+        return reviews_dir / _COMMIT_FILENAME
     assert_never(target)
 
 
@@ -120,19 +124,19 @@ def get_branch_name() -> str:
 
 
 def _build_record(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     report: ReviewReport,
     commit_hash: str,
     branch_name: str,
     reviewed_at: datetime,
-) -> DiffReviewRecord | PRReviewRecord | FileReviewRecord:
+) -> DiffReviewRecord | PRReviewRecord | FileReviewRecord | CommitReviewRecord:
     """ターゲットと結果から ReviewHistoryRecord バリアントを構築する。
 
     Args:
         target: レビュー対象。
         report: レビューレポート。
-        commit_hash: コミットハッシュ（diff/PR モード用）。
-        branch_name: ブランチ名（diff/PR モード用）。
+        commit_hash: コミットハッシュ（diff/PR/commit モード用）。
+        branch_name: ブランチ名（diff/PR/commit モード用）。
         reviewed_at: レビュー実行日時。
 
     Returns:
@@ -163,18 +167,28 @@ def _build_record(
             results=report.results,
             summary=report.summary,
         )
+    if isinstance(target, CommitTarget):
+        return CommitReviewRecord(
+            commit_hash=commit_hash,
+            from_ref=target.from_ref,
+            to_ref=target.to_ref,
+            branch_name=branch_name,
+            reviewed_at=reviewed_at,
+            results=report.results,
+            summary=report.summary,
+        )
     assert_never(target)
 
 
 def save_review_history(
     reviews_dir: Path,
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     report: ReviewReport,
 ) -> Path:
     """レビュー結果を JSONL ファイルに追記する。
 
     FR-025 のメインエントリポイント。
-    1. git 情報取得（diff/PR モードのみ）
+    1. git 情報取得（diff/PR/commit モード）
     2. ReviewHistoryRecord 構築
     3. JSONL ファイルへの追記
 
@@ -188,7 +202,7 @@ def save_review_history(
 
     Raises:
         HistoryWriteError: ディレクトリ作成失敗、I/O エラー時。
-        GitInfoError: git 情報取得失敗時（diff/PR モード）。
+        GitInfoError: git 情報取得失敗時（diff/PR/commit モード）。
     """
     try:
         reviews_dir.mkdir(exist_ok=True)
@@ -200,7 +214,7 @@ def save_review_history(
 
     commit_hash = ""
     branch_name = ""
-    if isinstance(target, (DiffTarget, PRTarget)):
+    if isinstance(target, (DiffTarget, PRTarget, CommitTarget)):
         commit_hash = get_commit_hash()
         branch_name = get_branch_name()
 

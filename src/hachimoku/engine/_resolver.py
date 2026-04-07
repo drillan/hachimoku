@@ -10,7 +10,7 @@ import asyncio
 from pathlib import Path
 from typing import Final
 
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 
 _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 """subprocess のタイムアウト秒数。既存 _tools/_git.py と同一。"""
@@ -24,11 +24,13 @@ class ContentResolveError(Exception):
     """
 
 
-async def resolve_content(target: DiffTarget | PRTarget | FileTarget) -> str:
+async def resolve_content(
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
+) -> str:
     """ターゲットに応じてレビュー対象コンテンツを事前解決する。
 
     Args:
-        target: レビュー対象（DiffTarget / PRTarget / FileTarget）。
+        target: レビュー対象（DiffTarget / PRTarget / FileTarget / CommitTarget）。
 
     Returns:
         解決されたコンテンツ文字列。空 diff の場合は空文字列。
@@ -43,6 +45,8 @@ async def resolve_content(target: DiffTarget | PRTarget | FileTarget) -> str:
         return await _resolve_pr_diff(target)
     if isinstance(target, FileTarget):
         return _resolve_file_content(target)
+    if isinstance(target, CommitTarget):
+        return await _resolve_commit(target)
     raise TypeError(f"Unknown target type: {type(target)}")
 
 
@@ -64,6 +68,18 @@ async def _resolve_diff(target: DiffTarget) -> str:
 async def _resolve_pr_diff(target: PRTarget) -> str:
     """PRTarget の差分を取得する。"""
     return await _run_subprocess("gh", "pr", "diff", str(target.pr_number))
+
+
+async def _resolve_commit(target: CommitTarget) -> str:
+    """CommitTarget の差分を取得する。
+
+    from_ref と to_ref の存在を git rev-parse で検証後、git diff で差分を取得する。
+    to_ref が HEAD の場合、HEAD は常に有効なため検証をスキップする。
+    """
+    await _run_subprocess("git", "rev-parse", "--verify", target.from_ref)
+    if target.to_ref != "HEAD":
+        await _run_subprocess("git", "rev-parse", "--verify", target.to_ref)
+    return await _run_subprocess("git", "diff", f"{target.from_ref}..{target.to_ref}")
 
 
 def _resolve_file_content(target: FileTarget) -> str:

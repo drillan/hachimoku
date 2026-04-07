@@ -26,7 +26,7 @@ from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import _resolve_with_agent_def
 from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 
@@ -175,7 +175,7 @@ class SelectorError(Exception):
 
 
 async def run_selector(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     available_agents: Sequence[AgentDefinition],
     selector_definition: SelectorDefinition,
     selector_config: SelectorConfig,

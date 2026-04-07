@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Final, TypedDict
 
 from hachimoku.agents.models import AgentDefinition
 from hachimoku.engine._diff_filter import _DIFF_SECTION_RE, _FILE_PATH_RE
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import DEFAULT_REFERENCED_CONTENT_MAX_CHARS
 
 if TYPE_CHECKING:
@@ -223,7 +223,7 @@ def _format_diff_summary(entries: list[_FileDiffEntry]) -> str:
 
 
 def build_review_instruction(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     resolved_content: str,
 ) -> str:
     """ReviewTarget からエージェント向けのユーザーメッセージを構築する。
@@ -300,7 +300,7 @@ def _build_prefetched_section(prefetched: PrefetchedContext) -> str:
 
 
 def build_selector_instruction(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     available_agents: Sequence[AgentDefinition],
     resolved_content: str,
     prefetched_context: PrefetchedContext | None = None,
@@ -323,7 +323,7 @@ def build_selector_instruction(
         セレクターエージェントに渡すユーザーメッセージ文字列。
     """
     # Issue #170: DiffTarget/PRTarget → diff メタデータのみ送出
-    if isinstance(target, (DiffTarget, PRTarget)):
+    if isinstance(target, (DiffTarget, PRTarget, CommitTarget)):
         selector_content = _summarize_diff(resolved_content)
         if not selector_content:
             # diff --git ヘッダーを含まないコンテンツ → 元のまま渡す
@@ -478,10 +478,17 @@ def build_selector_context_section(
 
 
 def _build_mode_section(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     resolved_content: str,
 ) -> str:
     """入力モードに応じたプロンプトセクションを構築する。"""
+    if isinstance(target, CommitTarget):
+        return (
+            f"Review the changes between commits "
+            f"'{target.from_ref}' and '{target.to_ref}'.\n\n"
+            f"{resolved_content}"
+        )
+
     if isinstance(target, DiffTarget):
         return (
             f"Review the changes in the current branch compared to "

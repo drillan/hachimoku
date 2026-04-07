@@ -29,7 +29,7 @@ from typer.testing import CliRunner
 from hachimoku.cli._app import app
 from hachimoku.cli._file_resolver import FileResolutionError, ResolvedFiles
 from hachimoku.cli._init_handler import InitError, InitResult
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.exit_code import ExitCode
 from hachimoku.agents import LoadError
@@ -2234,3 +2234,154 @@ class TestBuildTargetExhaustiveness:
         config = HachimokuConfig()
         with pytest.raises(AssertionError):
             _build_target(UnknownInput(), config, issue=None)  # type: ignore[arg-type]
+
+
+# =============================================================================
+# _parse_commit_arg
+# =============================================================================
+
+
+class TestParseCommitArg:
+    """_parse_commit_arg のユニットテスト。"""
+
+    def test_single_sha_returns_sha_and_head(self) -> None:
+        """単一 SHA → (SHA, "HEAD")。"""
+        from hachimoku.cli._app import _parse_commit_arg
+
+        assert _parse_commit_arg("abc123") == ("abc123", "HEAD")
+
+    def test_sha_range_returns_both(self) -> None:
+        """SHA1..SHA2 → (SHA1, SHA2)。"""
+        from hachimoku.cli._app import _parse_commit_arg
+
+        assert _parse_commit_arg("abc123..def456") == ("abc123", "def456")
+
+    def test_empty_from_ref_raises_error(self) -> None:
+        """..def → InputError。"""
+        from hachimoku.cli._app import _parse_commit_arg
+        from hachimoku.cli._input_resolver import InputError
+
+        with pytest.raises(InputError, match="Start commit cannot be empty"):
+            _parse_commit_arg("..def456")
+
+    def test_empty_to_ref_raises_error(self) -> None:
+        """abc.. → InputError。"""
+        from hachimoku.cli._app import _parse_commit_arg
+        from hachimoku.cli._input_resolver import InputError
+
+        with pytest.raises(InputError, match="End commit cannot be empty"):
+            _parse_commit_arg("abc123..")
+
+    def test_multiple_dots_raises_error(self) -> None:
+        """a..b..c → InputError。"""
+        from hachimoku.cli._app import _parse_commit_arg
+        from hachimoku.cli._input_resolver import InputError
+
+        with pytest.raises(InputError, match="Invalid commit range format"):
+            _parse_commit_arg("a..b..c")
+
+    def test_full_sha_accepted(self) -> None:
+        """40文字の完全な SHA が受け入れられる。"""
+        from hachimoku.cli._app import _parse_commit_arg
+
+        sha = "a" * 40
+        assert _parse_commit_arg(sha) == (sha, "HEAD")
+
+    def test_relative_ref_accepted(self) -> None:
+        """HEAD~3 のような相対参照。"""
+        from hachimoku.cli._app import _parse_commit_arg
+
+        assert _parse_commit_arg("HEAD~3") == ("HEAD~3", "HEAD")
+
+    def test_range_with_relative_refs(self) -> None:
+        """HEAD~5..HEAD~2 のような相対参照レンジ。"""
+        from hachimoku.cli._app import _parse_commit_arg
+
+        assert _parse_commit_arg("HEAD~5..HEAD~2") == ("HEAD~5", "HEAD~2")
+
+
+# =============================================================================
+# --commit オプション CLI 統合テスト
+# =============================================================================
+
+
+class TestReviewCallbackCommitMode:
+    """--commit オプションの CLI 統合テスト。"""
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_commit_option_builds_commit_target(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--commit abc123 → CommitTarget(from_ref="abc123", to_ref="HEAD")。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app, ["--commit", "abc123"])
+        assert result.exit_code == 0
+        mock_run_review.assert_called_once()
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, CommitTarget)
+        assert target.from_ref == "abc123"
+        assert target.to_ref == "HEAD"
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_commit_range_builds_correct_target(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--commit abc..def → CommitTarget(from_ref="abc", to_ref="def")。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app, ["--commit", "abc..def"])
+        assert result.exit_code == 0
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, CommitTarget)
+        assert target.from_ref == "abc"
+        assert target.to_ref == "def"
+
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_commit_with_positional_args_exits_with_error(
+        self, mock_config: MagicMock
+    ) -> None:
+        """--commit + 位置引数 → exit code 4 (INPUT_ERROR)。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app, ["--commit", "abc123", "src/file.py"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+        assert "--commit cannot be used with positional arguments" in result.output
+
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_commit_with_base_branch_exits_with_error(
+        self, mock_config: MagicMock
+    ) -> None:
+        """--commit + --base-branch → exit code 4 (INPUT_ERROR)。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app, ["--commit", "abc123", "--base-branch", "develop"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+        assert "--commit cannot be used with --base-branch" in result.output
+
+    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
+    @patch(PATCH_RESOLVE_CONFIG)
+    def test_commit_with_issue_option(
+        self, mock_config: MagicMock, mock_run_review: AsyncMock
+    ) -> None:
+        """--commit + --issue は共存できる。"""
+        setup_mocks(mock_config, mock_run_review)
+        result = runner.invoke(app, ["--commit", "abc123", "--issue", "42"])
+        assert result.exit_code == 0
+        target = mock_run_review.call_args.kwargs["target"]
+        assert isinstance(target, CommitTarget)
+        assert target.issue_number == 42
+
+    def test_commit_help_shown(self) -> None:
+        """--help に --commit オプションが表示される。"""
+        result = runner.invoke(app, ["--help"])
+        assert "--commit" in result.output
+
+    @patch(PATCH_RESOLVE_CONFIG)
+    @patch("hachimoku.cli._app._is_git_repository", return_value=False)
+    def test_commit_mode_requires_git_repo(
+        self, mock_is_git: MagicMock, mock_config: MagicMock
+    ) -> None:
+        """Git リポジトリ外で --commit → exit code 4。"""
+        mock_config.return_value = HachimokuConfig()
+        result = runner.invoke(app, ["--commit", "abc123"])
+        assert result.exit_code == ExitCode.INPUT_ERROR
+        assert "commit mode requires a Git repository" in result.output

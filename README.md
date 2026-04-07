@@ -10,7 +10,7 @@ Agent definitions are managed via TOML files, allowing you to add and customize 
 
 ## Key Features
 
-- 3 review modes: diff (branch diff), PR (GitHub PR), file (specified files)
+- 4 review modes: diff (branch diff), PR (GitHub PR), file (specified files), commit (commit range diff)
 - Built-in agents: code quality, silent failures, test coverage, type safety, comments, simplification
 - Add custom agents via TOML-based agent definitions
 - Choose between sequential and parallel execution
