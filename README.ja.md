@@ -68,6 +68,10 @@ uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
 
 # file モード: 指定ファイルをレビュー
 8moku src/main.py tests/test_main.py
+
+# commit モード: 特定コミットからの差分をレビュー
+8moku --commit abc123
+8moku --commit abc123..def456
 ```
 
 ### 3. エージェントの確認

@@ -68,6 +68,10 @@ Default configuration files and agent definitions are created in the `.hachimoku
 
 # file mode: review specified files
 8moku src/main.py tests/test_main.py
+
+# commit mode: review changes from a specific commit
+8moku --commit abc123
+8moku --commit abc123..def456
 ```
 
 ### 3. View Agents
