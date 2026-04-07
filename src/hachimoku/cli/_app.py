@@ -43,7 +43,7 @@ from hachimoku.cli._input_resolver import (
 )
 from hachimoku.config import find_project_root, resolve_config
 from hachimoku.engine import run_review
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig, OutputFormat
 from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.report import ReviewReport
@@ -222,9 +222,10 @@ app = typer.Typer(
     help=(
         "Multi-agent code review CLI tool.\n\n"
         "Review modes (determined by arguments):\n\n"
-        "  (no args)     diff mode - review current branch changes\n\n"
-        "  <integer>     PR mode   - review specified GitHub PR\n\n"
-        "  <path...>     file mode - review specified files/directories"
+        "  (no args)          diff mode   - review current branch changes\n\n"
+        "  <integer>          PR mode     - review specified GitHub PR\n\n"
+        "  <path...>          file mode   - review specified files/directories\n\n"
+        "  --commit <ref>     commit mode - review diff from/between commits"
     ),
     add_completion=False,
     invoke_without_command=True,
@@ -303,6 +304,14 @@ def review_callback(
         ),
     ] = None,
     # per-invocation オプション
+    commit: Annotated[
+        str | None,
+        typer.Option(
+            "--commit",
+            help="Commit ref or range (SHA, SHA1..SHA2). "
+            "Reviews diff from commit to HEAD, or between two commits.",
+        ),
+    ] = None,
     issue: Annotated[
         int | None,
         typer.Option("--issue", help="GitHub Issue number for context.", min=1),
@@ -321,15 +330,39 @@ def review_callback(
     if ctx.invoked_subcommand is not None:
         return
 
-    # 1. 入力モード判定
+    # 0. --commit 排他制御
     obj = ctx.ensure_object(dict)
     raw_args: list[str] = obj.get(_REVIEW_ARGS_KEY, [])
 
-    try:
-        resolved = resolve_input(raw_args or None)
-    except InputError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+    if commit is not None:
+        if raw_args:
+            print(
+                "Error: --commit cannot be used with positional arguments.\n"
+                "Use --commit alone, or specify files/PR number without --commit.",
+                file=sys.stderr,
+            )
+            raise typer.Exit(code=ExitCode.INPUT_ERROR)
+        if base_branch is not None:
+            print(
+                "Error: --commit cannot be used with --base-branch.\n"
+                "--base-branch is for diff mode only.",
+                file=sys.stderr,
+            )
+            raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+    # 1. 入力モード判定
+    if commit is not None:
+        try:
+            from_ref, to_ref = _parse_commit_arg(commit)
+        except InputError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+    else:
+        try:
+            resolved = resolve_input(raw_args or None)
+        except InputError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
 
     # 2. config_overrides 辞書構築
     config_overrides = _build_config_overrides(
@@ -367,8 +400,21 @@ def review_callback(
         )
         raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
 
-    # 3.5. diff/PR モード: Git リポジトリチェック
-    if isinstance(resolved, (DiffInput, PRInput)) and not _is_git_repository():
+    # 3.5. diff/PR/commit モード: Git リポジトリチェック
+    if commit is not None and not _is_git_repository():
+        print(
+            "Error: commit mode requires a Git repository.\n"
+            "Run 'git init' to initialize a Git repository, "
+            "or use file mode to review specific files.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+
+    if (
+        commit is None
+        and isinstance(resolved, (DiffInput, PRInput))
+        and not _is_git_repository()
+    ):
         mode = "diff" if isinstance(resolved, DiffInput) else "PR"
         print(
             f"Error: {mode} mode requires a Git repository.\n"
@@ -379,7 +425,7 @@ def review_callback(
         raise typer.Exit(code=ExitCode.INPUT_ERROR)
 
     # 3.6. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
-    if isinstance(resolved, FileInput):
+    if commit is None and isinstance(resolved, FileInput):
         try:
             resolved_files, file_warnings = resolve_files(
                 resolved.paths,
@@ -413,7 +459,11 @@ def review_callback(
         resolved = FileInput(paths=resolved_files.paths)
 
     # 4. ReviewTarget 構築
-    target = _build_target(resolved, config, issue)
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget
+    if commit is not None:
+        target = CommitTarget(from_ref=from_ref, to_ref=to_ref, issue_number=issue)
+    else:
+        target = _build_target(resolved, config, issue)
 
     # 4.5. カスタムエージェントディレクトリ解決
     project_root = find_project_root(Path.cwd())
@@ -681,8 +731,42 @@ def _build_target(
     assert_never(resolved)
 
 
+def _parse_commit_arg(value: str) -> tuple[str, str]:
+    """--commit の値を (from_ref, to_ref) にパースする。
+
+    Args:
+        value: --commit オプションの値。"SHA" または "SHA1..SHA2" 形式。
+
+    Returns:
+        (from_ref, to_ref) のタプル。単一 ref の場合 to_ref は "HEAD"。
+
+    Raises:
+        InputError: フォーマット不正の場合。
+    """
+    if ".." not in value:
+        return value, "HEAD"
+
+    parts = value.split("..")
+    if len(parts) != 2:
+        raise InputError(
+            f"Invalid commit range format: '{value}'. Use SHA or SHA1..SHA2 format."
+        )
+    from_ref, to_ref = parts
+    if not from_ref:
+        raise InputError(
+            f"Invalid commit range: '{value}'. "
+            "Start commit cannot be empty. Use SHA1..SHA2 format."
+        )
+    if not to_ref:
+        raise InputError(
+            f"Invalid commit range: '{value}'. "
+            "End commit cannot be empty. Use SHA1..SHA2 format."
+        )
+    return from_ref, to_ref
+
+
 def _save_review_result(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     report: ReviewReport,
 ) -> None:
     """レビュー結果を JSONL に保存する。

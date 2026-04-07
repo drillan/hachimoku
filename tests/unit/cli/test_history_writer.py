@@ -21,8 +21,9 @@ from hachimoku.cli._history_writer import (
     get_commit_hash,
     save_review_history,
 )
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.history import (
+    CommitReviewRecord,
     DiffReviewRecord,
     FileReviewRecord,
     PRReviewRecord,
@@ -73,6 +74,12 @@ class TestResolveJsonlPath:
         result = _resolve_jsonl_path(tmp_path, target)
         assert result == tmp_path / "files.jsonl"
 
+    def test_commit_target_returns_commit_jsonl(self, tmp_path: Path) -> None:
+        """CommitTarget → commit.jsonl。"""
+        target = CommitTarget(from_ref="abc123")
+        result = _resolve_jsonl_path(tmp_path, target)
+        assert result == tmp_path / "commit.jsonl"
+
 
 # =============================================================================
 # _build_record
@@ -118,6 +125,21 @@ class TestBuildRecord:
         assert isinstance(record, FileReviewRecord)
         assert record.review_mode == "file"
         assert record.file_paths == frozenset({"src/a.py", "src/b.py"})
+        assert record.reviewed_at == VALID_REVIEWED_AT
+
+    def test_commit_target_builds_commit_record(self) -> None:
+        """CommitTarget → CommitReviewRecord が構築される。"""
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        report = _make_report()
+        record = _build_record(
+            target, report, VALID_COMMIT_HASH, VALID_BRANCH_NAME, VALID_REVIEWED_AT
+        )
+        assert isinstance(record, CommitReviewRecord)
+        assert record.review_mode == "commit"
+        assert record.commit_hash == VALID_COMMIT_HASH
+        assert record.from_ref == "abc123"
+        assert record.to_ref == "def456"
+        assert record.branch_name == VALID_BRANCH_NAME
         assert record.reviewed_at == VALID_REVIEWED_AT
 
     def test_file_target_working_directory_is_absolute(self) -> None:
@@ -304,6 +326,28 @@ class TestSaveReviewHistory:
         assert data["review_mode"] == "file"
         # file モードでは git コマンドが呼ばれないことを検証
         mock_run.assert_not_called()
+
+    @patch("hachimoku.cli._history_writer.subprocess.run")
+    def test_commit_appends_to_commit_jsonl(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """commit モードで commit.jsonl に追記される。"""
+        _mock_git_subprocess(mock_run)
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        report = _make_report()
+
+        result = save_review_history(tmp_path, target, report)
+
+        assert result == tmp_path / "commit.jsonl"
+        assert result.exists()
+        lines = result.read_text().strip().splitlines()
+        assert len(lines) == 1
+        data = json.loads(lines[0])
+        assert data["review_mode"] == "commit"
+        assert data["commit_hash"] == VALID_COMMIT_HASH
+        assert data["from_ref"] == "abc123"
+        assert data["to_ref"] == "def456"
+        assert data["branch_name"] == VALID_BRANCH_NAME
 
     @patch("hachimoku.cli._history_writer.subprocess.run")
     def test_appends_to_existing_file(

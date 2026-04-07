@@ -18,7 +18,7 @@ from hachimoku.engine._instruction import (
     build_selector_instruction,
 )
 from hachimoku.engine._selector import ReferencedContent
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 
 _SAMPLE_DIFF = "diff --git a/file.py b/file.py\n+added line"
 _SAMPLE_FILE_CONTENT = "--- src/main.py ---\nprint('hello')"
@@ -236,6 +236,36 @@ class TestBuildReviewInstructionFile:
         assert "Use file tools" not in instruction
 
 
+class TestBuildReviewInstructionCommit:
+    """build_review_instruction の commit モードを検証。"""
+
+    def test_includes_from_and_to_refs(self) -> None:
+        """from_ref と to_ref がインストラクションに含まれる。"""
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert "abc123" in instruction
+        assert "def456" in instruction
+
+    def test_includes_resolved_content(self) -> None:
+        """resolved_content がインストラクションに埋め込まれる。"""
+        target = CommitTarget(from_ref="abc123")
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert _SAMPLE_DIFF in instruction
+
+    def test_with_issue_number(self) -> None:
+        """issue_number 指定時に Issue 番号を含む。"""
+        target = CommitTarget(from_ref="abc123", issue_number=42)
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert "42" in instruction
+        assert "Related Issue" in instruction
+
+    def test_default_to_ref_head(self) -> None:
+        """to_ref デフォルト HEAD がインストラクションに含まれる。"""
+        target = CommitTarget(from_ref="abc123")
+        instruction = build_review_instruction(target, _SAMPLE_DIFF)
+        assert "HEAD" in instruction
+
+
 class TestBuildReviewInstructionIssue:
     """build_review_instruction の issue_number 付加を検証。"""
 
@@ -408,6 +438,20 @@ class TestBuildSelectorInstruction:
         instruction = build_selector_instruction(target, [], raw_content)
         # _summarize_diff が空を返すため、元のコンテンツがそのまま渡される
         assert raw_content in instruction
+
+    def test_commit_target_contains_summary(self) -> None:
+        """CommitTarget: フル diff ではなくサマリーが含まれる。"""
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
+        assert "Diff Summary" in instruction
+        assert "@@ -1,5 +1,7 @@" not in instruction
+
+    def test_commit_target_includes_refs(self) -> None:
+        """CommitTarget: from_ref と to_ref がインストラクションに含まれる。"""
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        instruction = build_selector_instruction(target, [], _SINGLE_FILE_DIFF)
+        assert "abc123" in instruction
+        assert "def456" in instruction
 
 
 # =============================================================================

@@ -42,7 +42,7 @@ from hachimoku.engine._progress import (
 )
 from hachimoku.engine._aggregator import AggregatorError, run_aggregator
 from hachimoku.engine._selector import SelectorError, run_selector
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import (
     AgentError,
@@ -138,7 +138,7 @@ async def _execute_with_shutdown_timeout(
 def _build_context_with_resolved_tools(
     agent: AgentDefinition,
     config: HachimokuConfig,
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     base_user_message: str,
     resolved_content: str,
     selector_context: str,
@@ -164,7 +164,7 @@ def _build_context_with_resolved_tools(
 
 
 async def run_review(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     config_overrides: dict[str, object] | None = None,
     custom_agents_dir: Path | None = None,
     project_root: Path | None = None,
@@ -472,7 +472,7 @@ def _resolve_selected_agents(
 
 def _should_filter_diff(
     agent_def: AgentDefinition,
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
 ) -> bool:
     """エージェントに対して差分フィルタリングを適用すべきか判定する。
 
@@ -489,7 +489,7 @@ def _should_filter_diff(
 def _build_agent_user_message(
     *,
     agent_def: AgentDefinition,
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     base_user_message: str,
     resolved_content: str,
     selector_context: str,

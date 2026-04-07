@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import Final
 
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 
 logger = logging.getLogger(__name__)
@@ -272,7 +272,7 @@ def _read_project_conventions(
 
 
 async def prefetch_selector_context(
-    target: DiffTarget | PRTarget | FileTarget,
+    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
     convention_files: tuple[str, ...] = DEFAULT_CONVENTION_FILES,
 ) -> PrefetchedContext:
     """セレクターエージェント向けのコンテキストを事前取得する。

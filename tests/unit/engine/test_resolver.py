@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hachimoku.engine._resolver import ContentResolveError, resolve_content
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
 
 
 # =============================================================================
@@ -387,6 +387,154 @@ class TestResolveContentFile:
             await resolve_content(target)
 
         assert exc_info.value.__cause__ is not None
+
+
+# =============================================================================
+# resolve_content — CommitTarget
+# =============================================================================
+
+
+class TestResolveContentCommit:
+    """resolve_content の CommitTarget テスト。"""
+
+    async def test_returns_commit_diff(self) -> None:
+        """正常系: git rev-parse + git diff の結果を返す。"""
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        fake_diff = "diff --git a/file.py b/file.py\n+commit change"
+        calls: list[tuple[object, ...]] = []
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            calls.append(args)
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            if "rev-parse" in args:
+                mock_proc.communicate.return_value = (b"resolved\n", b"")
+            else:
+                mock_proc.communicate.return_value = (fake_diff.encode(), b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            result = await resolve_content(target)
+
+        assert result == fake_diff
+
+    async def test_single_ref_uses_head_as_to_ref(self) -> None:
+        """from_ref のみ指定時、HEAD がスキップされ diff に渡される。"""
+        target = CommitTarget(from_ref="abc123")
+        calls: list[tuple[object, ...]] = []
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            calls.append(args)
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            if "rev-parse" in args:
+                mock_proc.communicate.return_value = (b"resolved\n", b"")
+            else:
+                mock_proc.communicate.return_value = (b"diff output", b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            await resolve_content(target)
+
+        # to_ref=HEAD の場合、rev-parse は from_ref のみ
+        rev_parse_calls = [c for c in calls if "rev-parse" in c]
+        assert len(rev_parse_calls) == 1
+        # diff コマンドの引数を確認
+        diff_call = [c for c in calls if "diff" in c][0]
+        assert diff_call == ("git", "diff", "abc123..HEAD")
+
+    async def test_custom_to_ref_validated(self) -> None:
+        """to_ref が HEAD でない場合、両方の ref が rev-parse で検証される。"""
+        target = CommitTarget(from_ref="abc123", to_ref="def456")
+        calls: list[tuple[object, ...]] = []
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            calls.append(args)
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            if "rev-parse" in args:
+                mock_proc.communicate.return_value = (b"resolved\n", b"")
+            else:
+                mock_proc.communicate.return_value = (b"diff output", b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            await resolve_content(target)
+
+        rev_parse_calls = [c for c in calls if "rev-parse" in c]
+        assert len(rev_parse_calls) == 2
+        diff_call = [c for c in calls if "diff" in c][0]
+        assert diff_call == ("git", "diff", "abc123..def456")
+
+    async def test_empty_diff_returns_empty_string(self) -> None:
+        """コミット間に差分がない場合、空文字列を返す。"""
+        target = CommitTarget(from_ref="abc123")
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 0
+            if "rev-parse" in args:
+                mock_proc.communicate.return_value = (b"resolved\n", b"")
+            else:
+                mock_proc.communicate.return_value = (b"", b"")
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            result = await resolve_content(target)
+
+        assert result == ""
+
+    async def test_invalid_from_ref_raises_error(self) -> None:
+        """無効な from_ref の場合 ContentResolveError を送出する。"""
+        target = CommitTarget(from_ref="nonexistent-ref")
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            mock_proc = AsyncMock()
+            mock_proc.returncode = 1
+            mock_proc.communicate.return_value = (
+                b"",
+                b"fatal: Needed a single revision",
+            )
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(ContentResolveError, match="rev-parse"):
+                await resolve_content(target)
+
+    async def test_invalid_to_ref_raises_error(self) -> None:
+        """無効な to_ref の場合 ContentResolveError を送出する。"""
+        target = CommitTarget(from_ref="abc123", to_ref="nonexistent-ref")
+        call_count = 0
+
+        async def mock_subprocess(*args: object, **kwargs: object) -> AsyncMock:
+            nonlocal call_count
+            call_count += 1
+            mock_proc = AsyncMock()
+            if call_count == 1:  # from_ref rev-parse — success
+                mock_proc.returncode = 0
+                mock_proc.communicate.return_value = (b"resolved\n", b"")
+            else:  # to_ref rev-parse — failure
+                mock_proc.returncode = 1
+                mock_proc.communicate.return_value = (
+                    b"",
+                    b"fatal: Needed a single revision",
+                )
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+            with pytest.raises(ContentResolveError, match="rev-parse"):
+                await resolve_content(target)
+
+    async def test_git_not_found_raises_error(self) -> None:
+        """git コマンド未検出時に ContentResolveError を送出する。"""
+        target = CommitTarget(from_ref="abc123")
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            side_effect=FileNotFoundError("git not found"),
+        ):
+            with pytest.raises(ContentResolveError, match="not found"):
+                await resolve_content(target)
 
 
 # =============================================================================

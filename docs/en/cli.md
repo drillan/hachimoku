@@ -26,6 +26,9 @@ Single positive integer
 File path(s) (one or more)
 : file mode. Reviews entire specified files. Supports glob patterns (`*`, `?`, `[`) and directory specifications. Works outside of Git repositories.
 
+`--commit <ref>`
+: commit mode. Reviews the diff from a specific commit to HEAD, or between two commits. Must be run inside a Git repository. Cannot be combined with positional arguments or `--base-branch`.
+
 ```bash
 # diff mode
 8moku
@@ -37,6 +40,11 @@ File path(s) (one or more)
 8moku src/main.py
 8moku src/**/*.py
 8moku src/
+
+# commit mode
+8moku --commit abc123
+8moku --commit abc123..def456
+8moku --commit HEAD~3
 ```
 
 ### Review Options
@@ -55,6 +63,7 @@ Options for the review command. These override configuration file values.
 | `--show-cost / --no-show-cost` | bool | Display cost information |
 | `--max-files INTEGER` | int (min: 1) | Maximum number of files to review |
 | `--ext TEXT` | str (repeatable) | Extension filter (file mode only, e.g. `--ext .py --ext .rst`) |
+| `--commit TEXT` | str | Commit ref or range for commit mode (`SHA` or `SHA1..SHA2`) |
 | `--issue INTEGER` | int (min: 1) | GitHub Issue number for context |
 | `--no-confirm` | bool | Skip confirmation prompts |
 | `--version` | - | Display version number and exit |

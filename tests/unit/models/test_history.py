@@ -11,6 +11,7 @@ from pydantic import TypeAdapter, ValidationError
 from hachimoku.models.agent_result import AgentSuccess
 from hachimoku.models.history import (
     CommitHash,
+    CommitReviewRecord,
     DiffReviewRecord,
     FileReviewRecord,
     PRReviewRecord,
@@ -468,12 +469,135 @@ class TestFileReviewRecordConstraints:
 
 
 # =============================================================================
+# CommitReviewRecord
+# =============================================================================
+
+
+class TestCommitReviewRecordValid:
+    """CommitReviewRecord の正常系を検証。"""
+
+    def test_valid_commit_record(self) -> None:
+        """全必須フィールド設定で review_mode="commit" のインスタンスが生成される。"""
+        record = CommitReviewRecord(
+            commit_hash=VALID_COMMIT_HASH,
+            from_ref="abc123",
+            to_ref="def456",
+            branch_name="main",
+            reviewed_at=VALID_REVIEWED_AT,
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        assert record.review_mode == "commit"
+        assert record.commit_hash == VALID_COMMIT_HASH
+        assert record.from_ref == "abc123"
+        assert record.to_ref == "def456"
+        assert record.branch_name == "main"
+
+    def test_review_mode_default(self) -> None:
+        """review_mode はデフォルトで "commit" が設定される。"""
+        record = CommitReviewRecord(
+            commit_hash=VALID_COMMIT_HASH,
+            from_ref="HEAD~3",
+            to_ref="HEAD",
+            branch_name="feature/test",
+            reviewed_at=VALID_REVIEWED_AT,
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        assert record.review_mode == "commit"
+
+
+class TestCommitReviewRecordConstraints:
+    """CommitReviewRecord の制約違反を検証。"""
+
+    def test_invalid_commit_hash_rejected(self) -> None:
+        """不正な commit_hash は拒否される。"""
+        with pytest.raises(ValidationError, match="commit_hash"):
+            CommitReviewRecord(
+                commit_hash="invalid",
+                from_ref="abc",
+                to_ref="def",
+                branch_name="main",
+                reviewed_at=VALID_REVIEWED_AT,
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
+    def test_empty_from_ref_rejected(self) -> None:
+        """空の from_ref は拒否される。"""
+        with pytest.raises(ValidationError, match="from_ref"):
+            CommitReviewRecord(
+                commit_hash=VALID_COMMIT_HASH,
+                from_ref="",
+                to_ref="HEAD",
+                branch_name="main",
+                reviewed_at=VALID_REVIEWED_AT,
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
+    def test_empty_to_ref_rejected(self) -> None:
+        """空の to_ref は拒否される。"""
+        with pytest.raises(ValidationError, match="to_ref"):
+            CommitReviewRecord(
+                commit_hash=VALID_COMMIT_HASH,
+                from_ref="abc",
+                to_ref="",
+                branch_name="main",
+                reviewed_at=VALID_REVIEWED_AT,
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
+    def test_empty_branch_name_rejected(self) -> None:
+        """空の branch_name は拒否される。"""
+        with pytest.raises(ValidationError, match="branch_name"):
+            CommitReviewRecord(
+                commit_hash=VALID_COMMIT_HASH,
+                from_ref="abc",
+                to_ref="def",
+                branch_name="",
+                reviewed_at=VALID_REVIEWED_AT,
+                results=[],
+                summary=VALID_SUMMARY,
+            )
+
+    def test_extra_field_rejected(self) -> None:
+        """extra フィールドは拒否される。"""
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            CommitReviewRecord(
+                commit_hash=VALID_COMMIT_HASH,
+                from_ref="abc",
+                to_ref="def",
+                branch_name="main",
+                reviewed_at=VALID_REVIEWED_AT,
+                results=[],
+                summary=VALID_SUMMARY,
+                extra_field="bad",  # type: ignore[call-arg]
+            )
+
+    def test_frozen(self) -> None:
+        """frozen=True で属性変更が拒否される。"""
+        record = CommitReviewRecord(
+            commit_hash=VALID_COMMIT_HASH,
+            from_ref="abc",
+            to_ref="def",
+            branch_name="main",
+            reviewed_at=VALID_REVIEWED_AT,
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        with pytest.raises(ValidationError, match="frozen"):
+            record.from_ref = "other"  # type: ignore[misc]
+
+
+# =============================================================================
 # ReviewHistoryRecord (判別共用体)
 # =============================================================================
 
-history_adapter: TypeAdapter[DiffReviewRecord | PRReviewRecord | FileReviewRecord] = (
-    TypeAdapter(ReviewHistoryRecord)
-)
+history_adapter: TypeAdapter[
+    DiffReviewRecord | PRReviewRecord | FileReviewRecord | CommitReviewRecord
+] = TypeAdapter(ReviewHistoryRecord)
 
 
 class TestReviewHistoryRecordDiscriminator:
@@ -522,6 +646,22 @@ class TestReviewHistoryRecordDiscriminator:
         assert isinstance(result, FileReviewRecord)
         assert result.review_mode == "file"
         assert result.file_paths == frozenset({"src/app.py"})
+
+    def test_commit_variant_selected(self) -> None:
+        """review_mode="commit" で CommitReviewRecord が選択される。"""
+        data = {
+            "review_mode": "commit",
+            "commit_hash": VALID_COMMIT_HASH,
+            "from_ref": "abc123",
+            "to_ref": "def456",
+            "branch_name": "main",
+            "reviewed_at": VALID_REVIEWED_AT.isoformat(),
+            "results": [],
+            "summary": VALID_SUMMARY.model_dump(),
+        }
+        result = history_adapter.validate_python(data)
+        assert isinstance(result, CommitReviewRecord)
+        assert result.review_mode == "commit"
 
     def test_invalid_review_mode_rejected(self) -> None:
         """不正な review_mode は拒否される。"""
@@ -617,6 +757,21 @@ class TestReviewHistoryRecordRoundTrip:
         )
         restored = history_adapter.validate_python(original.model_dump())
         assert isinstance(restored, FileReviewRecord)
+        assert restored == original
+
+    def test_commit_round_trip(self) -> None:
+        """CommitReviewRecord の model_dump → validate_python ラウンドトリップ。"""
+        original = CommitReviewRecord(
+            commit_hash=VALID_COMMIT_HASH,
+            from_ref="abc123",
+            to_ref="def456",
+            branch_name="main",
+            reviewed_at=VALID_REVIEWED_AT,
+            results=[],
+            summary=VALID_SUMMARY,
+        )
+        restored = history_adapter.validate_python(original.model_dump())
+        assert isinstance(restored, CommitReviewRecord)
         assert restored == original
 
     def test_file_json_round_trip(self) -> None:
