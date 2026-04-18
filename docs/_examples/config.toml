@@ -1,5 +1,5 @@
 # Execution settings
-model = "claudecode:claude-opus-4-6"  # Specify provider with prefix
+model = "claudecode:claude-opus-4-7"  # Specify provider with prefix
 timeout = 600
 max_turns = 30
 parallel = true
@@ -24,14 +24,14 @@ referenced_content_max_chars = 5000
 # Aggregation agent settings
 [aggregation]
 enabled = true
-# model = "claudecode:claude-opus-4-6"
+# model = "claudecode:claude-opus-4-7"
 # timeout = 300
 # max_turns = 10
 
 # Per-agent settings
 [agents.code-reviewer]
 enabled = true
-model = "anthropic:claude-opus-4-6"  # anthropic: prefix for direct API calls
+model = "anthropic:claude-opus-4-7"  # anthropic: prefix for direct API calls
 timeout = 600
 max_turns = 15
 

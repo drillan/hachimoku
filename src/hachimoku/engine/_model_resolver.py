@@ -39,7 +39,7 @@ def resolve_model(
 
     Args:
         model: プレフィックス付きモデル名文字列
-            （例: ``"claudecode:claude-opus-4-6"``, ``"anthropic:claude-opus-4-6"``）。
+            （例: ``"claudecode:claude-opus-4-7"``, ``"anthropic:claude-opus-4-7"``）。
         allowed_builtin_tools: claudecode プレフィックス時に許可する
             CLI ビルトインツール名のタプル。``None`` の場合は
             デフォルトの ``_ALLOWED_BUILTIN_TOOLS``（Read, Grep, Glob）を使用する。
@@ -67,7 +67,7 @@ def resolve_model(
         if not bare_name:
             raise ValueError(
                 f"Model name cannot be empty after prefix in '{model}'. "
-                "Specify a model name, e.g. 'claudecode:claude-opus-4-6'."
+                "Specify a model name, e.g. 'claudecode:claude-opus-4-7'."
             )
         tools = list(
             allowed_builtin_tools
@@ -85,7 +85,7 @@ def resolve_model(
         if not bare_name:
             raise ValueError(
                 f"Model name cannot be empty after prefix in '{model}'. "
-                "Specify a model name, e.g. 'anthropic:claude-opus-4-6'."
+                "Specify a model name, e.g. 'anthropic:claude-opus-4-7'."
             )
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise ValueError(

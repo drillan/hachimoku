@@ -52,7 +52,7 @@ The selector agent's model is resolved in the following priority order:
 
 1. `model` in `[selector]` configuration (see [Configuration](configuration.md))
 2. `model` in the selector definition
-3. Global `model` setting (default: `"claudecode:claude-opus-4-6"`)
+3. Global `model` setting (default: `"claudecode:claude-opus-4-7"`)
 
 ### Built-in Selector Definition
 

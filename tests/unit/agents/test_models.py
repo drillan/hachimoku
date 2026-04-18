@@ -586,7 +586,7 @@ def _valid_selector_data(**overrides: object) -> dict[str, object]:
     base: dict[str, object] = {
         "name": "selector",
         "description": "Agent selector for code review",
-        "model": "claudecode:claude-opus-4-6",
+        "model": "claudecode:claude-opus-4-7",
         "system_prompt": "You are an agent selector.",
     }
     base.update(overrides)
@@ -606,7 +606,7 @@ class TestSelectorDefinitionValid:
         selector = SelectorDefinition.model_validate(_valid_selector_data())
         assert selector.name == "selector"
         assert selector.description == "Agent selector for code review"
-        assert selector.model == "claudecode:claude-opus-4-6"
+        assert selector.model == "claudecode:claude-opus-4-7"
         assert selector.system_prompt == "You are an agent selector."
 
     def test_default_allowed_tools(self) -> None:
@@ -767,9 +767,9 @@ class TestAggregatorDefinitionValid:
     def test_model_explicit(self) -> None:
         """model を明示指定できる。"""
         aggregator = AggregatorDefinition.model_validate(
-            _valid_aggregator_data(model="claudecode:claude-opus-4-6")
+            _valid_aggregator_data(model="claudecode:claude-opus-4-7")
         )
-        assert aggregator.model == "claudecode:claude-opus-4-6"
+        assert aggregator.model == "claudecode:claude-opus-4-7"
 
     def test_isinstance_hachimoku_base_model(self) -> None:
         """HachimokuBaseModel のインスタンスである。"""

@@ -1,6 +1,6 @@
 name = "architecture-reviewer"
 description = "アーキテクチャ・設計パターンの問題検出 — SOLID 原則、レイヤー違反、循環依存、結合度"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 output_schema = "severity_classified"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

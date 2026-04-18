@@ -47,7 +47,7 @@ from hachimoku.agents.models import (
 VALID_TOML = """\
 name = "test-agent"
 description = "A test agent"
-model = "anthropic:claude-opus-4-6"
+model = "anthropic:claude-opus-4-7"
 output_schema = "scored_issues"
 system_prompt = "You are a test agent."
 """
@@ -135,7 +135,7 @@ class TestLoadSingleAgentValid:
         agent = _load_single_agent(path)
         assert agent.name == "test-agent"
         assert agent.description == "A test agent"
-        assert agent.model == "anthropic:claude-opus-4-6"
+        assert agent.model == "anthropic:claude-opus-4-7"
         assert agent.output_schema == "scored_issues"
         assert agent.system_prompt == "You are a test agent."
 
@@ -832,7 +832,7 @@ class TestSecurityAnalyzerPromptSections:
 VALID_SELECTOR_TOML = """\
 name = "selector"
 description = "Agent selector for code review"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = "You are an agent selector."
 """
@@ -980,7 +980,7 @@ class TestLoadAgentsExcludesSelector:
 VALID_AGGREGATOR_TOML = """\
 name = "aggregator"
 description = "Aggregate review results"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 system_prompt = "You are a review aggregator."
 """
 

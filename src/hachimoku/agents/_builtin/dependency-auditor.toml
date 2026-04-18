@@ -1,6 +1,6 @@
 name = "dependency-auditor"
 description = "Dependency security and health auditing — CVE detection, version analysis, license compatibility, supply chain risks"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 output_schema = "severity_classified"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

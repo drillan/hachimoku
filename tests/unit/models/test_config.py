@@ -168,7 +168,7 @@ class TestHachimokuConfigDefaults:
         assert config is not None
 
     def test_default_model(self) -> None:
-        assert HachimokuConfig().model == "claudecode:claude-opus-4-6"
+        assert HachimokuConfig().model == "claudecode:claude-opus-4-7"
 
     def test_default_timeout(self) -> None:
         assert HachimokuConfig().timeout == 600

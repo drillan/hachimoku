@@ -76,7 +76,7 @@ def _make_selector_config(
 
 
 def _make_selector_definition(
-    model: str | None = "anthropic:claude-opus-4-6",
+    model: str | None = "anthropic:claude-opus-4-7",
     system_prompt: str = "You are an agent selector.",
     allowed_tools: tuple[str, ...] = ("git_read", "gh_read", "file_read"),
 ) -> SelectorDefinition:
@@ -760,7 +760,7 @@ class TestRunSelectorResolveModel:
         )
 
         mock_resolve.assert_called_once_with(
-            "anthropic:claude-opus-4-6",
+            "anthropic:claude-opus-4-7",
             allowed_builtin_tools=(),
             extra_builtin_tools=(
                 "mcp__pydantic_tools__run_git",
@@ -1440,7 +1440,7 @@ class TestRunSelectorBuiltinTools:
         # デフォルトの allowed_tools=(git_read, gh_read, file_read) では
         # 各カテゴリの MCP ツール名が claudecode_builtin_names に含まれる
         mock_resolve.assert_called_once_with(
-            "anthropic:claude-opus-4-6",
+            "anthropic:claude-opus-4-7",
             allowed_builtin_tools=(),
             extra_builtin_tools=(
                 "mcp__pydantic_tools__run_git",
