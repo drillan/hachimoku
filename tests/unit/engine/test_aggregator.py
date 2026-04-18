@@ -204,7 +204,7 @@ class TestAggregatedReportConstraints:
 
 
 def _make_aggregator_definition(
-    model: str | None = "anthropic:claude-opus-4-6",
+    model: str | None = "anthropic:claude-opus-4-7",
     system_prompt: str = "You are a review aggregator.",
 ) -> AggregatorDefinition:
     """テスト用 AggregatorDefinition を生成するヘルパー。"""

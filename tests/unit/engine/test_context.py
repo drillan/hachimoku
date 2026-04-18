@@ -438,10 +438,10 @@ class TestBuildExecutionContextModelResolution:
             ("def-model", "global-model", _NO_AGENT_CONFIG, "def-model"),
             # agent_def が global を上書き（agent_config なし）
             (
-                "anthropic:claude-opus-4-6",
+                "anthropic:claude-opus-4-7",
                 "global-model",
                 _NO_AGENT_CONFIG,
-                "anthropic:claude-opus-4-6",
+                "anthropic:claude-opus-4-7",
             ),
             # agent_config=None の場合、agent_def が使用される
             ("def-model", "global-model", None, "def-model"),
@@ -630,7 +630,7 @@ class TestBuildExecutionContextPhaseVariants:
 
     def test_defaults_from_hachimoku_config(self) -> None:
         """HachimokuConfig のデフォルト値がコンテキストに正しく伝播する。"""
-        agent = _make_agent(model="claudecode:claude-opus-4-6")
+        agent = _make_agent(model="claudecode:claude-opus-4-7")
         ctx = build_execution_context(
             agent_def=agent,
             agent_config=None,
@@ -638,7 +638,7 @@ class TestBuildExecutionContextPhaseVariants:
             user_message="msg",
             resolved_tools=(),
         )
-        assert ctx.model == "claudecode:claude-opus-4-6"
+        assert ctx.model == "claudecode:claude-opus-4-7"
         assert ctx.timeout_seconds == 600
         assert ctx.max_turns == 30
 

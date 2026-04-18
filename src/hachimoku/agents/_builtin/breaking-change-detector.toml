@@ -1,6 +1,6 @@
 name = "breaking-change-detector"
 description = "Detection of breaking changes in public APIs, data models, CLI interfaces, and configuration formats"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 output_schema = "severity_classified"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

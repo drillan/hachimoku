@@ -22,19 +22,19 @@ class TestResolveModelClaudeCodePrefix:
 
     def test_returns_claude_code_model_instance(self) -> None:
         """claudecode: プレフィックスで ClaudeCodeModel が返される。"""
-        result = resolve_model("claudecode:claude-opus-4-6")
+        result = resolve_model("claudecode:claude-opus-4-7")
         assert isinstance(result, ClaudeCodeModel)
 
     def test_returns_model_subclass(self) -> None:
         """ClaudeCodeModel は pydantic-ai Model のサブクラス。"""
-        result = resolve_model("claudecode:claude-opus-4-6")
+        result = resolve_model("claudecode:claude-opus-4-7")
         assert isinstance(result, Model)
 
     def test_strips_prefix(self) -> None:
         """'claudecode:' プレフィックスが除去されて model_name に渡される。"""
-        result = resolve_model("claudecode:claude-opus-4-6")
+        result = resolve_model("claudecode:claude-opus-4-7")
         assert isinstance(result, ClaudeCodeModel)
-        assert result.model_name == "claude-opus-4-6"
+        assert result.model_name == "claude-opus-4-7"
 
     def test_prefix_stripped_once(self) -> None:
         """'claudecode:' が1回だけ除去される。"""
@@ -54,32 +54,32 @@ class TestResolveModelAnthropicPrefix:
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_returns_string_as_is(self) -> None:
         """anthropic: プレフィックスではモデル文字列がそのまま返される。"""
-        result = resolve_model("anthropic:claude-opus-4-6")
-        assert result == "anthropic:claude-opus-4-6"
+        result = resolve_model("anthropic:claude-opus-4-7")
+        assert result == "anthropic:claude-opus-4-7"
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_returns_str_type(self) -> None:
         """戻り値が str 型であること。"""
-        result = resolve_model("anthropic:claude-opus-4-6")
+        result = resolve_model("anthropic:claude-opus-4-7")
         assert isinstance(result, str)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_api_key_raises_error(self) -> None:
         """ANTHROPIC_API_KEY 未設定時に ValueError が発生する。"""
         with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-            resolve_model("anthropic:claude-opus-4-6")
+            resolve_model("anthropic:claude-opus-4-7")
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_api_key_present_succeeds(self) -> None:
         """ANTHROPIC_API_KEY が設定されている場合は正常に処理される。"""
-        result = resolve_model("anthropic:claude-opus-4-6")
-        assert result == "anthropic:claude-opus-4-6"
+        result = resolve_model("anthropic:claude-opus-4-7")
+        assert result == "anthropic:claude-opus-4-7"
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""})
     def test_empty_api_key_raises_error(self) -> None:
         """ANTHROPIC_API_KEY が空文字列の場合も ValueError が発生する。"""
         with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-            resolve_model("anthropic:claude-opus-4-6")
+            resolve_model("anthropic:claude-opus-4-7")
 
     def test_empty_model_name_raises_error(self) -> None:
         """'anthropic:' のみ（モデル名なし）で ValueError が発生する。"""
@@ -98,7 +98,7 @@ class TestResolveModelUnknownPrefix:
     def test_no_prefix_raises_error(self) -> None:
         """プレフィックスなしのモデル名で ValueError が発生する。"""
         with pytest.raises(ValueError, match="Unknown model prefix"):
-            resolve_model("claude-opus-4-6")
+            resolve_model("claude-opus-4-7")
 
 
 class TestResolveModelAllowedTools:
@@ -111,9 +111,9 @@ class TestResolveModelAllowedTools:
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_claudecode_passes_allowed_tools(self, mock_ccm_cls: MagicMock) -> None:
         """claudecode: プレフィックスで allowed_tools が渡される。"""
-        resolve_model("claudecode:claude-opus-4-6")
+        resolve_model("claudecode:claude-opus-4-7")
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
         )
 
@@ -145,42 +145,42 @@ class TestResolveModelAllowedBuiltinToolsOverride:
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_none_uses_default_tools(self, mock_ccm_cls: MagicMock) -> None:
         """allowed_builtin_tools=None でデフォルトの _ALLOWED_BUILTIN_TOOLS が使用される。"""
-        resolve_model("claudecode:claude-opus-4-6", allowed_builtin_tools=None)
+        resolve_model("claudecode:claude-opus-4-7", allowed_builtin_tools=None)
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
         )
 
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_empty_tuple_passes_empty_list(self, mock_ccm_cls: MagicMock) -> None:
         """allowed_builtin_tools=() で空リストが ClaudeCodeModel に渡される。"""
-        resolve_model("claudecode:claude-opus-4-6", allowed_builtin_tools=())
+        resolve_model("claudecode:claude-opus-4-7", allowed_builtin_tools=())
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=[],
         )
 
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_custom_tools_passed(self, mock_ccm_cls: MagicMock) -> None:
         """allowed_builtin_tools=("Read",) で指定ツールのみ渡される。"""
-        resolve_model("claudecode:claude-opus-4-6", allowed_builtin_tools=("Read",))
+        resolve_model("claudecode:claude-opus-4-7", allowed_builtin_tools=("Read",))
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=["Read"],
         )
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
     def test_anthropic_prefix_ignores_parameter(self) -> None:
         """anthropic: プレフィックスでは allowed_builtin_tools が無視される。"""
-        result = resolve_model("anthropic:claude-opus-4-6", allowed_builtin_tools=())
-        assert result == "anthropic:claude-opus-4-6"
+        result = resolve_model("anthropic:claude-opus-4-7", allowed_builtin_tools=())
+        assert result == "anthropic:claude-opus-4-7"
 
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_omitted_parameter_uses_default(self, mock_ccm_cls: MagicMock) -> None:
         """パラメータ省略時はデフォルトの _ALLOWED_BUILTIN_TOOLS が使用される。"""
-        resolve_model("claudecode:claude-opus-4-6")
+        resolve_model("claudecode:claude-opus-4-7")
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
         )
 
@@ -200,19 +200,19 @@ class TestResolveModelExtraBuiltinTools:
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_empty_extra_tools_no_change(self, mock_ccm_cls: MagicMock) -> None:
         """extra_builtin_tools=() でデフォルトの allowed_tools のみ渡される。"""
-        resolve_model("claudecode:claude-opus-4-6", extra_builtin_tools=())
+        resolve_model("claudecode:claude-opus-4-7", extra_builtin_tools=())
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=list(_ALLOWED_BUILTIN_TOOLS),
         )
 
     @patch("hachimoku.engine._model_resolver.ClaudeCodeModel")
     def test_extra_tools_appended_to_default(self, mock_ccm_cls: MagicMock) -> None:
         """extra_builtin_tools がデフォルトの allowed_tools に追加される。"""
-        resolve_model("claudecode:claude-opus-4-6", extra_builtin_tools=("WebFetch",))
+        resolve_model("claudecode:claude-opus-4-7", extra_builtin_tools=("WebFetch",))
         expected = list(_ALLOWED_BUILTIN_TOOLS) + ["WebFetch"]
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=expected,
         )
 
@@ -222,12 +222,12 @@ class TestResolveModelExtraBuiltinTools:
     ) -> None:
         """allowed_builtin_tools と extra_builtin_tools が両方指定された場合、結合される。"""
         resolve_model(
-            "claudecode:claude-opus-4-6",
+            "claudecode:claude-opus-4-7",
             allowed_builtin_tools=("Read",),
             extra_builtin_tools=("WebFetch",),
         )
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=["Read", "WebFetch"],
         )
 
@@ -237,12 +237,12 @@ class TestResolveModelExtraBuiltinTools:
     ) -> None:
         """allowed_builtin_tools=() + extra_builtin_tools で extra のみ渡される。"""
         resolve_model(
-            "claudecode:claude-opus-4-6",
+            "claudecode:claude-opus-4-7",
             allowed_builtin_tools=(),
             extra_builtin_tools=("WebFetch",),
         )
         mock_ccm_cls.assert_called_once_with(
-            model_name="claude-opus-4-6",
+            model_name="claude-opus-4-7",
             allowed_tools=["WebFetch"],
         )
 
@@ -250,6 +250,6 @@ class TestResolveModelExtraBuiltinTools:
     def test_anthropic_prefix_ignores_extra_tools(self) -> None:
         """anthropic: プレフィックスでは extra_builtin_tools が無視される。"""
         result = resolve_model(
-            "anthropic:claude-opus-4-6", extra_builtin_tools=("WebFetch",)
+            "anthropic:claude-opus-4-7", extra_builtin_tools=("WebFetch",)
         )
-        assert result == "anthropic:claude-opus-4-6"
+        assert result == "anthropic:claude-opus-4-7"

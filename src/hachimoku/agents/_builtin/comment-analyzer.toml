@@ -1,6 +1,6 @@
 name = "comment-analyzer"
 description = "Analysis of code comment accuracy and quality"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 output_schema = "category_classification"
 phase = "final"
 allowed_tools = ["git_read", "gh_read", "file_read"]

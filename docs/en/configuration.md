@@ -39,7 +39,7 @@ Project settings (`.hachimoku/config.toml`) and `pyproject.toml` are searched up
 
 ```{code-block} toml
 [tool.hachimoku]
-model = "anthropic:claude-opus-4-6"
+model = "anthropic:claude-opus-4-7"
 timeout = 300
 parallel = false
 ```
@@ -52,7 +52,7 @@ Complete list of all configuration items.
 
 | Item | Type | Default | Constraint | Description |
 |------|------|---------|------------|-------------|
-| `model` | `str` | `"claudecode:claude-opus-4-6"` | Non-empty, prefix required | LLM model name (specify provider with `claudecode:` or `anthropic:` prefix) |
+| `model` | `str` | `"claudecode:claude-opus-4-7"` | Non-empty, prefix required | LLM model name (specify provider with `claudecode:` or `anthropic:` prefix) |
 | `timeout` | `int` | `600` | Positive value | Agent timeout (seconds) |
 | `max_turns` | `int` | `30` | Positive value | Maximum number of agent turns |
 | `parallel` | `bool` | `true` | - | Enable parallel execution |
@@ -94,7 +94,7 @@ When `model`, `timeout`, or `max_turns` is `None`, the aggregation agent definit
 ```{code-block} toml
 [aggregation]
 enabled = true
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 timeout = 300
 max_turns = 10
 ```
@@ -173,7 +173,7 @@ config = resolve_config(
     cli_overrides={"timeout": 600, "parallel": False},
 )
 
-print(config.model)      # "claudecode:claude-opus-4-6"
+print(config.model)      # "claudecode:claude-opus-4-7"
 print(config.timeout)    # 600 (CLI override applied)
 print(config.parallel)   # False (CLI override applied)
 ```

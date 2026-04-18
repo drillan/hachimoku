@@ -1,6 +1,6 @@
 name = "security-analyzer"
 description = "セキュリティ脆弱性の検出 — インジェクション、認証欠陥、シークレット漏洩、OWASP Top 10"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 output_schema = "severity_classified"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

@@ -167,7 +167,7 @@ class TestGenerateConfigTemplate:
         from hachimoku.models.config import DEFAULT_MAX_TURNS
 
         template = _generate_config_template()
-        assert '"claudecode:claude-opus-4-6"' in template
+        assert '"claudecode:claude-opus-4-7"' in template
         assert "600" in template
         assert f"max_turns = {DEFAULT_MAX_TURNS}" in template
         assert "true" in template

@@ -1,6 +1,6 @@
 name = "type-design-analyzer"
 description = "Practical analysis of type annotations and type safety"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 output_schema = "multi_dimensional_analysis"
 phase = "main"
 allowed_tools = ["git_read", "gh_read", "file_read"]

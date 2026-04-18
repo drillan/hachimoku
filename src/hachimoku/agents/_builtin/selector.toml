@@ -1,6 +1,6 @@
 name = "selector"
 description = "Analyzes review targets and selects optimal review agents"
-model = "claudecode:claude-opus-4-6"
+model = "claudecode:claude-opus-4-7"
 allowed_tools = ["git_read", "gh_read", "file_read"]
 system_prompt = """
 You are an agent selector for code review. Your role is twofold:
