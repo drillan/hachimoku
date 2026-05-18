@@ -10,6 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import typer
 from pydantic import Field, ValidationError
 
 from hachimoku.agents.applicability import select_agent_names
@@ -81,8 +82,8 @@ def select_command(target: ReviewTarget, manifest_path: Path) -> None:
         plan = run_select(target, manifest_path)
     except SelectError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(ExitCode.INPUT_ERROR) from None
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
     except ChangeSetError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(ExitCode.EXECUTION_ERROR) from None
+        raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None
     print(plan.model_dump_json(indent=2))

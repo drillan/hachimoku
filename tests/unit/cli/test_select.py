@@ -109,4 +109,30 @@ class TestSelectCommand:
         result = CliRunner().invoke(
             app, ["select", "--manifest", str(tmp_path / "nonexistent.json")]
         )
-        assert result.exit_code != 0
+        assert result.exit_code == 4
+
+    def test_changeset_failure_exits_3(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manifest_path = _write_manifest(tmp_path)
+        monkeypatch.chdir(tmp_path)  # git リポジトリではない
+        result = CliRunner().invoke(app, ["select", "--manifest", str(manifest_path)])
+        assert result.exit_code == 3
+
+    def test_commit_with_positional_args_errors(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manifest_path = _write_manifest(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = CliRunner().invoke(
+            app,
+            [
+                "select",
+                "123",
+                "--commit",
+                "HEAD~1",
+                "--manifest",
+                str(manifest_path),
+            ],
+        )
+        assert result.exit_code == 4
