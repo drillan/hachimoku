@@ -64,7 +64,9 @@ class TestToManifestEntry:
 class TestRenderSubagentMd:
     def test_frontmatter_and_body(self) -> None:
         agent = _agent("code-reviewer")
-        md = render_subagent_md(agent)
+        md = render_subagent_md(
+            agent, hook_script="${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh"
+        )
         assert md.startswith("---\n")
         assert f"name: {agent.name}\n" in md
         assert "model: claude-opus-4-7\n" in md
@@ -74,7 +76,14 @@ class TestRenderSubagentMd:
 
     def test_bash_agent_has_hook_block(self) -> None:
         agent = _agent("code-reviewer")
-        md = render_subagent_md(agent)
+        md = render_subagent_md(
+            agent, hook_script="${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh"
+        )
         assert "hooks:" in md
         assert "block-git-mutations.sh" in md
         assert "PreToolUse" in md
+
+    def test_hook_script_path_is_parameterized(self) -> None:
+        agent = _agent("code-reviewer")
+        md = render_subagent_md(agent, hook_script="/abs/path/to/guard.sh")
+        assert "command: /abs/path/to/guard.sh" in md

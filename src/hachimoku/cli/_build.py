@@ -22,7 +22,9 @@ class BuildError(Exception):
     """出力ディレクトリへの書き込み失敗等の build コマンド固有エラー。"""
 
 
-def run_build(output_dir: Path, custom_agents_dir: Path | None) -> int:
+def run_build(
+    output_dir: Path, custom_agents_dir: Path | None, hook_script: str
+) -> int:
     """ビルド処理を実行し、生成した .md ファイル数を返す。
 
     全エージェント定義を読み込み、各エージェントの Claude Code サブエージェント .md を
@@ -33,6 +35,8 @@ def run_build(output_dir: Path, custom_agents_dir: Path | None) -> int:
         output_dir: 生成ファイルの出力先ルートディレクトリ。
         custom_agents_dir: カスタムエージェント定義のディレクトリパス。
             None の場合はビルトインのみ読み込む。
+        hook_script: PreToolUse Bash フック用スクリプトの絶対パス。
+            各エージェント ``.md`` の hooks ブロックに埋め込まれる。
 
     Returns:
         書き出した .md ファイル数。
@@ -59,7 +63,9 @@ def run_build(output_dir: Path, custom_agents_dir: Path | None) -> int:
     for agent in result.agents:
         md_path = agents_dir / f"{agent.name}.md"
         try:
-            md_path.write_text(render_subagent_md(agent), encoding="utf-8")
+            md_path.write_text(
+                render_subagent_md(agent, hook_script=hook_script), encoding="utf-8"
+            )
         except OSError as exc:
             raise BuildError(f"Failed to write '{md_path}': {exc}") from exc
 
@@ -76,7 +82,7 @@ def run_build(output_dir: Path, custom_agents_dir: Path | None) -> int:
     return len(result.agents)
 
 
-def build_command(output_dir: Path) -> None:
+def build_command(output_dir: Path, hook_script: str) -> None:
     """build サブコマンドのメインロジック。
 
     プロジェクトルートを検出してカスタムエージェントディレクトリを決定し、
@@ -84,6 +90,7 @@ def build_command(output_dir: Path) -> None:
 
     Args:
         output_dir: 生成ファイルの出力先ルートディレクトリ。
+        hook_script: PreToolUse Bash フック用スクリプトの絶対パス。
     """
     project_root = find_project_root(Path.cwd())
     custom_agents_dir = (
@@ -91,7 +98,7 @@ def build_command(output_dir: Path) -> None:
     )
 
     try:
-        count = run_build(output_dir, custom_agents_dir)
+        count = run_build(output_dir, custom_agents_dir, hook_script)
     except BuildError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None

@@ -181,9 +181,16 @@ def build(
         Path,
         typer.Option("--output", help="Output directory for generated subagents."),
     ] = Path(".hachimoku/build"),
+    hook_script: Annotated[
+        str,
+        typer.Option(
+            "--hook-script",
+            help="Absolute path to the read-only git guard hook script.",
+        ),
+    ] = "${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh",
 ) -> None:
     """Build Claude Code subagents and manifest.json from TOML agent definitions."""
-    build_command(output)
+    build_command(output, hook_script)
 
 
 @app.command()

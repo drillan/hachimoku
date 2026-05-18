@@ -97,7 +97,7 @@ def to_manifest_entry(agent: AgentDefinition) -> ManifestEntry:
     )
 
 
-def render_subagent_md(agent: AgentDefinition) -> str:
+def render_subagent_md(agent: AgentDefinition, *, hook_script: str) -> str:
     """AgentDefinition から Claude Code サブエージェント Markdown 文字列を生成して返す。
 
     生成する構造:
@@ -109,6 +109,8 @@ def render_subagent_md(agent: AgentDefinition) -> str:
 
     Args:
         agent: 変換元エージェント定義。
+        hook_script: PreToolUse Bash フック用スクリプトの絶対パス。
+            ``Bash`` ツールを持つエージェントの hooks ブロックに埋め込まれる。
 
     Returns:
         サブエージェント ``.md`` ファイルの完全な文字列。
@@ -139,7 +141,7 @@ def render_subagent_md(agent: AgentDefinition) -> str:
                 "    - matcher: Bash",
                 "      hooks:",
                 "        - type: command",
-                "          command: ${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh",
+                f"          command: {hook_script}",
             ]
         )
 

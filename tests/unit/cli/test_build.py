@@ -44,3 +44,16 @@ class TestBuildCommand:
         assert "name: code-reviewer\n" in md
         assert "model: claude-opus-4-7\n" in md
         assert "block-git-mutations.sh" in md
+
+    def test_hook_script_option_overrides_command(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        output = tmp_path / "build"
+        CliRunner().invoke(
+            app,
+            ["build", "--output", str(output), "--hook-script", "/abs/path/guard.sh"],
+        )
+
+        md = (output / "agents" / "code-reviewer.md").read_text()
+        assert "command: /abs/path/guard.sh" in md
