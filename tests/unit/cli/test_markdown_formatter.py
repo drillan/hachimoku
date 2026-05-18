@@ -11,9 +11,6 @@ from hachimoku.cli._markdown_formatter import format_markdown
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
-    AgentTimeout,
-    AgentTruncated,
-    CostInfo,
 )
 from hachimoku.models.report import (
     AggregatedReport,
@@ -61,24 +58,20 @@ def _make_success(
     agent_name: str = "test-agent",
     issues: list[ReviewIssue] | None = None,
     elapsed_time: float = 1.0,
-    cost: CostInfo | None = None,
 ) -> AgentSuccess:
     return AgentSuccess(
         agent_name=agent_name,
         issues=issues or [],
         elapsed_time=elapsed_time,
-        cost=cost,
     )
 
 
 def _make_report(
     *,
-    results: list[AgentSuccess | AgentError | AgentTimeout | AgentTruncated]
-    | None = None,
+    results: list[AgentSuccess | AgentError] | None = None,
     total_issues: int = 0,
     max_severity: Severity | None = None,
-    total_elapsed_time: float = 0.0,
-    total_cost: CostInfo | None = None,
+    total_elapsed_time: float | None = None,
     overall_score: float | None = None,
     load_errors: tuple[LoadError, ...] = (),
     aggregated: AggregatedReport | None = None,
@@ -90,7 +83,6 @@ def _make_report(
             total_issues=total_issues,
             max_severity=max_severity,
             total_elapsed_time=total_elapsed_time,
-            total_cost=total_cost,
             overall_score=overall_score,
         ),
         load_errors=load_errors,
@@ -129,19 +121,10 @@ class TestSummarySection:
         result = format_markdown(report)
         assert "| Elapsed Time | 12.3s |" in result
 
-    def test_contains_cost_when_present(self) -> None:
-        cost = CostInfo(input_tokens=1000, output_tokens=500, total_cost=0.05)
-        report = _make_report(total_cost=cost)
+    def test_elapsed_time_none_shows_dash(self) -> None:
+        report = _make_report(total_elapsed_time=None)
         result = format_markdown(report)
-        assert "Total Cost" in result
-        assert "$0.0500" in result
-        assert "1000" in result
-        assert "500" in result
-
-    def test_omits_cost_when_none(self) -> None:
-        report = _make_report(total_cost=None)
-        result = format_markdown(report)
-        assert "Total Cost" not in result
+        assert "| Elapsed Time | - |" in result
 
     def test_contains_overall_score_when_present(self) -> None:
         report = _make_report(overall_score=8.5)
@@ -254,20 +237,18 @@ class TestIssuesSection:
         result = format_markdown(report)
         assert "## Issues" not in result
 
-    def test_issues_from_truncated_agent(self) -> None:
-        """AgentTruncated の issues も Issues セクションに含まれる。"""
-        issue = _make_issue(description="Found by truncated agent")
-        truncated = AgentTruncated(
-            agent_name="truncated-agent",
+    def test_issues_from_success_agent(self) -> None:
+        """AgentSuccess の issues が Issues セクションに含まれる。"""
+        issue = _make_issue(description="Found by success agent")
+        success = _make_success(
+            agent_name="success-agent",
             issues=[issue],
-            elapsed_time=5.0,
-            turns_consumed=10,
         )
         report = _make_report(
-            results=[truncated], total_issues=1, max_severity=Severity.IMPORTANT
+            results=[success], total_issues=1, max_severity=Severity.IMPORTANT
         )
         result = format_markdown(report)
-        assert "Found by truncated agent" in result
+        assert "Found by success agent" in result
 
 
 # ── Agent Results セクション ─────────────────────────────
@@ -293,26 +274,6 @@ class TestAgentResultsSection:
         assert "broken-agent" in result
         assert "error" in result
 
-    def test_agent_timeout_shown(self) -> None:
-        timeout = AgentTimeout(agent_name="slow-agent", timeout_seconds=30.0)
-        report = _make_report(results=[timeout])
-        result = format_markdown(report)
-        assert "slow-agent" in result
-        assert "timeout" in result
-        assert "30" in result
-
-    def test_agent_truncated_shown(self) -> None:
-        truncated = AgentTruncated(
-            agent_name="long-agent",
-            issues=[],
-            elapsed_time=10.0,
-            turns_consumed=5,
-        )
-        report = _make_report(results=[truncated])
-        result = format_markdown(report)
-        assert "long-agent" in result
-        assert "truncated" in result
-
     def test_agent_results_table_has_score_column(self) -> None:
         """Agent Results テーブルヘッダーに Score 列が含まれる。"""
         report = _make_report()
@@ -335,6 +296,16 @@ class TestAgentResultsSection:
         report = _make_report(results=[success])
         result = format_markdown(report)
         assert "| no-score | success | 0 | - | 1.0s |" in result
+
+    def test_agent_success_shows_dash_when_no_elapsed_time(self) -> None:
+        """elapsed_time=None の AgentSuccess は Time 列が - と表示される。"""
+        success = AgentSuccess(
+            agent_name="no-time",
+            issues=[],
+        )
+        report = _make_report(results=[success])
+        result = format_markdown(report)
+        assert "| no-time | success | 0 | - | - |" in result
 
 
 # ── Aggregated Analysis セクション ───────────────────────
@@ -579,7 +550,6 @@ class TestIntegration:
             agent_name="sec-agent",
             issues=[issue],
             elapsed_time=5.2,
-            cost=CostInfo(input_tokens=1000, output_tokens=500, total_cost=0.05),
         )
         error = AgentError(agent_name="broken-agent", error_message="Connection failed")
         agg = AggregatedReport(
@@ -596,7 +566,6 @@ class TestIntegration:
             total_issues=1,
             max_severity=Severity.CRITICAL,
             total_elapsed_time=5.2,
-            total_cost=CostInfo(input_tokens=1000, output_tokens=500, total_cost=0.05),
             load_errors=(LoadError(source="bad.toml", message="Parse error"),),
             aggregated=agg,
             aggregation_error="Partial failure",

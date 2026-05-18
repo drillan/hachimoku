@@ -13,9 +13,6 @@ from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
-    AgentTimeout,
-    AgentTruncated,
-    CostInfo,
 )
 from hachimoku.models.report import (
     AggregatedReport,
@@ -67,16 +64,17 @@ def format_markdown(report: ReviewReport) -> str:
 
 def _format_summary(summary: ReviewSummary) -> str:
     severity_display = summary.max_severity.value if summary.max_severity else "-"
-    elapsed_display = f"{summary.total_elapsed_time:.1f}s"
+    elapsed_display = (
+        f"{summary.total_elapsed_time:.1f}s"
+        if summary.total_elapsed_time is not None
+        else "-"
+    )
 
     rows = [
         f"| Total Issues | {summary.total_issues} |",
         f"| Max Severity | {severity_display} |",
         f"| Elapsed Time | {elapsed_display} |",
     ]
-
-    if summary.total_cost is not None:
-        rows.append(_format_cost_row(summary.total_cost))
 
     if summary.overall_score is not None:
         rows.append(f"| Overall Score | {summary.overall_score} / 10.0 |")
@@ -85,22 +83,14 @@ def _format_summary(summary: ReviewSummary) -> str:
     return f"## Summary\n\n| Metric | Value |\n|--------|-------|\n{table}"
 
 
-def _format_cost_row(cost: CostInfo) -> str:
-    cost_display = f"${cost.total_cost:.4f}" if cost.total_cost is not None else "-"
-    return (
-        f"| Total Cost | {cost_display} "
-        f"(input: {cost.input_tokens}, output: {cost.output_tokens}) |"
-    )
-
-
 # ── Issues ───────────────────────────────────────────────
 
 
 def _collect_issues(report: ReviewReport) -> list[ReviewIssue]:
-    """AgentSuccess と AgentTruncated から issues を収集する。"""
+    """AgentSuccess から issues を収集する。"""
     issues: list[ReviewIssue] = []
     for agent_result in report.results:
-        if isinstance(agent_result, (AgentSuccess, AgentTruncated)):
+        if isinstance(agent_result, AgentSuccess):
             issues.extend(agent_result.issues)
     return issues
 
@@ -165,22 +155,27 @@ def _format_agent_results(report: ReviewReport) -> str:
 
 
 def _format_agent_result_row(
-    agent_result: AgentSuccess | AgentError | AgentTimeout | AgentTruncated,
+    agent_result: AgentSuccess | AgentError,
 ) -> str:
     match agent_result:
-        case AgentSuccess() | AgentTruncated():
+        case AgentSuccess():
             issue_count = str(len(agent_result.issues))
             score_display = (
                 str(agent_result.overall_score)
                 if agent_result.overall_score is not None
                 else "-"
             )
-            time_display = f"{agent_result.elapsed_time:.1f}s"
-            return f"| {agent_result.agent_name} | {agent_result.status} | {issue_count} | {score_display} | {time_display} |"
+            time_display = (
+                f"{agent_result.elapsed_time:.1f}s"
+                if agent_result.elapsed_time is not None
+                else "-"
+            )
+            return (
+                f"| {agent_result.agent_name} | {agent_result.status} "
+                f"| {issue_count} | {score_display} | {time_display} |"
+            )
         case AgentError():
             return f"| {agent_result.agent_name} | error | - | - | - |"
-        case AgentTimeout():
-            return f"| {agent_result.agent_name} | timeout ({agent_result.timeout_seconds:.0f}s) | - | - | - |"
         case _ as unreachable:
             assert_never(unreachable)
 

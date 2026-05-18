@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from pydantic import Field, field_validator, model_validator
 
 from hachimoku.models._base import HachimokuBaseModel, normalize_enum_value
-from hachimoku.models.agent_result import AgentResult, CostInfo
+from hachimoku.models.agent_result import AgentResult
 from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity
 
@@ -117,15 +117,13 @@ class ReviewSummary(HachimokuBaseModel):
     Attributes:
         total_issues: 検出された問題の総数（非負）。
         max_severity: 検出された問題の最大重大度。問題なしの場合は None。
-        total_elapsed_time: 全エージェントの合計実行時間（非負）。
-        total_cost: 全エージェントの合計コスト情報（オプション）。
+        total_elapsed_time: 全エージェントの合計実行時間（秒）。観測できない場合は None。
         overall_score: 総合品質スコア（0.0-10.0、オプション）。
     """
 
     total_issues: int = Field(ge=0)
     max_severity: Severity | None
-    total_elapsed_time: float = Field(ge=0.0, allow_inf_nan=False)
-    total_cost: CostInfo | None = None
+    total_elapsed_time: float | None = Field(default=None, ge=0.0, allow_inf_nan=False)
     overall_score: float | None = Field(default=None, ge=0.0, le=10.0)
 
     @model_validator(mode="after")

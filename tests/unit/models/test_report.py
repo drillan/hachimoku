@@ -11,9 +11,6 @@ from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
-    AgentTimeout,
-    AgentTruncated,
-    CostInfo,
 )
 from hachimoku.models.report import (
     AggregatedReport,
@@ -155,26 +152,6 @@ class TestReviewSummaryValid:
         )
         assert summary.max_severity is None
 
-    def test_total_cost_default_none(self) -> None:
-        """total_cost 省略時に None となる。"""
-        summary = ReviewSummary(
-            total_issues=0,
-            max_severity=None,
-            total_elapsed_time=0.0,
-        )
-        assert summary.total_cost is None
-
-    def test_total_cost_accepts_cost_info(self) -> None:
-        """total_cost に CostInfo インスタンスを渡せる。"""
-        cost = CostInfo(input_tokens=200, output_tokens=100, total_cost=0.05)
-        summary = ReviewSummary(
-            total_issues=3,
-            max_severity=Severity.IMPORTANT,
-            total_elapsed_time=5.0,
-            total_cost=cost,
-        )
-        assert summary.total_cost == cost
-
     def test_zero_values_accepted(self) -> None:
         """total_issues=0, total_elapsed_time=0.0 も受け入れる。"""
         summary = ReviewSummary(
@@ -255,10 +232,6 @@ class TestReviewSummaryConstraints:
         """max_severity 省略で ValidationError (明示的に None を渡す必要がある)。"""
         with pytest.raises(ValidationError):
             ReviewSummary(total_issues=0, total_elapsed_time=0.0)  # type: ignore[call-arg]
-
-    def test_missing_total_elapsed_time_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            ReviewSummary(total_issues=0, max_severity=None)  # type: ignore[call-arg]
 
     def test_overall_score_below_zero_rejected(self) -> None:
         """overall_score < 0.0 がバリデーションエラーとなる。"""
@@ -401,36 +374,24 @@ class TestReviewReportValid:
         assert isinstance(report.results[0], AgentSuccess)
         assert isinstance(report.results[1], AgentError)
 
-    def test_all_four_variants_accepted(self) -> None:
-        """AgentSuccess, AgentTruncated, AgentError, AgentTimeout の4種混在で成功する。"""
+    def test_both_variants_accepted(self) -> None:
+        """AgentSuccess と AgentError の2種混在で成功する。"""
         success = AgentSuccess(
             agent_name="reviewer-a",
             issues=[],
             elapsed_time=1.0,
         )
-        truncated = AgentTruncated(
-            agent_name="reviewer-b",
-            issues=[],
-            elapsed_time=3.0,
-            turns_consumed=10,
-        )
         error = AgentError(
-            agent_name="reviewer-c",
+            agent_name="reviewer-b",
             error_message="Connection failed",
         )
-        timeout = AgentTimeout(
-            agent_name="reviewer-d",
-            timeout_seconds=30.0,
-        )
         report = ReviewReport(
-            results=[success, truncated, error, timeout],
-            summary=self._make_summary(total_elapsed_time=4.0),
+            results=[success, error],
+            summary=self._make_summary(total_elapsed_time=1.0),
         )
-        assert len(report.results) == 4
+        assert len(report.results) == 2
         assert isinstance(report.results[0], AgentSuccess)
-        assert isinstance(report.results[1], AgentTruncated)
-        assert isinstance(report.results[2], AgentError)
-        assert isinstance(report.results[3], AgentTimeout)
+        assert isinstance(report.results[1], AgentError)
 
 
 class TestReviewReportConstraints:
