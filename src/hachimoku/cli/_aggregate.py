@@ -24,7 +24,7 @@ from hachimoku.models.agent_result import AgentError, AgentResult, AgentSuccess
 from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.report import ReviewReport, ReviewSummary
 from hachimoku.models.schemas import SchemaNotFoundError, get_schema
-from hachimoku.models.severity import SEVERITY_ORDER, Severity
+from hachimoku.models.severity import SEVERITY_ORDER, Severity, determine_exit_code
 from hachimoku.review.target import ReviewTarget
 
 
@@ -156,6 +156,9 @@ def build_report(results: list[AgentResult]) -> ReviewReport:
 def exit_code_for(summary: ReviewSummary) -> ExitCode:
     """サマリーの最大重大度から終了コードを決定する。
 
+    重大度 → 終了コードのマッピングは ``severity.determine_exit_code`` を
+    単一の正として委譲する（DRY）。
+
     Args:
         summary: レビューサマリー。
 
@@ -163,13 +166,7 @@ def exit_code_for(summary: ReviewSummary) -> ExitCode:
         ExitCode.CRITICAL（Critical）、ExitCode.IMPORTANT（Important）、
         ExitCode.SUCCESS（Suggestion/Nitpick/None）のいずれか。
     """
-    if summary.max_severity is None:
-        return ExitCode.SUCCESS
-    if summary.max_severity == Severity.CRITICAL:
-        return ExitCode.CRITICAL
-    if summary.max_severity == Severity.IMPORTANT:
-        return ExitCode.IMPORTANT
-    return ExitCode.SUCCESS
+    return determine_exit_code(summary.max_severity)
 
 
 def run_aggregate(run_dir: Path, manifest_path: Path) -> ReviewReport:
