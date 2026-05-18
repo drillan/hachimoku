@@ -61,6 +61,7 @@ BUILTIN_AGENT_NAMES = frozenset(
         "comment-analyzer",
         "dependency-auditor",
         "performance-analyzer",
+        "plan-reviewer",
         "pr-test-analyzer",
         "security-analyzer",
         "silent-failure-hunter",
@@ -358,6 +359,7 @@ class TestBuiltinAgentSchemas:
             ("comment-analyzer", "category_classification"),
             ("dependency-auditor", "severity_classified"),
             ("performance-analyzer", "severity_classified"),
+            ("plan-reviewer", "scored_issues"),
             ("pr-test-analyzer", "test_gap_assessment"),
             ("security-analyzer", "severity_classified"),
             ("silent-failure-hunter", "severity_classified"),
@@ -392,6 +394,7 @@ class TestBuiltinAgentPhases:
             ("comment-analyzer", Phase.FINAL),
             ("dependency-auditor", Phase.MAIN),
             ("performance-analyzer", Phase.MAIN),
+            ("plan-reviewer", Phase.MAIN),
             ("pr-test-analyzer", Phase.MAIN),
             ("security-analyzer", Phase.MAIN),
             ("silent-failure-hunter", Phase.MAIN),
@@ -463,6 +466,14 @@ class TestBuiltinAgentApplicability:
         self, builtin_agents: tuple[AgentDefinition, ...]
     ) -> None:
         agent = _find_agent(builtin_agents, "performance-analyzer")
+        assert len(agent.applicability.content_patterns) > 0
+
+    def test_plan_reviewer_has_file_and_content_patterns(
+        self, builtin_agents: tuple[AgentDefinition, ...]
+    ) -> None:
+        agent = _find_agent(builtin_agents, "plan-reviewer")
+        assert agent.applicability.always is False
+        assert len(agent.applicability.file_patterns) > 0
         assert len(agent.applicability.content_patterns) > 0
 
     def test_breaking_change_detector_has_content_patterns(

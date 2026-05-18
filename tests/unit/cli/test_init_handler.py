@@ -37,6 +37,7 @@ BUILTIN_AGENT_NAMES: tuple[str, ...] = (
     "comment-analyzer.toml",
     "dependency-auditor.toml",
     "performance-analyzer.toml",
+    "plan-reviewer.toml",
     "pr-test-analyzer.toml",
     "security-analyzer.toml",
     "selector.toml",
