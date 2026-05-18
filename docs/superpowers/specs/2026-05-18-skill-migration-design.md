@@ -30,7 +30,7 @@ hachimoku は現在、自身が `claude -p` をオーケストレーションす
 - レビュー処理を Claude Code セッション内のサブエージェントで実行する。
 - 集約・重要度分類・レポート化・JSONL 履歴を、LLM 不要の決定的処理として維持する。
 - TOML によるデータ駆動エージェント定義（憲法 Art.3）を維持する。
-- `respond-review` など下流ツールが読む JSONL 履歴の互換を維持する。
+- `respond-review` が参照する JSONL フィールド（findings / severity / status）の互換を維持する。
 
 ### 非ゴール（v1）
 
@@ -71,19 +71,21 @@ v1 の対象は Claude Code のみ。Codex / Copilot は v2 で APM 配布とし
 
 薄い CLI のうちユーザーが直接タイプするのは `init` と `build` のみ。
 `select` / `aggregate` はオーケストレーター skill が内部呼び出しするものであり
-ユーザーは打たない。入力負担軽減のため、`pyproject.toml` の `[project.scripts]` に
-正規名と短縮エイリアスの 2 エントリポイント（同一 Typer アプリを指す）を定義する。
+ユーザーは打たない。
+
+現行 `pyproject.toml` には既に正規名と短縮エイリアスの 2 エントリポイントが
+定義済みであり、本移行はこれを維持する（エントリポイント自体の新規作業はない）。
 
 ```toml
 [project.scripts]
-hachimoku = "hachimoku.cli:app"   # 正規名（パッケージ名・ドキュメントと一致）
-8moku     = "hachimoku.cli:app"   # 短縮エイリアス（八目の「八＝8」）
+"8moku"   = "hachimoku.cli:main"   # 短縮エイリアス（八目の「八＝8」）
+hachimoku = "hachimoku.cli:main"   # 正規名（パッケージ名・ドキュメントと一致）
 ```
 
-オーケストレーター skill が生成・実行する内部呼び出しは可読性のため正規名
-`hachimoku` を使う。`8moku` は人間の入力支援が目的。
-console script 名が数字始まりでも実行ファイル名・entry-point 名として問題ないが、
-実装時に `8moku` の起動とシェル補完を検証項目に含める。
+両エントリポイントは同一の `hachimoku.cli:main` を指す（関数名は現行のまま
+`main`。本移行で `app` 等へ改名しない）。オーケストレーター skill が生成・実行
+する内部呼び出しは可読性のため正規名 `hachimoku` を使い、`8moku` は人間の
+入力支援が目的とする。
 
 ## 4. コンポーネント
 
@@ -193,8 +195,10 @@ hooks:
 
 `save_review_history()` と `models/history.py` を再利用する。`aggregate` が組み立てた
 `ReviewReport` から `ReviewHistoryRecord` を構築し、`.hachimoku/reviews/<target>.jsonl` に
-1 行追記する。`ReviewHistoryRecord` 判別共用体（diff / pr / file / commit）の
-スキーマは不変であり、`respond-review` など下流の消費側は無改修で動作する。
+1 行追記する。`ReviewHistoryRecord` の discriminator（diff / pr / file / commit）は
+不変だが、`results` 配下の `AgentResult` スキーマは §10 のとおり変化する。
+`respond-review` は `cost` / `elapsed_time` を機能的に参照しない（findings /
+severity / status のみ使用）ため、動作互換は保たれる。
 
 ## 8. セキュリティ（読み取り専用担保）
 
@@ -245,9 +249,10 @@ hooks:
 |---|---|---|
 | `CostInfo` クラス削除 | `models/agent_result.py` から全廃 | サブスク前提で金額不要、トークンは CC ネイティブログに存在 |
 | `AgentSuccess.cost` 削除 | フィールド削除 | 同上 |
-| `elapsed_time` を optional 化 | `float | None` へ。`ReviewSummary` の時間集計も調整 | 薄い CLI から per-agent 実行時間を観測できない |
-| `AgentResult` の残り | issues / score / status は不変 | 互換維持 |
-| `ReviewHistoryRecord` | 判別共用体は不変 | `respond-review` 互換維持 |
+| `AgentResult` 判別共用体の縮小 | `AgentTruncated` / `AgentTimeout` を削除し `AgentSuccess \| AgentError` の 2 肢にする。`ReviewSummary` の集計ロジックも追従 | truncation / timeout は撤去対象の旧エンジン（`max_turns`・asyncio タイムアウト）固有の概念。薄い CLI の `aggregate` は subagent JSON が有効か否かしか判定できず、両肢の生成元が存在しない |
+| `elapsed_time` を optional 化 | `AgentSuccess.elapsed_time` を `float \| None` へ。`ReviewSummary` の時間集計も調整 | 薄い CLI から per-agent 実行時間を観測できない |
+| issues / score | 不変 | 互換維持 |
+| `ReviewHistoryRecord` | discriminator（diff / pr / file / commit）は不変。ただし `results` 配下の `AgentResult` は本表のとおり変化する | `respond-review` は `cost` / `elapsed_time` を機能的に参照しないため動作互換は保たれる |
 
 ## 11. 資産の扱い
 
@@ -271,7 +276,7 @@ SP1 から順に進める。各サブプロジェクトは独立した `specs/NN
 
 | # | サブプロジェクト | 内容 | 依存 |
 |---|---|---|---|
-| SP1 | 薄い CLI 化 | エンジン（pydantic-ai / claudecode_model）削除、`select` / `aggregate` / `init` 実装、モデル再形成（`CostInfo` 削除・`elapsed_time` optional 化） | なし（基盤） |
+| SP1 | 薄い CLI 化 | エンジン（pydantic-ai / claudecode_model）削除、`select` / `aggregate` / `init` 実装、モデル再形成（`CostInfo` 削除・`AgentResult` 判別肢縮小・`elapsed_time` optional 化） | なし（基盤） |
 | SP2 | 変換パイプライン | `hachimoku build`: TOML → サブエージェント `.md` + `manifest.json`、ツール記法置換、Output Contract 生成 | SP1（再形成スキーマ） |
 | SP3 | Claude Code プラグイン | オーケストレーター skill、スラッシュコマンド、`block-git-mutations.sh`、frontmatter hook、`plugin.json`、ビルトイン 13 本同梱 | SP2（変換成果物） |
 
@@ -292,8 +297,7 @@ SP1 から順に進める。各サブプロジェクトは独立した `specs/NN
 | `hachimoku select` | diff fixture → 期待ディスパッチプラン（既存 `_selector` テスト流用） |
 | `hachimoku aggregate` | findings JSON fixture（破損・欠落・スキーマ不適合を含む）→ 期待レポート + 終了コード + JSONL レコード |
 | `block-git-mutations.sh` | コマンド文字列 fixture → allow/deny マトリクス（パイプ・サブシェル・`bash -c`・`git -c`） |
-| モデル再形成 | `CostInfo` 削除・`elapsed_time` optional 化に伴う既存テスト調整 |
-| CLI エイリアス | `8moku` / `hachimoku` 両エントリポイントの起動・シェル補完の検証 |
+| モデル再形成 | `CostInfo` 削除・`AgentResult` 判別肢縮小・`elapsed_time` optional 化に伴う既存テスト調整 |
 | frontmatter hook 隔離 | 手動検証ステップ（§8 の不確実性の実地確認） |
 | E2E | サンプル diff で 1 回通しのスモークテスト |
 
