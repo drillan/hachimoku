@@ -724,9 +724,9 @@ class TestBuiltinAgentSystemPromptStructure:
         filtering_section = _get_self_filtering_section(
             _find_agent(builtin_agents, agent_name).system_prompt
         )
-        assert "read_file" in filtering_section, (
+        assert "the `Read` tool" in filtering_section, (
             f"{agent_name}: Self-Filtering Rules does not contain evidence "
-            f"verification gate (must reference read_file)"
+            f"verification gate (must reference the `Read` tool)"
         )
 
     @pytest.mark.parametrize(
