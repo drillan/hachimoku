@@ -15,9 +15,6 @@ from hachimoku.models.agent_result import (
     AgentSuccess,
 )
 from hachimoku.models.report import (
-    AggregatedReport,
-    Contradiction,
-    QualityFilteredIssue,
     ReviewReport,
     ReviewSummary,
 )
@@ -44,17 +41,11 @@ def format_markdown(report: ReviewReport) -> str:
     if issues_section:
         sections.append(issues_section)
 
-    if report.aggregated is not None:
-        sections.append(_format_aggregated(report.aggregated))
-
     sections.append(_format_agent_results(report))
 
     load_errors_section = _format_load_errors(report.load_errors)
     if load_errors_section:
         sections.append(load_errors_section)
-
-    if report.aggregation_error is not None:
-        sections.append(_format_aggregation_error(report.aggregation_error))
 
     return "\n\n".join(sections) + "\n"
 
@@ -180,64 +171,6 @@ def _format_agent_result_row(
             assert_never(unreachable)
 
 
-# ── Aggregated Analysis ─────────────────────────────────
-
-
-def _format_aggregated(aggregated: AggregatedReport) -> str:
-    parts: list[str] = ["## Aggregated Analysis"]
-
-    parts.append(f"\n**Overall Score: {aggregated.overall_score} / 10.0**")
-
-    if aggregated.issues:
-        issue_lines = "\n".join(
-            f"- [{i.severity.value}] {i.description}" for i in aggregated.issues
-        )
-        parts.append(f"\n### Issues\n\n{issue_lines}")
-
-    if aggregated.strengths:
-        strength_lines = "\n".join(f"- {s}" for s in aggregated.strengths)
-        parts.append(f"\n### Strengths\n\n{strength_lines}")
-
-    if aggregated.recommended_actions:
-        action_lines = "\n".join(
-            f"{idx}. **[{a.priority.value}]** {a.description}"
-            for idx, a in enumerate(aggregated.recommended_actions, 1)
-        )
-        parts.append(f"\n### Recommended Actions\n\n{action_lines}")
-
-    if aggregated.agent_failures:
-        failure_lines = "\n".join(f"- {f}" for f in aggregated.agent_failures)
-        parts.append(f"\n### Agent Failures\n\n{failure_lines}")
-
-    if aggregated.contradictions:
-        parts.append(_format_contradictions(aggregated.contradictions))
-
-    if aggregated.quality_filtered:
-        parts.append(_format_quality_filtered(aggregated.quality_filtered))
-
-    return "\n".join(parts)
-
-
-def _format_contradictions(contradictions: list[Contradiction]) -> str:
-    lines: list[str] = []
-    for c in contradictions:
-        agents = ", ".join(c.agent_names)
-        line = f"- {c.description} (agents: {agents})"
-        if c.file_path is not None:
-            line += f" at `{c.file_path}`"
-        lines.append(line)
-    return "\n### Contradictions\n\n" + "\n".join(lines)
-
-
-def _format_quality_filtered(
-    quality_filtered: list[QualityFilteredIssue],
-) -> str:
-    lines: list[str] = []
-    for qf in quality_filtered:
-        lines.append(f"- **{qf.agent_name}**: {qf.description} — *{qf.reason}*")
-    return "\n### Quality Filtered\n\n" + "\n".join(lines)
-
-
 # ── Load Errors ──────────────────────────────────────────
 
 
@@ -252,10 +185,3 @@ def _format_load_errors(load_errors: tuple[LoadError, ...]) -> str:
 
     lines = "\n".join(f"- **{e.source}**: {e.message}" for e in load_errors)
     return f"## Load Errors\n\n{lines}"
-
-
-# ── Aggregation Error ────────────────────────────────────
-
-
-def _format_aggregation_error(error: str) -> str:
-    return f"## Aggregation Error\n\n{error}"

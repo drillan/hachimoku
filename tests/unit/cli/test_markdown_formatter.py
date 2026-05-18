@@ -13,11 +13,6 @@ from hachimoku.models.agent_result import (
     AgentSuccess,
 )
 from hachimoku.models.report import (
-    AggregatedReport,
-    Contradiction,
-    Priority,
-    QualityFilteredIssue,
-    RecommendedAction,
     ReviewReport,
     ReviewSummary,
 )
@@ -74,8 +69,6 @@ def _make_report(
     total_elapsed_time: float | None = None,
     overall_score: float | None = None,
     load_errors: tuple[LoadError, ...] = (),
-    aggregated: AggregatedReport | None = None,
-    aggregation_error: str | None = None,
 ) -> ReviewReport:
     return ReviewReport(
         results=results or [],
@@ -86,8 +79,6 @@ def _make_report(
             overall_score=overall_score,
         ),
         load_errors=load_errors,
-        aggregated=aggregated,
-        aggregation_error=aggregation_error,
     )
 
 
@@ -308,179 +299,6 @@ class TestAgentResultsSection:
         assert "| no-time | success | 0 | - | - |" in result
 
 
-# ── Aggregated Analysis セクション ───────────────────────
-
-
-class TestAggregatedSection:
-    """Aggregated Analysis セクションの出力検証。"""
-
-    def test_strengths_shown(self) -> None:
-        agg = AggregatedReport(
-            issues=[],
-            strengths=["Clean code", "Good tests"],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=8.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "Clean code" in result
-        assert "Good tests" in result
-
-    def test_recommended_actions_shown_with_priority(self) -> None:
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[
-                RecommendedAction(
-                    description="Fix SQL injection", priority=Priority.HIGH
-                ),
-                RecommendedAction(description="Add logging", priority=Priority.MEDIUM),
-            ],
-            agent_failures=[],
-            overall_score=6.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "high" in result
-        assert "Fix SQL injection" in result
-        assert "medium" in result
-        assert "Add logging" in result
-
-    def test_agent_failures_shown(self) -> None:
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=["timeout-agent", "broken-agent"],
-            overall_score=5.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "timeout-agent" in result
-        assert "broken-agent" in result
-
-    def test_aggregated_issues_shown(self) -> None:
-        issue = _make_issue(description="Deduplicated issue")
-        agg = AggregatedReport(
-            issues=[issue],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=7.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "Deduplicated issue" in result
-
-    def test_overall_score_shown(self) -> None:
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=9.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "**Overall Score: 9.0 / 10.0**" in result
-
-    def test_no_aggregated_section_when_none(self) -> None:
-        report = _make_report(aggregated=None)
-        result = format_markdown(report)
-        assert "## Aggregated Analysis" not in result
-
-    def test_contradictions_shown(self) -> None:
-        """矛盾検出結果が表示される。"""
-        c = Contradiction(
-            description="Agent A says over-engineering, Agent B says SOLID violation",
-            agent_names=["security-analyzer", "code-reviewer"],
-            file_path="src/handler.py",
-        )
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=7.0,
-            contradictions=[c],
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "### Contradictions" in result
-        assert "over-engineering" in result
-        assert "security-analyzer" in result
-        assert "code-reviewer" in result
-        assert "src/handler.py" in result
-
-    def test_contradictions_without_file_path(self) -> None:
-        """file_path=None の矛盾でも表示される。"""
-        c = Contradiction(
-            description="Conflicting error handling advice",
-            agent_names=["a", "b"],
-        )
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=7.0,
-            contradictions=[c],
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "### Contradictions" in result
-        assert "Conflicting error handling advice" in result
-
-    def test_no_contradictions_section_when_empty(self) -> None:
-        """矛盾がない場合はセクションが表示されない。"""
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=8.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "### Contradictions" not in result
-
-    def test_quality_filtered_shown(self) -> None:
-        """品質フィルタリング結果が表示される。"""
-        qf = QualityFilteredIssue(
-            agent_name="code-reviewer",
-            description="Be careful with this code",
-            reason="Suggestion lacks concrete action",
-        )
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=7.0,
-            quality_filtered=[qf],
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "### Quality Filtered" in result
-        assert "Be careful with this code" in result
-        assert "Suggestion lacks concrete action" in result
-        assert "code-reviewer" in result
-
-    def test_no_quality_filtered_section_when_empty(self) -> None:
-        """品質フィルタリング結果がない場合はセクションが表示されない。"""
-        agg = AggregatedReport(
-            issues=[],
-            strengths=[],
-            recommended_actions=[],
-            agent_failures=[],
-            overall_score=8.0,
-        )
-        report = _make_report(aggregated=agg)
-        result = format_markdown(report)
-        assert "### Quality Filtered" not in result
-
-
 # ── Load Errors セクション ───────────────────────────────
 
 
@@ -500,23 +318,6 @@ class TestLoadErrorsSection:
         assert "## Load Errors" not in result
 
 
-# ── Aggregation Error セクション ─────────────────────────
-
-
-class TestAggregationErrorSection:
-    """Aggregation Error セクションの出力検証。"""
-
-    def test_aggregation_error_shown(self) -> None:
-        report = _make_report(aggregation_error="Aggregator timeout after 60 seconds")
-        result = format_markdown(report)
-        assert "Aggregator timeout after 60 seconds" in result
-
-    def test_no_aggregation_error_section_when_none(self) -> None:
-        report = _make_report(aggregation_error=None)
-        result = format_markdown(report)
-        assert "## Aggregation Error" not in result
-
-
 # ── 統合テスト ───────────────────────────────────────────
 
 
@@ -531,9 +332,7 @@ class TestIntegration:
         assert "## Summary" in result
         # オプションセクションは出力されない
         assert "## Issues" not in result
-        assert "## Aggregated Analysis" not in result
         assert "## Load Errors" not in result
-        assert "## Aggregation Error" not in result
 
     def test_full_report_all_sections_present(self) -> None:
         """全データが揃った場合に全セクションが出力される。"""
@@ -552,30 +351,17 @@ class TestIntegration:
             elapsed_time=5.2,
         )
         error = AgentError(agent_name="broken-agent", error_message="Connection failed")
-        agg = AggregatedReport(
-            issues=[issue],
-            strengths=["Good structure"],
-            recommended_actions=[
-                RecommendedAction(description="Fix injection", priority=Priority.HIGH),
-            ],
-            agent_failures=["broken-agent"],
-            overall_score=7.5,
-        )
         report = _make_report(
             results=[success, error],
             total_issues=1,
             max_severity=Severity.CRITICAL,
             total_elapsed_time=5.2,
             load_errors=(LoadError(source="bad.toml", message="Parse error"),),
-            aggregated=agg,
-            aggregation_error="Partial failure",
         )
         result = format_markdown(report)
 
         assert "# Review Report" in result
         assert "## Summary" in result
         assert "## Issues" in result
-        assert "## Aggregated Analysis" in result
         assert "## Agent Results" in result
         assert "## Load Errors" in result
-        assert "## Aggregation Error" in result
