@@ -48,15 +48,17 @@ This runs `hachimoku build` via `uvx`, writing review subagent `.md` files and `
 
 Dispatches the generated subagents to review the current changeset and produces a structured report. `/hachimoku:setup` must have been run for this project beforehand so that the subagents exist under `.claude/agents/`.
 
-## Pinning the hachimoku release (`<ref>`)
+## hachimoku release pinning
 
-The `setup` skill installs hachimoku from:
+The `setup` and `review` skills install hachimoku ephemerally via `uvx` from a
+pinned release tag:
 
 ```
-git+https://github.com/drillan/hachimoku@<ref>
+git+https://github.com/drillan/hachimoku@v0.1.0
 ```
 
-The placeholder `<ref>` will be replaced with a pinned release tag (e.g. `v0.1.0`) when this plugin is released. Until a release is published, `<ref>` remains a placeholder and the setup skill cannot be used as-is — you must substitute a valid git ref (branch name, tag, or commit SHA) manually.
+Plugin version `0.1.0` is pinned to the matching hachimoku release tag
+`v0.1.0`. When the plugin is upgraded, this tag is bumped in lockstep.
 
 ## License
 

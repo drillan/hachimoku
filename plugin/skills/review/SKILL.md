@@ -23,11 +23,10 @@ keep your context light. Subagents work in isolated context windows.
    - a single integer → PR mode (`--commit` not used)
    - file paths → file mode
 
-2. **Select** — run `select` to compute the dispatch plan. Replace `<ref>`
-   with the pinned hachimoku release:
+2. **Select** — run `select` to compute the dispatch plan:
 
    ```bash
-   uvx --from git+https://github.com/drillan/hachimoku@<ref> hachimoku select \
+   uvx --from git+https://github.com/drillan/hachimoku@v0.1.0 hachimoku select \
      <target args> --manifest .claude/manifest.json
    ```
 
@@ -48,7 +47,7 @@ keep your context light. Subagents work in isolated context windows.
 4. **Aggregate** — after all phases complete:
 
    ```bash
-   uvx --from git+https://github.com/drillan/hachimoku@<ref> hachimoku aggregate \
+   uvx --from git+https://github.com/drillan/hachimoku@v0.1.0 hachimoku aggregate \
      --run-dir <run_dir> --manifest .claude/manifest.json <target args>
    ```
 
