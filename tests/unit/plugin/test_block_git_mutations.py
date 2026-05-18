@@ -35,6 +35,8 @@ class TestBlockGitMutations:
             "git status",
             "gh pr view 123",
             "gh pr diff 123",
+            "gh api /repos/o/r",  # 読み取り専用 gh api は許可
+            "git -c x=y log",  # -c オプション付き git は許可
             "ls -la",  # git/gh 以外はすべて許可
             "cat file.py",
         ],
@@ -58,6 +60,10 @@ class TestBlockGitMutations:
             "\tgit push",  # 先頭タブも同様
             "GIT_AUTHOR_NAME=x git commit -m y",  # env プレフィックスは deny
             "gh api --method DELETE /endpoint",  # 任意 HTTP メソッドは deny
+            "/usr/bin/git push",  # パス指定バイナリは deny
+            "env git push",  # env ランチャ経由は deny
+            "sudo git push",  # sudo ランチャ経由は deny
+            "git\tcommit\t-m\tx",  # タブ区切りは deny
         ],
     )
     def test_denies_git_gh_mutations(self, command: str) -> None:
@@ -69,6 +75,10 @@ class TestBlockGitMutations:
             "git diff && git push",  # パイプ/連結は deny 側に倒す
             "git diff; git commit",
             "bash -c 'git push'",
+            "git diff\ngit push",  # 改行区切りは deny
+            "git diff & git push",  # バックグラウンド & は deny
+            "git diff <(git push)",  # プロセス置換は deny
+            "git diff > /tmp/x",  # リダイレクトは deny（ファイル書き込みの抜け道）
         ],
     )
     def test_denies_compound_commands(self, command: str) -> None:
