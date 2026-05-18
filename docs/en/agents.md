@@ -156,8 +156,8 @@ Condition evaluation logic:
 | security-analyzer | content_patterns | `subprocess`, `os\.system`, `eval\(`, `exec\(`, `password`, `secret`, `token`, `api_key`, `hashlib`, `encrypt`, `\.execute\(`, `sqlx::query`, etc. |
 | silent-failure-hunter | content_patterns | `try\s*:`, `except\s`, `catch\s*\(`, `\.catch\s*\(` |
 | type-design-analyzer | file_patterns + content_patterns | Files: `*.py`, `*.ts`, `*.tsx` / Content: `class\s+\w+`, `interface\s+\w+`, `type\s+\w+\s*=` |
-| comment-analyzer | content_patterns | `"""`, `'''`, `/\*\*`, `//\s*TODO`, `#\s*TODO` |
 | code-simplifier | `always = true` | - |
+| comment-analyzer | content_patterns | `"""`, `'''`, `/\*\*`, `//\s*TODO`, `#\s*TODO` |
 
 (load-error)=
 ## LoadError
