@@ -50,10 +50,11 @@ class TestBuildCommand:
     ) -> None:
         monkeypatch.chdir(tmp_path)
         output = tmp_path / "build"
-        CliRunner().invoke(
+        result = CliRunner().invoke(
             app,
             ["build", "--output", str(output), "--hook-script", "/abs/path/guard.sh"],
         )
 
+        assert result.exit_code == 0
         md = (output / "agents" / "code-reviewer.md").read_text()
         assert "command: /abs/path/guard.sh" in md
