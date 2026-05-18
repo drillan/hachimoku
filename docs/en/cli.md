@@ -1,95 +1,43 @@
 # CLI Reference
 
-hachimoku provides two command names: `8moku` and `hachimoku`. Both execute the same functionality.
+The `hachimoku` CLI (alias `8moku`) is a **supporting developer utility**, not the review interface. Reviews are run from within Claude Code via the `/hachimoku:setup` and `/hachimoku:review` skills; see [Installation](installation.md).
+
+The CLI provides only deterministic, non-LLM subcommands. The plugin skills invoke it ephemerally via `uvx`, so you normally never run it by hand. It is documented here for developers and for understanding what the plugin does under the hood.
 
 ```{contents}
 :depth: 2
 :local:
 ```
 
-## Review Command (Default)
-
-Running with no arguments or with arguments performs a code review.
+## Overview
 
 ```bash
-8moku [OPTIONS] [ARGS]
+hachimoku [OPTIONS] COMMAND [ARGS]...
 ```
 
-The input mode is automatically determined by the type of arguments:
+| Command | Description |
+|---------|-------------|
+| `init` | Initialize the `.hachimoku/` directory with default configuration and agent definitions |
+| `agents` | List or inspect agent definitions |
+| `build` | Build Claude Code subagents and `manifest.json` from TOML agent definitions |
+| `select` | Select review agents for a target and emit a dispatch plan (JSON) |
+| `aggregate` | Aggregate subagent findings into a review report |
 
-No arguments
-: diff mode. Reviews the changes on the current branch. Must be run inside a Git repository.
+Global options:
 
-Single positive integer
-: PR mode. Reviews the diff and metadata of the specified GitHub PR. Must be run inside a Git repository.
+| Option | Description |
+|--------|-------------|
+| `--version` | Display the version number and exit |
+| `--help` | Display help |
 
-File path(s) (one or more)
-: file mode. Reviews entire specified files. Supports glob patterns (`*`, `?`, `[`) and directory specifications. Works outside of Git repositories.
-
-`--commit <ref>`
-: commit mode. Reviews the diff from a specific commit to HEAD, or between two commits. Must be run inside a Git repository. Cannot be combined with positional arguments or `--base-branch`.
-
-```bash
-# diff mode
-8moku
-
-# PR mode
-8moku 42
-
-# file mode
-8moku src/main.py
-8moku src/**/*.py
-8moku src/
-
-# commit mode
-8moku --commit abc123
-8moku --commit abc123..def456
-8moku --commit HEAD~3
-```
-
-### Review Options
-
-Options for the review command. These override configuration file values.
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `--model TEXT` | str | LLM model name |
-| `--timeout INTEGER` | int (min: 1) | Timeout in seconds |
-| `--max-turns INTEGER` | int (min: 1) | Maximum number of agent turns |
-| `--parallel / --no-parallel` | bool | Enable/disable parallel execution |
-| `--base-branch TEXT` | str | Base branch for diff mode |
-| `--format FORMAT` | OutputFormat | Output format (`markdown` / `json`, default: `markdown`) |
-| `--save-reviews / --no-save-reviews` | bool | Save review results |
-| `--show-cost / --no-show-cost` | bool | Display cost information |
-| `--max-files INTEGER` | int (min: 1) | Maximum number of files to review |
-| `--ext TEXT` | str (repeatable) | Extension filter (file mode only, e.g. `--ext .py --ext .rst`) |
-| `--commit TEXT` | str | Commit ref or range for commit mode (`SHA` or `SHA1..SHA2`) |
-| `--issue INTEGER` | int (min: 1) | GitHub Issue number for context |
-| `--no-confirm` | bool | Skip confirmation prompts |
-| `--version` | - | Display version number and exit |
-| `--help` | - | Display help |
-
-See [Configuration](configuration.md) for default values in the configuration file.
-
-### File Mode Behavior
-
-In file mode, the following processing is performed:
-
-- Expansion of glob patterns (`*`, `?`, `[`)
-- Recursive file collection for directory specifications
-- Automatic exclusion of binary files (NULL byte detection in the first 8KB)
-- Symlink loop detection
-- Extension filtering via `--ext` option (all files included when not specified)
-- Results are a sorted, deduplicated list of absolute paths
-
-When the number of files exceeds `max_files_per_review` (default: 100), a confirmation prompt is displayed. Use the `--no-confirm` option to skip the confirmation.
+`select` and `aggregate` are invoked internally by the `/hachimoku:review` skill — `select` computes the dispatch plan and `aggregate` produces the final report. You do not normally run them yourself.
 
 ## init
 
 Creates default configuration files and agent definitions in the `.hachimoku/` directory. Works both inside and outside Git repositories. Inside a Git repository, it also adds an entry to `.gitignore`.
 
 ```bash
-8moku init [OPTIONS]
+hachimoku init [OPTIONS]
 ```
 
 | Option | Description |
@@ -100,16 +48,16 @@ Creates default configuration files and agent definitions in the `.hachimoku/` d
 
 ```bash
 # Initial setup
-8moku init
+hachimoku init
 
 # Reset all files to defaults (including config.toml)
-8moku init --force
+hachimoku init --force
 
-# Update agent definitions after version upgrade (skip customized files)
-8moku init --upgrade
+# Update agent definitions after a version upgrade (skip customized files)
+hachimoku init --upgrade
 
 # Force update all agent definitions including customized ones (config.toml preserved)
-8moku init --upgrade --force
+hachimoku init --upgrade --force
 ```
 
 ### Flag behavior scope
@@ -132,9 +80,9 @@ Creates default configuration files and agent definitions in the `.hachimoku/` d
 
 Created files (`init` / `--force`):
 
-- `.hachimoku/config.toml` - Configuration file (template with all options commented out)
-- `.hachimoku/agents/*.toml` - Copies of built-in agent definitions
-- `.hachimoku/reviews/` - JSONL accumulation directory for review results
+- `.hachimoku/config.toml` — Configuration file (template with all options commented out)
+- `.hachimoku/agents/*.toml` — Copies of built-in agent definitions
+- `.hachimoku/reviews/` — JSONL accumulation directory for review results
 - Automatic addition of `/.hachimoku/` entry to `.gitignore` (Git repositories only; only if not already present)
 
 ## agents
@@ -142,64 +90,115 @@ Created files (`init` / `--force`):
 Displays a list or details of agent definitions.
 
 ```bash
-8moku agents [NAME]
+hachimoku agents [NAME]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `NAME` | Agent name (omit for list view) |
+| `NAME` | Agent name for detailed info (omit for list view) |
 
 ```bash
 # List view
-8moku agents
+hachimoku agents
 
 # Detail view
-8moku agents code-reviewer
+hachimoku agents code-reviewer
 ```
 
 The list view displays NAME, MODEL, PHASE, and SCHEMA columns. Project-specific custom agents are marked with `[custom]`.
 
-## config (Planned)
+## build
 
-The configuration management subcommand is not yet implemented. Please edit `.hachimoku/config.toml` directly.
+Builds Claude Code review subagents and a `manifest.json` from the TOML agent definitions. Each `*.toml` agent definition is converted into a subagent `.md` file (with frontmatter, tool permissions, a read-only git guard hook, and an Output Contract) plus one entry in `manifest.json`.
+
+```bash
+hachimoku build [OPTIONS]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output PATH` | `.hachimoku/build` | Output directory for generated subagents |
+| `--hook-script TEXT` | `${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh` | Absolute path to the read-only git guard hook script |
+| `--help` | — | Display help |
+
+The `/hachimoku:setup` skill runs `build` with `--output .claude` so that the generated subagents land under `.claude/agents/` and `manifest.json` under `.claude/`.
+
+```bash
+# Build into the default directory
+hachimoku build
+
+# Build into .claude (as the setup skill does)
+hachimoku build --output .claude --hook-script /abs/path/to/block-git-mutations.sh
+```
+
+## select
+
+Evaluates the changeset against the agent manifest and emits a dispatch plan as JSON. Invoked internally by `/hachimoku:review`.
+
+```bash
+hachimoku select [OPTIONS] [ARGS]...
+```
+
+| Argument | Description |
+|----------|-------------|
+| `ARGS` | PR number or file paths (omit for diff mode) |
+
+| Option | Description |
+|--------|-------------|
+| `--manifest PATH` | Path to the manifest JSON file (**required**) |
+| `--commit TEXT` | Commit ref or range for commit mode (`SHA` or `SHA1..SHA2`) |
+| `--base-branch TEXT` | Base branch for diff mode (default: `main`) |
+| `--help` | Display help |
+
+The target is determined by the arguments: no arguments selects diff mode, a single integer selects PR mode, and file paths select file mode. The JSON output contains a `run_dir` (a temporary directory consumed by `aggregate`) and `phases` (`early` / `main` / `final`, each a list of agent names).
+
+## aggregate
+
+Reads the subagent findings JSON files from a run directory, validates and deduplicates them, classifies severity, and prints a Markdown review report. It also appends a record to the JSONL review history under `.hachimoku/reviews/`. Invoked internally by `/hachimoku:review`.
+
+```bash
+hachimoku aggregate [OPTIONS] [ARGS]...
+```
+
+| Argument | Description |
+|----------|-------------|
+| `ARGS` | PR number or file paths (omit for diff mode) |
+
+| Option | Description |
+|--------|-------------|
+| `--run-dir PATH` | Run directory created by `select` (**required**) |
+| `--manifest PATH` | Path to the manifest JSON file (**required**) |
+| `--commit TEXT` | Commit ref or range for commit mode (`SHA` or `SHA1..SHA2`) |
+| `--base-branch TEXT` | Base branch for diff mode (default: `main`) |
+| `--help` | Display help |
+
+`aggregate` prints the Markdown report to stdout and exits with a severity-based exit code (see [Exit Codes](#exit-codes)). If some subagents failed, the run is not failed wholesale: the report includes a failed-agents section and aggregation continues with the successful findings.
 
 ## Output Streams
 
-hachimoku separates review reports from progress information in its output:
+The CLI separates report output from progress information:
 
 stdout
-: Review reports only. Supports pipes and redirects.
+: The review report (`aggregate`) or the dispatch plan JSON (`select`). Supports pipes and redirects.
 
 stderr
-: Progress information, logs, error messages, and confirmation prompts.
+: Progress information, logs, and error messages.
 
 ```bash
-# Save report to file
-8moku > review.md
-
-# Pipe report to another command
-8moku --format json | jq '.agents'
+# Pipe the select dispatch plan to jq
+hachimoku select --manifest .claude/manifest.json | jq '.phases'
 ```
+
+(exit-codes)=
 
 ## Exit Codes
 
 | Code | Name | Meaning |
 |------|------|---------|
-| 0 | SUCCESS | Normal completion. No issues found, or user confirmed an action |
+| 0 | SUCCESS | Normal completion |
 | 1 | CRITICAL | Critical-level issues detected |
 | 2 | IMPORTANT | Important-level issues detected (no Critical) |
-| 3 | EXECUTION_ERROR | Runtime error (network, timeout, configuration parsing, etc.) |
-| 4 | INPUT_ERROR | Input error (invalid arguments, Git requirements not met, file not found, permissions, configuration file issues) |
+| 3 | EXECUTION_ERROR | Runtime error (configuration parsing, Git operations, etc.) |
+| 4 | INPUT_ERROR | Input error (invalid arguments, Git requirements not met, file not found, configuration file issues) |
 
-Exit codes can be used for conditional branching in scripts and CI/CD pipelines:
-
-```bash
-8moku
-case $? in
-  0) echo "No issues found" ;;
-  1) echo "Critical issues found" ;;
-  2) echo "Important issues found" ;;
-  3) echo "Execution error" ;;
-  4) echo "Input error" ;;
-esac
-```
+Codes 1 (CRITICAL) and 2 (IMPORTANT) are produced only by `aggregate`, based on the severity of the aggregated findings. The deterministic subcommands `init`, `agents`, `build`, and `select` return only 0 on success, 3 on a runtime error, or 4 on an input error.

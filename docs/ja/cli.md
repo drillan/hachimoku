@@ -1,95 +1,43 @@
 # CLI リファレンス
 
-hachimoku は `8moku` と `hachimoku` の2つのコマンド名を提供します。どちらも同一の機能を実行します。
+`hachimoku` CLI（エイリアス `8moku`）は、レビューのインターフェースではなく、**補助的な開発者ユーティリティ**です。レビューは `/hachimoku:setup` と `/hachimoku:review` のスキルを通じて Claude Code 内で実行します。詳細は [インストール](installation.md) を参照してください。
+
+この CLI は決定的で LLM 非依存のサブコマンドのみを提供します。プラグインのスキルが `uvx` でエフェメラル実行するため、通常は手動で実行することはありません。本ページは開発者向け、およびプラグインが内部で何をしているかを理解するために記載しています。
 
 ```{contents}
 :depth: 2
 :local:
 ```
 
-## レビューコマンド（デフォルト）
-
-引数なしまたは引数付きで実行すると、コードレビューを行います。
+## 概要
 
 ```bash
-8moku [OPTIONS] [ARGS]
+hachimoku [OPTIONS] COMMAND [ARGS]...
 ```
 
-引数の種類により入力モードが自動判定されます:
+| コマンド | 説明 |
+|---------|------|
+| `init` | `.hachimoku/` ディレクトリをデフォルトの設定とエージェント定義で初期化 |
+| `agents` | エージェント定義の一覧・詳細表示 |
+| `build` | TOML エージェント定義から Claude Code サブエージェントと `manifest.json` をビルド |
+| `select` | 対象のレビューエージェントを選択し、ディスパッチプラン（JSON）を出力 |
+| `aggregate` | サブエージェントの指摘をレビューレポートに集約 |
 
-引数なし
-: diff モード。現在ブランチの変更差分をレビューします。Git リポジトリ内で実行する必要があります。
+グローバルオプション:
 
-正の整数1つ
-: PR モード。指定された GitHub PR の差分とメタデータをレビューします。Git リポジトリ内で実行する必要があります。
+| オプション | 説明 |
+|-----------|------|
+| `--version` | バージョン番号を表示して終了 |
+| `--help` | ヘルプを表示 |
 
-ファイルパス（1つ以上）
-: file モード。指定されたファイルの全体をレビューします。glob パターン（`*`, `?`, `[`）やディレクトリ指定にも対応します。Git リポジトリ外でも動作します。
-
-`--commit <ref>`
-: commit モード。特定のコミットから HEAD までの差分、または2つのコミット間の差分をレビューします。Git リポジトリ内で実行する必要があります。位置引数や `--base-branch` との併用はできません。
-
-```bash
-# diff モード
-8moku
-
-# PR モード
-8moku 42
-
-# file モード
-8moku src/main.py
-8moku src/**/*.py
-8moku src/
-
-# commit モード
-8moku --commit abc123
-8moku --commit abc123..def456
-8moku --commit HEAD~3
-```
-
-### レビューオプション
-
-レビューコマンドのオプションです。設定ファイルの値を上書きします。
-
-| オプション | 型 | 説明 |
-|-----------|-----|------|
-| `--model TEXT` | str | LLM モデル名 |
-| `--timeout INTEGER` | int (min: 1) | タイムアウト秒数 |
-| `--max-turns INTEGER` | int (min: 1) | エージェントの最大ターン数 |
-| `--parallel / --no-parallel` | bool | 並列実行の有効/無効 |
-| `--base-branch TEXT` | str | diff モードのベースブランチ |
-| `--format FORMAT` | OutputFormat | 出力形式（`markdown` / `json`、デフォルト: `markdown`） |
-| `--save-reviews / --no-save-reviews` | bool | レビュー結果の保存 |
-| `--show-cost / --no-show-cost` | bool | コスト情報の表示 |
-| `--max-files INTEGER` | int (min: 1) | レビュー対象の最大ファイル数 |
-| `--ext TEXT` | str (繰り返し可) | 拡張子フィルタ（file モード専用、例: `--ext .py --ext .rst`） |
-| `--commit TEXT` | str | commit モードのコミット参照またはレンジ（`SHA` または `SHA1..SHA2`） |
-| `--issue INTEGER` | int (min: 1) | コンテキスト用 GitHub Issue 番号 |
-| `--no-confirm` | bool | 確認プロンプトをスキップ |
-| `--version` | - | バージョン番号を表示して終了 |
-| `--help` | - | ヘルプを表示 |
-
-設定ファイルでのデフォルト値については [設定](configuration.md) を参照してください。
-
-### ファイルモードの動作
-
-file モードでは以下の処理が行われます:
-
-- glob パターン（`*`, `?`, `[`）の展開
-- ディレクトリ指定時の再帰的なファイル収集
-- バイナリファイルの自動除外（先頭 8KB の NULL バイト検出）
-- シンボリックリンクの循環検出
-- `--ext` オプションによる拡張子フィルタリング（未指定時は全ファイル対象）
-- 結果はソート・重複排除された絶対パスのリスト
-
-ファイル数が `max_files_per_review`（デフォルト: 100）を超えた場合、確認プロンプトが表示されます。`--no-confirm` オプションで確認をスキップできます。
+`select` と `aggregate` は `/hachimoku:review` スキルが内部的に呼び出します。`select` はディスパッチプランを計算し、`aggregate` は最終レポートを生成します。通常はユーザーが直接実行することはありません。
 
 ## init
 
 `.hachimoku/` ディレクトリにデフォルトの設定ファイルとエージェント定義を作成します。Git リポジトリの内外を問わず実行できます。Git リポジトリ内では `.gitignore` への自動追加も行います。
 
 ```bash
-8moku init [OPTIONS]
+hachimoku init [OPTIONS]
 ```
 
 | オプション | 説明 |
@@ -100,16 +48,16 @@ file モードでは以下の処理が行われます:
 
 ```bash
 # 初回セットアップ
-8moku init
+hachimoku init
 
 # 全ファイルをデフォルト値にリセット（config.toml 含む）
-8moku init --force
+hachimoku init --force
 
 # バージョンアップ後にエージェント定義を更新（カスタマイズ済みはスキップ）
-8moku init --upgrade
+hachimoku init --upgrade
 
 # カスタマイズ済みエージェント定義も含めて強制更新（config.toml は保持）
-8moku init --upgrade --force
+hachimoku init --upgrade --force
 ```
 
 ### フラグ別の動作範囲
@@ -132,9 +80,9 @@ file モードでは以下の処理が行われます:
 
 作成されるファイル（`init` / `--force`）:
 
-- `.hachimoku/config.toml` - 設定ファイル（全オプションがコメントアウトされたテンプレート）
-- `.hachimoku/agents/*.toml` - ビルトインエージェント定義のコピー
-- `.hachimoku/reviews/` - レビュー結果の JSONL 蓄積ディレクトリ
+- `.hachimoku/config.toml` — 設定ファイル（全オプションがコメントアウトされたテンプレート）
+- `.hachimoku/agents/*.toml` — ビルトインエージェント定義のコピー
+- `.hachimoku/reviews/` — レビュー結果の JSONL 蓄積ディレクトリ
 - `.gitignore` への `/.hachimoku/` エントリ自動追加（Git リポジトリ内のみ。未登録の場合のみ）
 
 ## agents
@@ -142,64 +90,115 @@ file モードでは以下の処理が行われます:
 エージェント定義の一覧表示または詳細表示を行います。
 
 ```bash
-8moku agents [NAME]
+hachimoku agents [NAME]
 ```
 
 | 引数 | 説明 |
 |------|------|
-| `NAME` | エージェント名（省略時は一覧表示） |
+| `NAME` | 詳細表示するエージェント名（省略時は一覧表示） |
 
 ```bash
 # 一覧表示
-8moku agents
+hachimoku agents
 
 # 詳細表示
-8moku agents code-reviewer
+hachimoku agents code-reviewer
 ```
 
 一覧表示では NAME, MODEL, PHASE, SCHEMA の各列が表示されます。プロジェクト固有のカスタムエージェントには `[custom]` マーカーが付きます。
 
-## config (Planned)
+## build
 
-設定管理サブコマンドは未実装です。`.hachimoku/config.toml` を直接編集してください。
+TOML エージェント定義から Claude Code のレビューサブエージェントと `manifest.json` をビルドします。各 `*.toml` エージェント定義は、サブエージェント `.md` ファイル（フロントマター、ツール権限、読み取り専用 git ガード hook、Output Contract を含む）と、`manifest.json` の 1 エントリに変換されます。
+
+```bash
+hachimoku build [OPTIONS]
+```
+
+| オプション | デフォルト | 説明 |
+|-----------|-----------|------|
+| `--output PATH` | `.hachimoku/build` | 生成されるサブエージェントの出力ディレクトリ |
+| `--hook-script TEXT` | `${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh` | 読み取り専用 git ガード hook スクリプトの絶対パス |
+| `--help` | — | ヘルプを表示 |
+
+`/hachimoku:setup` スキルは `build` を `--output .claude` で実行し、生成されるサブエージェントが `.claude/agents/` 配下に、`manifest.json` が `.claude/` 配下に配置されるようにします。
+
+```bash
+# デフォルトディレクトリにビルド
+hachimoku build
+
+# .claude にビルド（setup スキルと同じ）
+hachimoku build --output .claude --hook-script /abs/path/to/block-git-mutations.sh
+```
+
+## select
+
+変更セットをエージェント manifest と照合し、ディスパッチプランを JSON として出力します。`/hachimoku:review` が内部的に呼び出します。
+
+```bash
+hachimoku select [OPTIONS] [ARGS]...
+```
+
+| 引数 | 説明 |
+|------|------|
+| `ARGS` | PR 番号またはファイルパス（省略時は diff モード） |
+
+| オプション | 説明 |
+|-----------|------|
+| `--manifest PATH` | manifest JSON ファイルのパス（**必須**） |
+| `--commit TEXT` | commit モードのコミット参照またはレンジ（`SHA` または `SHA1..SHA2`） |
+| `--base-branch TEXT` | diff モードのベースブランチ（デフォルト: `main`） |
+| `--help` | ヘルプを表示 |
+
+対象は引数により決定されます。引数なしは diff モード、整数 1 つは PR モード、ファイルパスは file モードを選択します。JSON 出力には `run_dir`（`aggregate` が消費する一時ディレクトリ）と `phases`（`early` / `main` / `final`、それぞれエージェント名のリスト）が含まれます。
+
+## aggregate
+
+run ディレクトリからサブエージェントの指摘 JSON ファイルを読み込み、検証・重複排除し、重要度を分類して、Markdown のレビューレポートを出力します。`.hachimoku/reviews/` 配下の JSONL レビュー履歴にもレコードを追記します。`/hachimoku:review` が内部的に呼び出します。
+
+```bash
+hachimoku aggregate [OPTIONS] [ARGS]...
+```
+
+| 引数 | 説明 |
+|------|------|
+| `ARGS` | PR 番号またはファイルパス（省略時は diff モード） |
+
+| オプション | 説明 |
+|-----------|------|
+| `--run-dir PATH` | `select` が作成した run ディレクトリ（**必須**） |
+| `--manifest PATH` | manifest JSON ファイルのパス（**必須**） |
+| `--commit TEXT` | commit モードのコミット参照またはレンジ（`SHA` または `SHA1..SHA2`） |
+| `--base-branch TEXT` | diff モードのベースブランチ（デフォルト: `main`） |
+| `--help` | ヘルプを表示 |
+
+`aggregate` は Markdown レポートを stdout に出力し、重要度に応じた終了コードで終了します（[終了コード](#exit-codes) を参照）。一部のサブエージェントが失敗した場合でも run 全体を失敗とはせず、レポートに失敗エージェントの節を出し、成功した指摘で集約を継続します。
 
 ## 出力ストリーム
 
-hachimoku はレビューレポートと進捗情報を分離して出力します:
+CLI はレポート出力と進捗情報を分離します:
 
 stdout
-: レビューレポートのみ。パイプやリダイレクトに対応します。
+: レビューレポート（`aggregate`）またはディスパッチプラン JSON（`select`）。パイプやリダイレクトに対応します。
 
 stderr
-: 進捗情報、ログ、エラーメッセージ、確認プロンプト。
+: 進捗情報、ログ、エラーメッセージ。
 
 ```bash
-# レポートをファイルに保存
-8moku > review.md
-
-# レポートを別のコマンドにパイプ
-8moku --format json | jq '.agents'
+# select のディスパッチプランを jq にパイプ
+hachimoku select --manifest .claude/manifest.json | jq '.phases'
 ```
+
+(exit-codes)=
 
 ## 終了コード
 
 | コード | 名前 | 意味 |
 |-------|------|------|
-| 0 | SUCCESS | 正常終了。問題なし、またはユーザーが操作を確認 |
+| 0 | SUCCESS | 正常終了 |
 | 1 | CRITICAL | Critical レベルの問題を検出 |
 | 2 | IMPORTANT | Important レベルの問題を検出（Critical なし） |
-| 3 | EXECUTION_ERROR | 実行時エラー（ネットワーク、タイムアウト、設定解析など） |
-| 4 | INPUT_ERROR | 入力エラー（不正な引数、Git 要件未満、ファイル不在、権限、設定ファイル不備） |
+| 3 | EXECUTION_ERROR | 実行時エラー（設定解析、Git 操作など） |
+| 4 | INPUT_ERROR | 入力エラー（不正な引数、Git 要件未満、ファイル不在、設定ファイル不備） |
 
-終了コードはスクリプトや CI/CD パイプラインでの条件分岐に使用できます:
-
-```bash
-8moku
-case $? in
-  0) echo "No issues found" ;;
-  1) echo "Critical issues found" ;;
-  2) echo "Important issues found" ;;
-  3) echo "Execution error" ;;
-  4) echo "Input error" ;;
-esac
-```
+コード 1（CRITICAL）と 2（IMPORTANT）は、集約された指摘の重要度に基づき `aggregate` のみが生成します。決定的なサブコマンド `init`、`agents`、`build`、`select` は、成功時 0、実行時エラー時 3、入力エラー時 4 のみを返します。
