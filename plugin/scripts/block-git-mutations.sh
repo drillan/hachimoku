@@ -73,9 +73,6 @@ if [[ "$first_token" == "git" ]]; then
     # `-c key=val` や `-C path` など、オプションとその引数をスキップする。
     remaining="${cmd#git}"  # "git" を除去
     subcommand=""
-    while IFS= read -r -d '' token; do
-        : # 使わない（配列でパース）
-    done
     # トークンを配列に分割
     read -ra tokens <<< "$remaining"
     i=0
