@@ -693,7 +693,7 @@ class TestAgentExecutionContextBuiltinTools:
 
     def test_builtin_tools_accepts_web_fetch_tool(self) -> None:
         """builtin_tools に WebFetchTool を設定できる。"""
-        from pydantic_ai.builtin_tools import WebFetchTool
+        from pydantic_ai.native_tools import WebFetchTool
 
         agent = _make_agent()
         wft = WebFetchTool()
@@ -746,9 +746,9 @@ class TestAgentExecutionContextBuiltinTools:
         assert ctx.claudecode_builtin_names == ("WebFetch",)
 
     def test_non_builtin_tool_in_builtin_tools_rejected(self) -> None:
-        """builtin_tools に AbstractBuiltinTool 以外の要素を含む場合 ValueError を送出する。"""
+        """builtin_tools に AbstractNativeTool 以外の要素を含む場合 ValueError を送出する。"""
         agent = _make_agent()
-        with pytest.raises(ValueError, match="AbstractBuiltinTool"):
+        with pytest.raises(ValueError, match="AbstractNativeTool"):
             AgentExecutionContext(
                 agent_name="test-agent",
                 model="sonnet",
@@ -785,7 +785,7 @@ class TestBuildExecutionContextBuiltinTools:
 
     def test_builtin_tools_passthrough(self) -> None:
         """resolved_builtin_tools がそのまま設定される。"""
-        from pydantic_ai.builtin_tools import WebFetchTool
+        from pydantic_ai.native_tools import WebFetchTool
 
         agent = _make_agent()
         wft = WebFetchTool()

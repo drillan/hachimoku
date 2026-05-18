@@ -8,20 +8,20 @@ from typing import TYPE_CHECKING, Self, TypeVar
 
 from pydantic import ConfigDict, Field, SkipValidation, model_validator
 from pydantic_ai import Tool
-from pydantic_ai.builtin_tools import AbstractBuiltinTool
+from pydantic_ai.native_tools import AbstractNativeTool
 
 from hachimoku.agents.models import AgentDefinition, Phase
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import AgentConfig, HachimokuConfig
 from hachimoku.models.schemas._base import BaseAgentOutput
 
-# pydantic-ai の Tool[None] / AbstractBuiltinTool は内部ジェネリック型が
+# pydantic-ai の Tool[None] / AbstractNativeTool は内部ジェネリック型が
 # Pydantic のスキーマ生成と互換性がないため、TYPE_CHECKING ガードで型を分離する。
 # ランタイム: SkipValidation[tuple] → Pydantic のスキーマ生成をスキップ
 # 型チェッカー: SkipValidation[tuple[...]] → 型安全性を維持
 if TYPE_CHECKING:
     _ToolsTuple = tuple[Tool[None], ...]
-    _BuiltinToolsTuple = tuple[AbstractBuiltinTool, ...]
+    _BuiltinToolsTuple = tuple[AbstractNativeTool, ...]
 else:
     _ToolsTuple = tuple
     _BuiltinToolsTuple = tuple
@@ -67,9 +67,9 @@ class AgentExecutionContext(HachimokuBaseModel):
                     f"tools must contain only Tool instances, got {type(item).__name__}"
                 )
         for bt in self.builtin_tools:
-            if not isinstance(bt, AbstractBuiltinTool):
+            if not isinstance(bt, AbstractNativeTool):
                 raise ValueError(
-                    f"builtin_tools must contain only AbstractBuiltinTool instances, "
+                    f"builtin_tools must contain only AbstractNativeTool instances, "
                     f"got {type(bt).__name__}"
                 )
         return self
@@ -102,7 +102,7 @@ def build_execution_context(
     global_config: HachimokuConfig,
     user_message: str,
     resolved_tools: tuple[Tool[None], ...],
-    resolved_builtin_tools: tuple[AbstractBuiltinTool, ...] = (),
+    resolved_builtin_tools: tuple[AbstractNativeTool, ...] = (),
     claudecode_builtin_names: tuple[str, ...] = (),
 ) -> AgentExecutionContext:
     """AgentDefinition と設定からエージェント実行コンテキストを構築する。
