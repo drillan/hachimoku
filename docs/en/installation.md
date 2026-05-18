@@ -5,67 +5,91 @@
 :local:
 ```
 
-## Requirements
+## Prerequisites
 
-- Python 3.13 or later
-- Git (required for diff mode and PR mode)
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) — hachimoku runs as a plugin inside it
+- [`uv`](https://docs.astral.sh/uv/) — runs the hachimoku CLI ephemerally via `uvx`; must be on `PATH`
+- [`jq`](https://jqlang.github.io/jq/) — required by the bundled read-only git guard hook; must be on `PATH`
+- Git (required for diff mode and PR mode reviews)
 
-## Global Installation (uv tool install)
+Verify the prerequisites:
 
-Using `uv tool install`, you can use the `8moku` / `hachimoku` commands globally without explicitly activating a virtual environment.
+```bash
+uv --version
+jq --version
+```
 
-### Install from Git URL
+## Install the Claude Code Plugin
 
-Install directly from the repository:
+The plugin is the primary, user-facing way to use hachimoku. Reviews run from within Claude Code via the `/hachimoku:setup` and `/hachimoku:review` skills.
+
+### Local / development use
+
+Clone the repository and point Claude Code at the bundled plugin directory:
+
+```bash
+git clone https://github.com/drillan/hachimoku.git
+cd hachimoku
+claude --plugin-dir ./plugin
+```
+
+### Via marketplace
+
+Marketplace distribution is to be published.
+
+## Project Setup
+
+In each project you want to review, initialize hachimoku and generate the review subagents.
+
+### 1. Initialize the project
+
+```bash
+cd your-project
+uvx --from git+https://github.com/drillan/hachimoku@v0.1.0 hachimoku init
+```
+
+The following files are created in the `.hachimoku/` directory:
+
+- `config.toml` — Configuration file (template with all options commented out)
+- `agents/*.toml` — Copies of built-in agent definitions
+- `reviews/` — Directory for accumulating review result JSONL files
+- Automatic addition of `/.hachimoku/` entry to `.gitignore` (Git repositories only; only if not already present)
+
+See [Configuration](configuration.md) for configuration details.
+
+### 2. Generate the review subagents
+
+Inside Claude Code, run the setup skill:
+
+```
+/hachimoku:setup
+```
+
+This generates the review subagents into `.claude/agents/` along with `.claude/manifest.json`. You only need to re-run it after upgrading the plugin or hachimoku itself.
+
+## Optional: Install the CLI Locally (for developers)
+
+You do **not** need to install the CLI to run reviews — the plugin skills invoke it ephemerally via `uvx`. Installing it locally is only useful for developers who want to run `hachimoku build` / `select` / `aggregate` by hand.
+
+### Global installation (uv tool install)
 
 ```bash
 uv tool install git+https://github.com/drillan/hachimoku.git
 ```
 
-### Install from Local Clone
-
-Clone the repository and then install:
-
-```bash
-git clone https://github.com/drillan/hachimoku.git
-cd hachimoku
-uv tool install .
-```
-
-### Choosing between uv tool install and uv sync
-
-| Method | Target | Use Case |
-|--------|--------|----------|
-| `uv tool install` | Users | Install commands globally for use as a review tool |
-| `uv sync` | Developers | Develop, test, and debug within the project directory |
-
-- **Users**: After installing with `uv tool install`, you can run the `8moku` command from any directory
-- **Developers**: Use `uv sync` to synchronize dependencies to the project's virtual environment, and run commands via `uv run`
-
-## Upgrading
-
-### If installed from Git URL
+This makes the `hachimoku` and `8moku` commands available globally. To upgrade:
 
 ```bash
 uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
 ```
 
-### If installed from local clone
-
-```bash
-cd hachimoku
-git pull
-uv tool install --reinstall .
-```
-
 ```{note}
 `uv tool install` does nothing if the package is already installed.
-The `--reinstall` flag forces reinstallation of all packages.
-This flag implies `--refresh` (cache invalidation),
-ensuring the latest code is fetched from the remote repository.
+The `--reinstall` flag forces reinstallation and implies `--refresh` (cache
+invalidation), ensuring the latest code is fetched from the remote repository.
 ```
 
-## Install from Source (for development)
+### Install from source
 
 Clone the repository and synchronize dependencies:
 
@@ -81,36 +105,13 @@ To include development tools (tests, linter, type checker):
 uv sync --group dev
 ```
 
-## Setup
-
-After installation, initialize in your project directory:
-
-```bash
-cd your-project
-8moku init
-```
-
-The following files are created in the `.hachimoku/` directory:
-
-- `config.toml` - Configuration file (template with all options commented out)
-- `agents/*.toml` - Copies of built-in agent definitions
-- `reviews/` - Directory for accumulating review result JSONL files
-- Automatic addition of `/.hachimoku/` entry to `.gitignore` (Git repositories only; only if not already present)
-
-See [Configuration](configuration.md) for configuration details.
-
 ## Verification
 
-```bash
-# Display help
-8moku --help
+Confirm the plugin loads in Claude Code by listing its skills — `/hachimoku:setup` and `/hachimoku:review` should be available. After running `/hachimoku:setup` in a project, confirm that `.claude/agents/` contains the generated review subagent `.md` files and that `.claude/manifest.json` exists.
 
-# Check agent list
-8moku agents
-```
-
-The `hachimoku` command provides the same functionality:
+If you installed the CLI locally, you can also verify it directly:
 
 ```bash
 hachimoku --help
+hachimoku agents
 ```

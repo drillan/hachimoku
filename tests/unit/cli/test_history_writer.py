@@ -21,7 +21,7 @@ from hachimoku.cli._history_writer import (
     get_commit_hash,
     save_review_history,
 )
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.history import (
     CommitReviewRecord,
     DiffReviewRecord,

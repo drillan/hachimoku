@@ -5,129 +5,83 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/)
 
-hachimoku (8moku) is a CLI tool that performs code reviews using multiple specialized agents.
-Agent definitions are managed via TOML files, allowing you to add and customize review perspectives without any code changes.
+hachimoku is a Claude Code plugin for multi-agent code review.
+A review runs **inside your interactive Claude Code session**, dispatching specialized review subagents in parallel and aggregating their findings into a single report.
+
+Because reviews run in your existing Claude Code session, they are covered by your interactive subscription rather than the metered programmatic-usage billing that `claude -p` incurs from 2026-06-15.
 
 ## Key Features
 
-- 4 review modes: diff (branch diff), PR (GitHub PR), file (specified files), commit (commit range diff)
-- Built-in agents: code quality, silent failures, test coverage, type safety, comments, simplification
-- Add custom agents via TOML-based agent definitions
-- Choose between sequential and parallel execution
-- LLM-based result aggregation: deduplicates and merges findings from multiple agents, generating recommended actions
-- Cost efficiency: selector and aggregation use lightweight models, reviews use high-performance models to maintain accuracy
-- Flexible model configuration: resolved in config > definition > global priority order, can always revert to a previous Opus version
-- Markdown / JSON output support (default: Markdown)
-- Automatic review result accumulation in JSONL format for review history analysis
+- Runs as a Claude Code plugin — no separate review tool to install or run
+- Built-in review subagents covering code quality, security, dependencies, type design, test coverage, comments, simplification, and more
+- Add project-specific custom review perspectives via TOML agent definitions — no code changes required
+- Parallel dispatch in ordered phases (early → main → final)
+- Deterministic selection and aggregation: agent selection and report aggregation run as plain CLI steps that consume no LLM budget
+- Review subagents are restricted to read-only `git`/`gh` access by a bundled guard hook
+- Review results accumulate in JSONL format under `.hachimoku/reviews/` for review history analysis
 
-## Installation
+## Prerequisites
 
-Install globally with `uv tool install`:
+Both must be installed and available on `PATH`:
 
-```bash
-uv tool install git+https://github.com/drillan/hachimoku.git
-```
-
-For developers (setup from source):
-
-```bash
-git clone https://github.com/drillan/hachimoku.git
-cd hachimoku
-uv sync
-```
-
-See [Installation](docs/en/installation.md) for details.
-
-## Upgrade
-
-```bash
-uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
-```
-
-> **Note**: `uv tool install` does nothing if already installed.
-> The `--reinstall` flag fetches the latest code from the remote repository and reinstalls.
+- [`uv`](https://docs.astral.sh/uv/) — runs the hachimoku CLI ephemerally via `uvx`
+- [`jq`](https://jqlang.github.io/jq/) — required by the bundled read-only git guard hook
 
 ## Quick Start
 
-### 1. Initialize the Project
+### 1. Install the plugin
+
+For local / development use, point Claude Code at the bundled plugin directory:
 
 ```bash
-8moku init
+claude --plugin-dir ./plugin
 ```
 
-Default configuration files and agent definitions are created in the `.hachimoku/` directory.
+Marketplace distribution is to be published.
 
-### 2. Run a Code Review
+### 2. Set up the project (once)
 
-```bash
-# diff mode: review changes in the current branch
-8moku
+In your project, run the setup skill inside Claude Code:
 
-# PR mode: review a GitHub PR
-8moku 42
-
-# file mode: review specified files
-8moku src/main.py tests/test_main.py
-
-# commit mode: review changes from a specific commit
-8moku --commit abc123
-8moku --commit abc123..def456
+```
+/hachimoku:setup
 ```
 
-### 3. View Agents
+This generates the review subagents into `.claude/agents/` along with `.claude/manifest.json`. Re-run it only after upgrading the plugin.
 
-```bash
-# List agents
-8moku agents
+### 3. Run a review
 
-# Agent details
-8moku agents code-reviewer
+```
+/hachimoku:review
 ```
 
-## CLI Commands
+The review skill orchestrates the review: it selects applicable subagents, dispatches them in parallel phases, aggregates their findings, and presents a structured report. Pass a PR number or file paths as arguments, or leave it empty to review the current branch diff.
 
-| Command | Description |
-|---------|-------------|
-| `8moku [OPTIONS] [ARGS]` | Run a code review (default) |
-| `8moku init [--force \| --upgrade]` | Initialize the `.hachimoku/` directory |
-| `8moku agents [NAME]` | List or show details of agent definitions |
+## Architecture
 
-Main review options:
+hachimoku has two parts:
 
-| Option | Description |
-|--------|-------------|
-| `--model TEXT` | LLM model name (with prefix: `claudecode:` or `anthropic:`) |
-| `--timeout INTEGER` | Timeout in seconds |
-| `--parallel / --no-parallel` | Enable/disable parallel execution |
-| `--format FORMAT` | Output format (`markdown` / `json`, default: `markdown`) |
-| `--base-branch TEXT` | Base branch for diff mode |
-| `--issue INTEGER` | GitHub Issue number for context |
-| `--no-confirm` | Skip confirmation prompts |
+- **Claude Code plugin** (user-facing) — the `/hachimoku:setup` and `/hachimoku:review` skills. This is the review interface.
+- **Thin CLI** (`hachimoku`, alias `8moku`) — a supporting developer utility with deterministic, non-LLM subcommands (`init`, `agents`, `build`, `select`, `aggregate`). The plugin skills invoke it ephemerally via `uvx`.
 
-## Model Prefixes
+You do not need to install the CLI to run reviews. Installing it locally with `uv tool install` is optional — useful only for developers who want to run `build` / `select` / `aggregate` by hand. See [Installation](docs/en/installation.md).
 
-hachimoku determines the provider based on the model name prefix:
+## Agent Definitions
 
-| Prefix | Description | API Key | Example |
-|--------|-------------|---------|---------|
-| `claudecode:` | Claude Code built-in model (default) | Not required | `claudecode:claude-opus-4-7` |
-| `anthropic:` | Direct Anthropic API call | `ANTHROPIC_API_KEY` required | `anthropic:claude-opus-4-7` |
+Review subagents are generated from TOML agent definitions under `.hachimoku/agents/`. Each definition declares its review perspective, model, applicability rules, and output schema. You can add project-specific custom agents by dropping a new TOML file into that directory and re-running `/hachimoku:setup`.
 
-```bash
-# Using the Anthropic API
-export ANTHROPIC_API_KEY="your-api-key"
-8moku --model "anthropic:claude-opus-4-7"
-```
+See [Agent Definitions](docs/en/agents.md) for details.
 
 ## Configuration
 
 Supports TOML-based hierarchical configuration (in priority order):
 
-1. CLI options
-2. `.hachimoku/config.toml`
-3. `pyproject.toml [tool.hachimoku]`
-4. `~/.config/hachimoku/config.toml`
-5. Default values
+1. `.hachimoku/config.toml`
+2. `pyproject.toml [tool.hachimoku]`
+3. `~/.config/hachimoku/config.toml`
+4. Default values
+
+See [Configuration](docs/en/configuration.md) for details.
 
 ## Documentation
 

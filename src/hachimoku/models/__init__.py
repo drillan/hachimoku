@@ -5,9 +5,6 @@ from hachimoku.models.agent_result import (
     AgentError,
     AgentResult,
     AgentSuccess,
-    AgentTimeout,
-    AgentTruncated,
-    CostInfo,
 )
 from hachimoku.models.history import (
     CommitHash,
@@ -18,9 +15,6 @@ from hachimoku.models.history import (
     ReviewHistoryRecord,
 )
 from hachimoku.models.report import (
-    AggregatedReport,
-    Priority,
-    RecommendedAction,
     ReviewReport,
     ReviewSummary,
 )
@@ -52,17 +46,13 @@ from hachimoku.models.severity import (
 
 
 __all__ = [
-    "AggregatedReport",
     "AgentError",
     "AgentResult",
     "AgentSuccess",
-    "AgentTimeout",
-    "AgentTruncated",
     "BaseAgentOutput",
     "CategoryClassification",
     "CommitHash",
     "CommitReviewRecord",
-    "CostInfo",
     "CoverageGap",
     "DiffReviewRecord",
     "DimensionScore",
@@ -75,10 +65,8 @@ __all__ = [
     "ImprovementSuggestions",
     "MultiDimensionalAnalysis",
     "PRReviewRecord",
-    "Priority",
     "ReviewHistoryRecord",
     "ReviewIssue",
-    "RecommendedAction",
     "ReviewReport",
     "ReviewSummary",
     "SCHEMA_REGISTRY",

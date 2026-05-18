@@ -342,12 +342,6 @@ class TestSelectorConfigDefaults:
         config = SelectorConfig()
         assert config.convention_files == ("CLAUDE.md", ".hachimoku/config.toml")
 
-    def test_default_convention_files_matches_prefetch(self) -> None:
-        """convention_files のデフォルトが _prefetch.DEFAULT_CONVENTION_FILES と同値であること。"""
-        from hachimoku.engine._prefetch import DEFAULT_CONVENTION_FILES
-
-        assert SelectorConfig().convention_files == DEFAULT_CONVENTION_FILES
-
 
 class TestSelectorConfigValidation:
     """SelectorConfig のバリデーションテスト (FR-CF-004)。"""

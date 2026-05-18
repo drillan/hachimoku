@@ -1,0 +1,111 @@
+"""block-git-mutations.sh の allow/deny テスト。"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from hachimoku.security.readonly_allowlist import ALLOWED_GIT_SUBCOMMANDS
+
+_SCRIPT = Path(__file__).parents[3] / "plugin" / "scripts" / "block-git-mutations.sh"
+
+
+def _run_hook(command: str) -> int:
+    """hook スクリプトに PreToolUse 入力を渡し、終了コードを返す。"""
+    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+    result = subprocess.run(
+        ["bash", str(_SCRIPT)],
+        input=payload,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode
+
+
+class TestBlockGitMutations:
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git diff",
+            "git log --oneline",
+            "git show HEAD",
+            "git status",
+            "gh pr view 123",
+            "gh pr diff 123",
+            "gh api /repos/o/r",  # 読み取り専用 gh api は許可
+            "gh pr view 1",
+            "git -c x=y log",  # -c オプション付き git は許可
+            "git diff HEAD~1",  # ~ は deny リストに入れない
+            "ls -la",  # git/gh 以外はすべて許可
+            "cat file.py",
+        ],
+    )
+    def test_allows_read_only_and_non_git(self, command: str) -> None:
+        assert _run_hook(command) == 0
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push",
+            "git commit -m x",
+            "git reset --hard",
+            "git checkout .",
+            "git restore .",
+            "git clean -fd",
+            "git branch -D feature",
+            "gh pr close 1",
+            "gh pr merge 1",
+            "  git push",  # 先頭スペースで判定をすり抜けさせない
+            "\tgit push",  # 先頭タブも同様
+            "GIT_AUTHOR_NAME=x git commit -m y",  # env プレフィックスは deny
+            "gh api --method DELETE /endpoint",  # 任意 HTTP メソッドは deny
+            "/usr/bin/git push",  # パス指定バイナリは deny
+            "env git push",  # env ランチャ経由は deny
+            "sudo git push",  # sudo ランチャ経由は deny
+            "git\tcommit\t-m\tx",  # タブ区切りは deny
+        ],
+    )
+    def test_denies_git_gh_mutations(self, command: str) -> None:
+        assert _run_hook(command) == 2
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git diff && git push",  # パイプ/連結は deny 側に倒す
+            "git diff; git commit",
+            "bash -c 'git push'",
+            "git diff\ngit push",  # 改行区切りは deny
+            "git diff & git push",  # バックグラウンド & は deny
+            "git diff <(git push)",  # プロセス置換は deny
+            "git diff > /tmp/x",  # リダイレクトは deny（ファイル書き込みの抜け道）
+        ],
+    )
+    def test_denies_compound_commands(self, command: str) -> None:
+        assert _run_hook(command) == 2
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # クォート/エスケープによる argv0 偽装
+            '"git" push',  # ダブルクォート
+            "g\\it push",  # バックスラッシュ（bash では git push）
+            "git${IFS}push",  # IFS 展開（$ と { を含む）
+            # bash -c 以外のサブシェルランチャ
+            'sh -c "git push"',
+            'eval "git push"',
+            'bash\t-c "git push"',  # タブ区切りランチャ
+            "bash  -c 'git push'",  # ダブルスペース区切りランチャ
+            "sh -lc git",  # クォートなしランチャ（第1トークン完全一致で deny）
+        ],
+    )
+    def test_denies_quoting_and_launchers(self, command: str) -> None:
+        assert _run_hook(command) == 2
+
+    def test_allowlist_matches_python_definition(self) -> None:
+        # スクリプト内 git 許可リストが readonly_allowlist.py と一致すること（drift 検出）
+        text = _SCRIPT.read_text()
+        for sub in ALLOWED_GIT_SUBCOMMANDS:
+            assert sub in text, f"script missing allowed subcommand: {sub}"

@@ -29,7 +29,6 @@ from hachimoku.cli._init_handler import (
 # --- ビルトインエージェント定義ファイル名（ソート済み） ---
 
 BUILTIN_AGENT_NAMES: tuple[str, ...] = (
-    "aggregator.toml",
     "architecture-reviewer.toml",
     "breaking-change-detector.toml",
     "code-reviewer.toml",
@@ -40,7 +39,6 @@ BUILTIN_AGENT_NAMES: tuple[str, ...] = (
     "plan-reviewer.toml",
     "pr-test-analyzer.toml",
     "security-analyzer.toml",
-    "selector.toml",
     "silent-failure-hunter.toml",
     "type-design-analyzer.toml",
 )

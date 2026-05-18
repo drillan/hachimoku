@@ -3,6 +3,7 @@
 hachimoku's review agents are defined in TOML files.
 It adopts a data-driven architecture that allows adding and customizing agents without code changes.
 Built-in agents are provided as standard, and project-specific custom agents can also be added.
+`hachimoku build` transforms agent TOML definitions into Claude Code subagent `.md` files for execution.
 
 ```{contents}
 :depth: 2
@@ -30,53 +31,12 @@ The following agents are included in the package.
 
 See [Output Schemas](output-schemas) for details on output schemas.
 
-(selector-definition)=
-## Selector Agent
-
-The selector agent is a specialized agent that analyzes the review target and selects which review agents to run.
-Like review agents, its configuration is managed via a TOML definition file.
-
-### SelectorDefinition
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `str` | Yes | Selector name (fixed as `"selector"`) |
-| `description` | `str` | Yes | Description of the selector |
-| `model` | `str \| None` | No | LLM model name. Default: `None` (resolved via [model resolution priority](#model-resolution-priority)) |
-| `system_prompt` | `str` | Yes | Selector's system prompt |
-| `allowed_tools` | `list[str]` | No | Allowed tool categories. Default: empty. The built-in `selector.toml` sets `git_read`, `gh_read`, `file_read` (3 categories, `web_fetch` not included) |
-
-Unlike `AgentDefinition` for review agents, there are no `output_schema`, `phase`, or `applicability` fields.
-The selector's output is always fixed to `SelectorOutput` (list of selected agent names with reasons).
-
-(model-resolution-priority)=
-### Model Resolution Priority
-
-The selector agent's model is resolved in the following priority order:
-
-1. `model` in `[selector]` configuration (see [Configuration](configuration.md))
-2. `model` in the selector definition
-3. Global `model` setting (default: `"claudecode:claude-opus-4-7"`)
-
-### Built-in Selector Definition
-
-A built-in `selector.toml` is included in the package.
-Placing a custom `selector.toml` at `.hachimoku/agents/selector.toml` overrides the built-in.
-
-```{literalinclude} ../../src/hachimoku/agents/_builtin/selector.toml
-:language: toml
-:caption: selector.toml (built-in)
-```
-
-### load_selector()
-
-Loads the selector definition. When `custom_dir` is specified and a `selector.toml` exists in that directory, it overrides the built-in.
-
-```{code-block} python
-from hachimoku.agents import load_selector
-
-definition = load_selector()
-print(definition.name)  # "selector"
+```{note}
+**Selection and aggregation are deterministic CLI steps, not LLM agents.**
+`hachimoku select` and `hachimoku aggregate` determine which agents to run and merge their
+outputs without consuming any LLM budget. There is no `selector.toml` or `aggregator.toml`
+built-in agent definition. See [Configuration](configuration.md) for the `[selector]` and
+`[aggregation]` config sections that control these steps.
 ```
 
 ## TOML Definition File Format

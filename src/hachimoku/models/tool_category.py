@@ -17,7 +17,7 @@ class ToolCategory(StrEnum):
     """エージェントに許可されるツールのカテゴリ。
 
     読み取り専用の4カテゴリを定義する。
-    SelectorDefinition・AgentDefinition の allowed_tools バリデーション（FR-RE-016）と
+    AgentDefinition の allowed_tools バリデーション（FR-RE-016）と
     ToolCatalog のカテゴリ名解決での使用を想定。
     """
 

@@ -1,4 +1,4 @@
-"""CostInfo, AgentSuccess, AgentError, AgentTimeout, AgentTruncated, AgentResult のテスト。
+"""AgentSuccess, AgentError, AgentResult のテスト。
 
 FR-DM-003: AgentResult 判別共用体。
 """
@@ -10,65 +10,9 @@ from hachimoku.models.agent_result import (
     AgentError,
     AgentResult,
     AgentSuccess,
-    AgentTimeout,
-    AgentTruncated,
-    CostInfo,
 )
 from hachimoku.models.review import ReviewIssue
 from hachimoku.models.severity import Severity
-
-
-class TestCostInfoValid:
-    """CostInfo の正常系を検証。"""
-
-    def test_valid_cost_info(self) -> None:
-        """正常値でインスタンス生成が成功する。"""
-        cost = CostInfo(input_tokens=100, output_tokens=50, total_cost=0.01)
-        assert cost.input_tokens == 100
-        assert cost.output_tokens == 50
-        assert cost.total_cost == 0.01
-
-    def test_zero_values_accepted(self) -> None:
-        """全て0の値も受け入れる (ge=0)。"""
-        cost = CostInfo(input_tokens=0, output_tokens=0, total_cost=0.0)
-        assert cost.input_tokens == 0
-        assert cost.output_tokens == 0
-        assert cost.total_cost == 0.0
-
-    def test_total_cost_default_none(self) -> None:
-        """total_cost 省略時に None となる（金額計算未実装時）。"""
-        cost = CostInfo(input_tokens=100, output_tokens=50)
-        assert cost.total_cost is None
-
-
-class TestCostInfoConstraints:
-    """CostInfo の制約違反を検証。"""
-
-    def test_negative_input_tokens_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="input_tokens"):
-            CostInfo(input_tokens=-1, output_tokens=0, total_cost=0.0)
-
-    def test_negative_output_tokens_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="output_tokens"):
-            CostInfo(input_tokens=0, output_tokens=-1, total_cost=0.0)
-
-    def test_negative_total_cost_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="total_cost"):
-            CostInfo(input_tokens=0, output_tokens=0, total_cost=-0.01)
-
-    def test_infinity_total_cost_rejected(self) -> None:
-        """float('inf') は JSON で表現不可能なため拒否する。"""
-        with pytest.raises(ValidationError, match="total_cost"):
-            CostInfo(input_tokens=0, output_tokens=0, total_cost=float("inf"))
-
-    def test_nan_total_cost_rejected(self) -> None:
-        """float('nan') は拒否する。"""
-        with pytest.raises(ValidationError, match="total_cost"):
-            CostInfo(input_tokens=0, output_tokens=0, total_cost=float("nan"))
-
-    def test_extra_field_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="extra_forbidden"):
-            CostInfo(input_tokens=0, output_tokens=0, total_cost=0.0, currency="USD")  # type: ignore[call-arg]
 
 
 class TestAgentSuccessValid:
@@ -111,26 +55,6 @@ class TestAgentSuccessValid:
             elapsed_time=1.0,
         )
         assert result.issues == []
-
-    def test_cost_default_none(self) -> None:
-        """cost 省略時に None となる。"""
-        result = AgentSuccess(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-        )
-        assert result.cost is None
-
-    def test_cost_accepts_cost_info(self) -> None:
-        """cost に CostInfo インスタンスを渡せる。"""
-        cost = CostInfo(input_tokens=100, output_tokens=50, total_cost=0.01)
-        result = AgentSuccess(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            cost=cost,
-        )
-        assert result.cost == cost
 
     def test_overall_score_default_none(self) -> None:
         """overall_score 省略時に None となる。"""
@@ -202,10 +126,6 @@ class TestAgentSuccessConstraints:
     def test_missing_issues_rejected(self) -> None:
         with pytest.raises(ValidationError):
             AgentSuccess(agent_name="test", elapsed_time=1.0)  # type: ignore[call-arg]
-
-    def test_missing_elapsed_time_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            AgentSuccess(agent_name="test", issues=[])  # type: ignore[call-arg]
 
     def test_overall_score_below_zero_rejected(self) -> None:
         """overall_score < 0.0 がバリデーションエラーとなる。"""
@@ -310,243 +230,6 @@ class TestAgentErrorConstraints:
         assert err.stderr == ""
 
 
-class TestAgentTimeoutValid:
-    """AgentTimeout の正常系を検証。"""
-
-    def test_valid_agent_timeout(self) -> None:
-        """正常値でインスタンス生成が成功する。"""
-        timeout = AgentTimeout(
-            agent_name="code-reviewer",
-            timeout_seconds=30.0,
-        )
-        assert timeout.agent_name == "code-reviewer"
-        assert timeout.timeout_seconds == 30.0
-
-    def test_status_is_timeout_literal(self) -> None:
-        """status フィールドが "timeout" である。"""
-        timeout = AgentTimeout(agent_name="test", timeout_seconds=10.0)
-        assert timeout.status == "timeout"
-
-    def test_status_default_value(self) -> None:
-        """status を省略してもデフォルトで "timeout" が設定される。"""
-        timeout = AgentTimeout(agent_name="test", timeout_seconds=10.0)
-        assert timeout.status == "timeout"
-
-
-class TestAgentTimeoutConstraints:
-    """AgentTimeout の制約違反を検証。"""
-
-    def test_empty_agent_name_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="agent_name"):
-            AgentTimeout(agent_name="", timeout_seconds=10.0)
-
-    def test_zero_timeout_seconds_rejected(self) -> None:
-        """timeout_seconds=0 で ValidationError (gt=0)。"""
-        with pytest.raises(ValidationError, match="timeout_seconds"):
-            AgentTimeout(agent_name="test", timeout_seconds=0)
-
-    def test_negative_timeout_seconds_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="timeout_seconds"):
-            AgentTimeout(agent_name="test", timeout_seconds=-1.0)
-
-    def test_infinity_timeout_seconds_rejected(self) -> None:
-        """float('inf') は拒否する。"""
-        with pytest.raises(ValidationError, match="timeout_seconds"):
-            AgentTimeout(agent_name="test", timeout_seconds=float("inf"))
-
-    def test_extra_field_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="extra_forbidden"):
-            AgentTimeout(agent_name="test", timeout_seconds=10.0, reason="slow")  # type: ignore[call-arg]
-
-
-class TestAgentTruncatedValid:
-    """AgentTruncated の正常系を検証。"""
-
-    def test_valid_agent_truncated(self) -> None:
-        """正常値でインスタンス生成が成功する。"""
-        result = AgentTruncated(
-            agent_name="code-reviewer",
-            issues=[],
-            elapsed_time=5.0,
-            turns_consumed=10,
-        )
-        assert result.agent_name == "code-reviewer"
-        assert result.issues == []
-        assert result.elapsed_time == 5.0
-        assert result.turns_consumed == 10
-
-    def test_status_is_truncated_literal(self) -> None:
-        """status フィールドが "truncated" である。"""
-        result = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            turns_consumed=5,
-        )
-        assert result.status == "truncated"
-
-    def test_status_default_value(self) -> None:
-        """status を省略してもデフォルトで "truncated" が設定される。"""
-        result = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            turns_consumed=3,
-        )
-        assert result.status == "truncated"
-
-    def test_empty_issues_list_accepted(self) -> None:
-        """空リスト issues=[] も受け入れる。"""
-        result = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            turns_consumed=1,
-        )
-        assert result.issues == []
-
-    def test_issues_with_review_issue(self) -> None:
-        """issues に ReviewIssue リストを渡せる。"""
-        issue = ReviewIssue(
-            agent_name="code-reviewer",
-            severity=Severity.CRITICAL,
-            description="Bug found",
-        )
-        result = AgentTruncated(
-            agent_name="code-reviewer",
-            issues=[issue],
-            elapsed_time=2.0,
-            turns_consumed=10,
-        )
-        assert len(result.issues) == 1
-        assert result.issues[0].severity == Severity.CRITICAL
-
-    def test_overall_score_default_none(self) -> None:
-        """overall_score 省略時に None となる。"""
-        result = AgentTruncated(
-            agent_name="test", issues=[], elapsed_time=1.0, turns_consumed=5
-        )
-        assert result.overall_score is None
-
-    def test_overall_score_accepts_float(self) -> None:
-        """overall_score に float を渡せる。"""
-        result = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            turns_consumed=5,
-            overall_score=5.0,
-        )
-        assert result.overall_score == 5.0
-
-
-class TestAgentTruncatedConstraints:
-    """AgentTruncated の制約違反を検証。"""
-
-    def test_empty_agent_name_rejected(self) -> None:
-        """agent_name が空文字で ValidationError。"""
-        with pytest.raises(ValidationError, match="agent_name"):
-            AgentTruncated(agent_name="", issues=[], elapsed_time=1.0, turns_consumed=5)
-
-    def test_zero_elapsed_time_rejected(self) -> None:
-        """elapsed_time=0 で ValidationError (gt=0)。"""
-        with pytest.raises(ValidationError, match="elapsed_time"):
-            AgentTruncated(
-                agent_name="test", issues=[], elapsed_time=0, turns_consumed=5
-            )
-
-    def test_negative_elapsed_time_rejected(self) -> None:
-        """elapsed_time が負で ValidationError。"""
-        with pytest.raises(ValidationError, match="elapsed_time"):
-            AgentTruncated(
-                agent_name="test", issues=[], elapsed_time=-1.0, turns_consumed=5
-            )
-
-    def test_infinity_elapsed_time_rejected(self) -> None:
-        """float('inf') は拒否する。"""
-        with pytest.raises(ValidationError, match="elapsed_time"):
-            AgentTruncated(
-                agent_name="test",
-                issues=[],
-                elapsed_time=float("inf"),
-                turns_consumed=5,
-            )
-
-    def test_zero_turns_consumed_rejected(self) -> None:
-        """turns_consumed=0 で ValidationError (gt=0)。"""
-        with pytest.raises(ValidationError, match="turns_consumed"):
-            AgentTruncated(
-                agent_name="test", issues=[], elapsed_time=1.0, turns_consumed=0
-            )
-
-    def test_negative_turns_consumed_rejected(self) -> None:
-        """turns_consumed が負で ValidationError。"""
-        with pytest.raises(ValidationError, match="turns_consumed"):
-            AgentTruncated(
-                agent_name="test", issues=[], elapsed_time=1.0, turns_consumed=-1
-            )
-
-    def test_missing_turns_consumed_rejected(self) -> None:
-        """turns_consumed 省略で ValidationError。"""
-        with pytest.raises(ValidationError):
-            AgentTruncated(agent_name="test", issues=[], elapsed_time=1.0)  # type: ignore[call-arg]
-
-    def test_extra_field_rejected(self) -> None:
-        """extra="forbid" により追加フィールドが拒否される。"""
-        with pytest.raises(ValidationError, match="extra_forbidden"):
-            AgentTruncated(
-                agent_name="test",
-                issues=[],
-                elapsed_time=1.0,
-                turns_consumed=5,
-                cost=None,  # type: ignore[call-arg]
-            )
-
-    def test_overall_score_boundary_zero(self) -> None:
-        """overall_score=0.0 が受け入れられる。"""
-        result = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            turns_consumed=5,
-            overall_score=0.0,
-        )
-        assert result.overall_score == 0.0
-
-    def test_overall_score_boundary_ten(self) -> None:
-        """overall_score=10.0 が受け入れられる。"""
-        result = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=1.0,
-            turns_consumed=5,
-            overall_score=10.0,
-        )
-        assert result.overall_score == 10.0
-
-    def test_overall_score_below_zero_rejected(self) -> None:
-        """overall_score=-0.1 で ValidationError。"""
-        with pytest.raises(ValidationError, match="overall_score"):
-            AgentTruncated(
-                agent_name="test",
-                issues=[],
-                elapsed_time=1.0,
-                turns_consumed=5,
-                overall_score=-0.1,
-            )
-
-    def test_overall_score_above_ten_rejected(self) -> None:
-        """overall_score=10.1 で ValidationError。"""
-        with pytest.raises(ValidationError, match="overall_score"):
-            AgentTruncated(
-                agent_name="test",
-                issues=[],
-                elapsed_time=1.0,
-                turns_consumed=5,
-                overall_score=10.1,
-            )
-
-
 class TestAgentResultDiscriminatedUnion:
     """AgentResult 判別共用体のデシリアライズを検証。
 
@@ -581,32 +264,6 @@ class TestAgentResultDiscriminatedUnion:
         )
         assert isinstance(result, AgentError)
         assert result.status == "error"
-
-    def test_deserialize_timeout(self) -> None:
-        """status="timeout" で AgentTimeout が選択される。"""
-        result = self.adapter.validate_python(
-            {
-                "status": "timeout",
-                "agent_name": "test",
-                "timeout_seconds": 30.0,
-            }
-        )
-        assert isinstance(result, AgentTimeout)
-        assert result.status == "timeout"
-
-    def test_deserialize_truncated(self) -> None:
-        """status="truncated" で AgentTruncated が選択される。"""
-        result = self.adapter.validate_python(
-            {
-                "status": "truncated",
-                "agent_name": "test",
-                "issues": [],
-                "elapsed_time": 5.0,
-                "turns_consumed": 10,
-            }
-        )
-        assert isinstance(result, AgentTruncated)
-        assert result.status == "truncated"
 
     def test_invalid_status_rejected(self) -> None:
         """不正な status 値で ValidationError。"""
@@ -686,27 +343,6 @@ class TestAgentResultDiscriminatedUnion:
         assert isinstance(restored, AgentError)
         assert restored.error_message == original.error_message
 
-    def test_round_trip_timeout(self) -> None:
-        """AgentTimeout の model_dump → validate_python ラウンドトリップ。"""
-        original = AgentTimeout(agent_name="test", timeout_seconds=30.0)
-        data = original.model_dump()
-        restored = self.adapter.validate_python(data)
-        assert isinstance(restored, AgentTimeout)
-        assert restored.timeout_seconds == original.timeout_seconds
-
-    def test_round_trip_truncated(self) -> None:
-        """AgentTruncated の model_dump → validate_python ラウンドトリップ。"""
-        original = AgentTruncated(
-            agent_name="test",
-            issues=[],
-            elapsed_time=5.0,
-            turns_consumed=10,
-        )
-        data = original.model_dump()
-        restored = self.adapter.validate_python(data)
-        assert isinstance(restored, AgentTruncated)
-        assert restored.turns_consumed == original.turns_consumed
-
     def test_deserialize_error_with_optional_fields(self) -> None:
         """status="error" にオプションフィールドを含むデータがデシリアライズできる。"""
         result = self.adapter.validate_python(
@@ -753,3 +389,48 @@ class TestAgentResultDiscriminatedUnion:
         assert restored.exit_code == original.exit_code
         assert restored.error_type == original.error_type
         assert restored.stderr == original.stderr
+
+
+class TestReshapedAgentResult:
+    def test_agent_success_without_cost_field(self) -> None:
+        success = AgentSuccess(agent_name="code-reviewer", issues=[])
+        assert success.status == "success"
+        assert success.elapsed_time is None
+        assert not hasattr(success, "cost")
+
+    def test_agent_success_elapsed_time_optional(self) -> None:
+        success = AgentSuccess(agent_name="code-reviewer", issues=[], elapsed_time=12.5)
+        assert success.elapsed_time == 12.5
+
+    def test_agent_success_elapsed_time_rejects_non_positive(self) -> None:
+        with pytest.raises(ValidationError):
+            AgentSuccess(agent_name="a", issues=[], elapsed_time=0.0)
+
+    def test_cost_info_is_removed(self) -> None:
+        import hachimoku.models.agent_result as mod
+
+        assert not hasattr(mod, "CostInfo")
+        assert not hasattr(mod, "AgentTruncated")
+        assert not hasattr(mod, "AgentTimeout")
+
+    def test_agent_result_union_has_two_variants(self) -> None:
+        from pydantic import TypeAdapter
+
+        adapter: TypeAdapter[AgentResult] = TypeAdapter(AgentResult)
+        ok = adapter.validate_python(
+            {"status": "success", "agent_name": "a", "issues": []}
+        )
+        assert isinstance(ok, AgentSuccess)
+        err = adapter.validate_python(
+            {"status": "error", "agent_name": "a", "error_message": "boom"}
+        )
+        assert isinstance(err, AgentError)
+
+    def test_agent_result_rejects_removed_status(self) -> None:
+        from pydantic import TypeAdapter
+
+        adapter: TypeAdapter[AgentResult] = TypeAdapter(AgentResult)
+        with pytest.raises(ValidationError):
+            adapter.validate_python(
+                {"status": "timeout", "agent_name": "a", "timeout_seconds": 1.0}
+            )

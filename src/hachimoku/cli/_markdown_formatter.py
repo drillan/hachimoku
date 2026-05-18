@@ -13,14 +13,8 @@ from hachimoku.agents.models import LoadError
 from hachimoku.models.agent_result import (
     AgentError,
     AgentSuccess,
-    AgentTimeout,
-    AgentTruncated,
-    CostInfo,
 )
 from hachimoku.models.report import (
-    AggregatedReport,
-    Contradiction,
-    QualityFilteredIssue,
     ReviewReport,
     ReviewSummary,
 )
@@ -47,17 +41,11 @@ def format_markdown(report: ReviewReport) -> str:
     if issues_section:
         sections.append(issues_section)
 
-    if report.aggregated is not None:
-        sections.append(_format_aggregated(report.aggregated))
-
     sections.append(_format_agent_results(report))
 
     load_errors_section = _format_load_errors(report.load_errors)
     if load_errors_section:
         sections.append(load_errors_section)
-
-    if report.aggregation_error is not None:
-        sections.append(_format_aggregation_error(report.aggregation_error))
 
     return "\n\n".join(sections) + "\n"
 
@@ -67,16 +55,17 @@ def format_markdown(report: ReviewReport) -> str:
 
 def _format_summary(summary: ReviewSummary) -> str:
     severity_display = summary.max_severity.value if summary.max_severity else "-"
-    elapsed_display = f"{summary.total_elapsed_time:.1f}s"
+    elapsed_display = (
+        f"{summary.total_elapsed_time:.1f}s"
+        if summary.total_elapsed_time is not None
+        else "-"
+    )
 
     rows = [
         f"| Total Issues | {summary.total_issues} |",
         f"| Max Severity | {severity_display} |",
         f"| Elapsed Time | {elapsed_display} |",
     ]
-
-    if summary.total_cost is not None:
-        rows.append(_format_cost_row(summary.total_cost))
 
     if summary.overall_score is not None:
         rows.append(f"| Overall Score | {summary.overall_score} / 10.0 |")
@@ -85,22 +74,14 @@ def _format_summary(summary: ReviewSummary) -> str:
     return f"## Summary\n\n| Metric | Value |\n|--------|-------|\n{table}"
 
 
-def _format_cost_row(cost: CostInfo) -> str:
-    cost_display = f"${cost.total_cost:.4f}" if cost.total_cost is not None else "-"
-    return (
-        f"| Total Cost | {cost_display} "
-        f"(input: {cost.input_tokens}, output: {cost.output_tokens}) |"
-    )
-
-
 # ── Issues ───────────────────────────────────────────────
 
 
 def _collect_issues(report: ReviewReport) -> list[ReviewIssue]:
-    """AgentSuccess と AgentTruncated から issues を収集する。"""
+    """AgentSuccess から issues を収集する。"""
     issues: list[ReviewIssue] = []
     for agent_result in report.results:
-        if isinstance(agent_result, (AgentSuccess, AgentTruncated)):
+        if isinstance(agent_result, AgentSuccess):
             issues.extend(agent_result.issues)
     return issues
 
@@ -165,82 +146,29 @@ def _format_agent_results(report: ReviewReport) -> str:
 
 
 def _format_agent_result_row(
-    agent_result: AgentSuccess | AgentError | AgentTimeout | AgentTruncated,
+    agent_result: AgentSuccess | AgentError,
 ) -> str:
     match agent_result:
-        case AgentSuccess() | AgentTruncated():
+        case AgentSuccess():
             issue_count = str(len(agent_result.issues))
             score_display = (
                 str(agent_result.overall_score)
                 if agent_result.overall_score is not None
                 else "-"
             )
-            time_display = f"{agent_result.elapsed_time:.1f}s"
-            return f"| {agent_result.agent_name} | {agent_result.status} | {issue_count} | {score_display} | {time_display} |"
+            time_display = (
+                f"{agent_result.elapsed_time:.1f}s"
+                if agent_result.elapsed_time is not None
+                else "-"
+            )
+            return (
+                f"| {agent_result.agent_name} | {agent_result.status} "
+                f"| {issue_count} | {score_display} | {time_display} |"
+            )
         case AgentError():
             return f"| {agent_result.agent_name} | error | - | - | - |"
-        case AgentTimeout():
-            return f"| {agent_result.agent_name} | timeout ({agent_result.timeout_seconds:.0f}s) | - | - | - |"
         case _ as unreachable:
             assert_never(unreachable)
-
-
-# ── Aggregated Analysis ─────────────────────────────────
-
-
-def _format_aggregated(aggregated: AggregatedReport) -> str:
-    parts: list[str] = ["## Aggregated Analysis"]
-
-    parts.append(f"\n**Overall Score: {aggregated.overall_score} / 10.0**")
-
-    if aggregated.issues:
-        issue_lines = "\n".join(
-            f"- [{i.severity.value}] {i.description}" for i in aggregated.issues
-        )
-        parts.append(f"\n### Issues\n\n{issue_lines}")
-
-    if aggregated.strengths:
-        strength_lines = "\n".join(f"- {s}" for s in aggregated.strengths)
-        parts.append(f"\n### Strengths\n\n{strength_lines}")
-
-    if aggregated.recommended_actions:
-        action_lines = "\n".join(
-            f"{idx}. **[{a.priority.value}]** {a.description}"
-            for idx, a in enumerate(aggregated.recommended_actions, 1)
-        )
-        parts.append(f"\n### Recommended Actions\n\n{action_lines}")
-
-    if aggregated.agent_failures:
-        failure_lines = "\n".join(f"- {f}" for f in aggregated.agent_failures)
-        parts.append(f"\n### Agent Failures\n\n{failure_lines}")
-
-    if aggregated.contradictions:
-        parts.append(_format_contradictions(aggregated.contradictions))
-
-    if aggregated.quality_filtered:
-        parts.append(_format_quality_filtered(aggregated.quality_filtered))
-
-    return "\n".join(parts)
-
-
-def _format_contradictions(contradictions: list[Contradiction]) -> str:
-    lines: list[str] = []
-    for c in contradictions:
-        agents = ", ".join(c.agent_names)
-        line = f"- {c.description} (agents: {agents})"
-        if c.file_path is not None:
-            line += f" at `{c.file_path}`"
-        lines.append(line)
-    return "\n### Contradictions\n\n" + "\n".join(lines)
-
-
-def _format_quality_filtered(
-    quality_filtered: list[QualityFilteredIssue],
-) -> str:
-    lines: list[str] = []
-    for qf in quality_filtered:
-        lines.append(f"- **{qf.agent_name}**: {qf.description} — *{qf.reason}*")
-    return "\n### Quality Filtered\n\n" + "\n".join(lines)
 
 
 # ── Load Errors ──────────────────────────────────────────
@@ -257,10 +185,3 @@ def _format_load_errors(load_errors: tuple[LoadError, ...]) -> str:
 
     lines = "\n".join(f"- **{e.source}**: {e.message}" for e in load_errors)
     return f"## Load Errors\n\n{lines}"
-
-
-# ── Aggregation Error ────────────────────────────────────
-
-
-def _format_aggregation_error(error: str) -> str:
-    return f"## Aggregation Error\n\n{error}"

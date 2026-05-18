@@ -1,8 +1,6 @@
 """定義ローダー。
 
-TOML 形式の定義ファイルを読み込み、AgentDefinition / SelectorDefinition /
-AggregatorDefinition モデルとして構築する。
-セレクター定義（selector.toml）・アグリゲーター定義（aggregator.toml）は専用のローダーで読み込む。
+TOML 形式の定義ファイルを読み込み、AgentDefinition モデルとして構築する。
 """
 
 from __future__ import annotations
@@ -11,29 +9,16 @@ import tomllib
 from collections.abc import Generator, Iterable
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import Final, TypeVar
+from typing import TypeVar
 
 from pydantic import ValidationError
 
 from hachimoku.agents.models import (
     AgentDefinition,
-    AggregatorDefinition,
     LoadError,
     LoadResult,
-    SelectorDefinition,
 )
 from hachimoku.models._base import HachimokuBaseModel
-
-SELECTOR_FILENAME: Final[str] = "selector.toml"
-"""セレクター定義ファイル名。レビューエージェントローダーから除外される。"""
-
-AGGREGATOR_FILENAME: Final[str] = "aggregator.toml"
-"""アグリゲーター定義ファイル名。レビューエージェントローダーから除外される。"""
-
-_EXCLUDED_FILENAMES: Final[frozenset[str]] = frozenset(
-    {SELECTOR_FILENAME, AGGREGATOR_FILENAME}
-)
-"""レビューエージェントローダーから除外されるファイル名集合。"""
 
 _T = TypeVar("_T", bound=HachimokuBaseModel)
 
@@ -137,7 +122,7 @@ def _load_single_agent(path: Path) -> AgentDefinition:
 def _collect_agents(toml_paths: Iterable[Path]) -> LoadResult:
     """TOML ファイルパスのイテラブルからエージェント定義を収集する。
 
-    .toml 以外のファイルおよび除外対象ファイルはスキップされる。
+    .toml 以外のファイルはスキップされる。
     個々のファイルの読み込みエラーは LoadResult.errors に収集される。
 
     Args:
@@ -151,8 +136,6 @@ def _collect_agents(toml_paths: Iterable[Path]) -> LoadResult:
 
     for path in toml_paths:
         if not path.name.endswith(".toml"):
-            continue
-        if path.name in _EXCLUDED_FILENAMES:
             continue
         try:
             agent = _load_single_agent(path)
@@ -170,8 +153,6 @@ def _collect_agents(toml_paths: Iterable[Path]) -> LoadResult:
 
 def load_builtin_agents() -> LoadResult:
     """ビルトインエージェント定義をパッケージリソースから読み込む。
-
-    selector.toml はセレクター専用ローダーで読み込むため除外される。
 
     Returns:
         ビルトイン定義の読み込み結果。個々のファイルの読み込みエラーは
@@ -196,8 +177,6 @@ def load_builtin_agents() -> LoadResult:
 
 def load_custom_agents(custom_dir: Path) -> LoadResult:
     """カスタムエージェント定義を指定ディレクトリから読み込む。
-
-    selector.toml はセレクター専用ローダーで読み込むため除外される。
 
     Args:
         custom_dir: カスタム定義ファイルのディレクトリパス。
@@ -247,89 +226,3 @@ def load_agents(custom_dir: Path | None = None) -> LoadResult:
     merged_errors = list(builtin.errors) + list(custom.errors)
 
     return LoadResult(agents=tuple(merged_agents), errors=tuple(merged_errors))
-
-
-# =============================================================================
-# セレクター定義ローダー
-# =============================================================================
-
-
-def load_builtin_selector() -> SelectorDefinition:
-    """ビルトインセレクター定義をパッケージリソースから読み込む。
-
-    Returns:
-        ビルトインのセレクター定義。
-
-    Raises:
-        FileNotFoundError: ビルトインセレクター定義が見つからない場合。
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-    """
-    return _load_builtin_definition(SELECTOR_FILENAME, SelectorDefinition)
-
-
-def load_selector(custom_dir: Path | None = None) -> SelectorDefinition:
-    """ビルトインとカスタムを統合してセレクター定義を読み込む。
-
-    カスタムディレクトリに selector.toml が存在する場合、ビルトインを上書きする。
-    カスタムの読み込みに失敗した場合は例外を送出する。
-
-    Args:
-        custom_dir: カスタム定義ファイルのディレクトリパス。
-            None の場合はビルトインのみ読み込む。
-
-    Returns:
-        セレクター定義。
-
-    Raises:
-        FileNotFoundError: ビルトインセレクター定義が見つからない場合。
-        NotADirectoryError: custom_dir がファイルパスの場合。
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-    """
-    return _load_definition_with_override(
-        custom_dir, SELECTOR_FILENAME, SelectorDefinition
-    )
-
-
-# =============================================================================
-# アグリゲーター定義ローダー
-# =============================================================================
-
-
-def load_builtin_aggregator() -> AggregatorDefinition:
-    """ビルトインアグリゲーター定義をパッケージリソースから読み込む。
-
-    Returns:
-        ビルトインのアグリゲーター定義。
-
-    Raises:
-        FileNotFoundError: ビルトインアグリゲーター定義が見つからない場合。
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-    """
-    return _load_builtin_definition(AGGREGATOR_FILENAME, AggregatorDefinition)
-
-
-def load_aggregator(custom_dir: Path | None = None) -> AggregatorDefinition:
-    """ビルトインとカスタムを統合してアグリゲーター定義を読み込む。
-
-    カスタムディレクトリに aggregator.toml が存在する場合、ビルトインを上書きする。
-    カスタムの読み込みに失敗した場合は例外を送出する。
-
-    Args:
-        custom_dir: カスタム定義ファイルのディレクトリパス。
-            None の場合はビルトインのみ読み込む。
-
-    Returns:
-        アグリゲーター定義。
-
-    Raises:
-        FileNotFoundError: ビルトインアグリゲーター定義が見つからない場合。
-        NotADirectoryError: custom_dir がファイルパスの場合。
-        tomllib.TOMLDecodeError: TOML 構文エラーの場合。
-        pydantic.ValidationError: バリデーションエラーの場合。
-    """
-    return _load_definition_with_override(
-        custom_dir, AGGREGATOR_FILENAME, AggregatorDefinition
-    )

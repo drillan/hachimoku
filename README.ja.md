@@ -5,129 +5,83 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/)
 
-hachimoku（8moku）は、複数の専門エージェントを用いてコードレビューを行う CLI ツールです。
-エージェントの定義は TOML ファイルで管理され、コード変更なしにレビュー観点を追加・カスタマイズできます。
+hachimoku は、マルチエージェントによるコードレビューを行う Claude Code プラグインです。
+レビューは**対話中の Claude Code セッション内**で実行され、専門のレビューサブエージェントを並列にディスパッチし、その指摘を 1 つのレポートに集約します。
+
+レビューは既存の Claude Code セッション内で実行されるため、`claude -p` が 2026-06-15 以降に発生させる従量課金枠ではなく、対話サブスクリプションの枠でまかなわれます。
 
 ## 主な特徴
 
-- 4つのレビューモード: diff（ブランチ差分）、PR（GitHub PR）、file（指定ファイル）、commit（コミット間差分）
-- ビルトインエージェント: コード品質、サイレント障害、テストカバレッジ、型安全性、コメント、簡潔化
-- TOML ベースのエージェント定義でカスタムエージェントを追加可能
-- 逐次実行・並列実行を選択可能
-- LLM ベース結果集約: 複数エージェントの指摘を重複排除・統合し、推奨アクションを生成
-- コスト効率化: セレクター・集約は軽量モデル、レビューは高性能モデルで精度を維持
-- 柔軟なモデル設定: config → definition → global の優先順位で解決、いつでも以前の Opus バージョンに戻せる
-- Markdown / JSON 出力対応（デフォルトは Markdown）
-- JSONL 形式でレビュー結果を自動蓄積し、レビュー履歴の解析・分析が可能
+- Claude Code プラグインとして動作 — 別途レビューツールをインストール・実行する必要がない
+- ビルトインのレビューサブエージェントを標準提供（コード品質、セキュリティ、依存関係、型設計、テストカバレッジ、コメント、簡潔化 など）
+- TOML エージェント定義でプロジェクト固有のレビュー観点を追加可能 — コード変更は不要
+- フェーズ順（early → main → final）での並列ディスパッチ
+- 決定的な選択と集約: エージェント選択とレポート集約は LLM 枠を消費しない通常の CLI ステップとして実行される
+- レビューサブエージェントは同梱のガード hook により `git`/`gh` の読み取り専用アクセスに制限される
+- レビュー結果は `.hachimoku/reviews/` 配下に JSONL 形式で蓄積され、レビュー履歴の分析に利用できる
 
-## インストール
+## 前提条件
 
-`uv tool install` でグローバルにインストールできます。
+以下の 2 つが `PATH` 上にインストールされている必要があります:
 
-```bash
-uv tool install git+https://github.com/drillan/hachimoku.git
-```
-
-開発者向け（ソースからのセットアップ）:
-
-```bash
-git clone https://github.com/drillan/hachimoku.git
-cd hachimoku
-uv sync
-```
-
-詳細は [インストール](docs/ja/installation.md) を参照してください。
-
-## アップグレード
-
-```bash
-uv tool install --reinstall git+https://github.com/drillan/hachimoku.git
-```
-
-> **Note**: `uv tool install` は既にインストール済みの場合、何も行いません。
-> `--reinstall` フラグにより、リモートリポジトリから最新のコードを取得して再インストールします。
+- [`uv`](https://docs.astral.sh/uv/) — hachimoku CLI を `uvx` でエフェメラル実行するために使用
+- [`jq`](https://jqlang.github.io/jq/) — 同梱の読み取り専用 git ガード hook が必要とする
 
 ## クイックスタート
 
-### 1. プロジェクトの初期化
+### 1. プラグインのインストール
+
+ローカル / 開発用途では、同梱のプラグインディレクトリを Claude Code に指定します:
 
 ```bash
-8moku init
+claude --plugin-dir ./plugin
 ```
 
-`.hachimoku/` ディレクトリにデフォルトの設定ファイルとエージェント定義が作成されます。
+マーケットプレイス配布は今後公開予定です。
 
-### 2. コードレビューの実行
+### 2. プロジェクトのセットアップ（初回のみ）
 
-```bash
-# diff モード: 現在ブランチの変更差分をレビュー
-8moku
+プロジェクト内で、Claude Code のセットアップスキルを実行します:
 
-# PR モード: GitHub PR をレビュー
-8moku 42
-
-# file モード: 指定ファイルをレビュー
-8moku src/main.py tests/test_main.py
-
-# commit モード: 特定コミットからの差分をレビュー
-8moku --commit abc123
-8moku --commit abc123..def456
+```
+/hachimoku:setup
 ```
 
-### 3. エージェントの確認
+これにより、レビューサブエージェントが `.claude/agents/` に、`.claude/manifest.json` とともに生成されます。再実行が必要なのはプラグインをアップグレードした後のみです。
 
-```bash
-# エージェント一覧
-8moku agents
+### 3. レビューの実行
 
-# エージェント詳細
-8moku agents code-reviewer
+```
+/hachimoku:review
 ```
 
-## CLI コマンド
+レビュースキルがレビューをオーケストレーションします。適用対象のサブエージェントを選択し、フェーズ順に並列ディスパッチし、指摘を集約して、構造化されたレポートを提示します。引数に PR 番号やファイルパスを渡せます。空のままにすると現在ブランチの差分をレビューします。
 
-| コマンド | 説明 |
-|---------|------|
-| `8moku [OPTIONS] [ARGS]` | コードレビューを実行（デフォルト） |
-| `8moku init [--force \| --upgrade]` | `.hachimoku/` ディレクトリを初期化 |
-| `8moku agents [NAME]` | エージェント定義の一覧・詳細表示 |
+## アーキテクチャ
 
-主なレビューオプション:
+hachimoku は 2 つの部分から構成されます:
 
-| オプション | 説明 |
-|-----------|------|
-| `--model TEXT` | LLM モデル名（プレフィックス付き: `claudecode:` or `anthropic:`） |
-| `--timeout INTEGER` | タイムアウト秒数 |
-| `--parallel / --no-parallel` | 並列実行の有効/無効 |
-| `--format FORMAT` | 出力形式（`markdown` / `json`、デフォルト: `markdown`） |
-| `--base-branch TEXT` | diff モードのベースブランチ |
-| `--issue INTEGER` | コンテキスト用 GitHub Issue 番号 |
-| `--no-confirm` | 確認プロンプトをスキップ |
+- **Claude Code プラグイン**（ユーザー向け） — `/hachimoku:setup` と `/hachimoku:review` の 2 つのスキル。これがレビューのインターフェースです。
+- **薄い CLI**（`hachimoku`、エイリアス `8moku`） — 決定的で LLM 非依存のサブコマンド（`init`、`agents`、`build`、`select`、`aggregate`）を持つ補助的な開発者ユーティリティ。プラグインのスキルはこれを `uvx` でエフェメラル実行します。
 
-## モデルプレフィックス
+レビューの実行に CLI のインストールは不要です。`uv tool install` でローカルにインストールするのは任意であり、`build` / `select` / `aggregate` を手元で実行したい開発者にのみ有用です。詳細は [インストール](docs/ja/installation.md) を参照してください。
 
-hachimoku はモデル名のプレフィックスでプロバイダーを決定します:
+## エージェント定義
 
-| プレフィックス | 説明 | API キー | 例 |
-|--------------|------|---------|-----|
-| `claudecode:` | Claude Code 内蔵モデル（デフォルト） | 不要 | `claudecode:claude-opus-4-7` |
-| `anthropic:` | Anthropic API 直接呼び出し | `ANTHROPIC_API_KEY` 必須 | `anthropic:claude-opus-4-7` |
+レビューサブエージェントは `.hachimoku/agents/` 配下の TOML エージェント定義から生成されます。各定義はレビュー観点、モデル、適用ルール、出力スキーマを宣言します。プロジェクト固有のカスタムエージェントを追加するには、新しい TOML ファイルをそのディレクトリに置き、`/hachimoku:setup` を再実行します。
 
-```bash
-# Anthropic API を使用する場合
-export ANTHROPIC_API_KEY="your-api-key"
-8moku --model "anthropic:claude-opus-4-7"
-```
+詳細は [エージェント定義](docs/ja/agents.md) を参照してください。
 
 ## 設定
 
 TOML ベースの階層的な設定をサポートします（優先度順）:
 
-1. CLI オプション
-2. `.hachimoku/config.toml`
-3. `pyproject.toml [tool.hachimoku]`
-4. `~/.config/hachimoku/config.toml`
-5. デフォルト値
+1. `.hachimoku/config.toml`
+2. `pyproject.toml [tool.hachimoku]`
+3. `~/.config/hachimoku/config.toml`
+4. デフォルト値
+
+詳細は [設定](docs/ja/configuration.md) を参照してください。
 
 ## ドキュメント
 
