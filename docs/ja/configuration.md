@@ -62,14 +62,15 @@ parallel = false
 | `show_cost` | `bool` | `false` | - | コスト情報の表示 |
 | `max_files_per_review` | `int` | `100` | 正の値 | file モードの最大ファイル数 |
 | `file_extensions` | `tuple[str, ...]` | `()` | 各要素空文字不可、ドット正規化 | file モードの拡張子フィルタ（空=全ファイル、CLI `--ext` で完全上書き） |
-| `selector` | `SelectorConfig` | 後述 | - | セレクターエージェント設定 |
-| `aggregation` | `AggregationConfig` | 後述 | - | 集約エージェント設定 |
+| `selector` | `SelectorConfig` | 後述 | - | セレクションステップ設定 |
+| `aggregation` | `AggregationConfig` | 後述 | - | 集約ステップ設定 |
 | `agents` | `dict[str, AgentConfig]` | `{}` | - | エージェント個別設定 |
 
 ### SelectorConfig
 
-セレクターエージェントの設定上書きです。
-`model`、`timeout`、`max_turns` が `None` の場合はセレクター定義の値を使用し、それも `None` の場合はグローバル設定値を使用します（3 層解決: config → definition → global）。
+`hachimoku select` 決定論的ステップの設定です。
+セレクションは LLM エージェントではありません。これらのフィールドは実行時の制限を設定します。
+`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|
@@ -77,12 +78,14 @@ parallel = false
 | `timeout` | `int \| None` | `None` | 正の値 | タイムアウト（秒） |
 | `max_turns` | `int \| None` | `None` | 正の値 | 最大ターン数 |
 | `referenced_content_max_chars` | `int` | `5000` | 正の値 | referenced_content の各コンテンツの最大文字数。超過時は末尾切り詰め + truncation マーカー追加 |
-| `convention_files` | `tuple[str, ...]` | `("CLAUDE.md", ".hachimoku/config.toml")` | 各要素空文字不可 | セレクターエージェントのコンベンションコンテキストとして含めるファイルパス |
+| `convention_files` | `tuple[str, ...]` | `("CLAUDE.md", ".hachimoku/config.toml")` | 各要素空文字不可 | セレクションステップのコンベンションコンテキストとして含めるファイルパス |
 
 ### AggregationConfig
 
-集約エージェントの設定です。SelectorConfig と同パターンに加え、`enabled` で集約の有効/無効を切り替えます。
-`model`、`timeout`、`max_turns` が `None` の場合は集約エージェント定義の値を使用し、それも `None` の場合はグローバル設定値を使用します（3 層解決: config → definition → global）。
+`hachimoku aggregate` 決定論的ステップの設定です。
+集約は LLM エージェントではありません。これらのフィールドは実行時の制限を設定します。
+SelectorConfig と同パターンに加え、`enabled` で集約の有効/無効を切り替えます。
+`model`、`timeout`、`max_turns` が `None` の場合はグローバル設定値を使用します。
 
 | 項目 | 型 | デフォルト | 制約 | 説明 |
 |-----|---|----------|------|------|

@@ -62,14 +62,15 @@ Complete list of all configuration items.
 | `show_cost` | `bool` | `false` | - | Display cost information |
 | `max_files_per_review` | `int` | `100` | Positive value | Maximum number of files for file mode |
 | `file_extensions` | `tuple[str, ...]` | `()` | Each element non-empty, dot-normalized | Extension filter for file mode (empty = all files, CLI `--ext` fully overrides) |
-| `selector` | `SelectorConfig` | See below | - | Selector agent settings |
-| `aggregation` | `AggregationConfig` | See below | - | Aggregation agent settings |
+| `selector` | `SelectorConfig` | See below | - | Selector step settings |
+| `aggregation` | `AggregationConfig` | See below | - | Aggregation step settings |
 | `agents` | `dict[str, AgentConfig]` | `{}` | - | Per-agent settings |
 
 ### SelectorConfig
 
-Configuration overrides for the selector agent.
-When `model`, `timeout`, or `max_turns` is `None`, the selector definition value is used; if that is also `None`, the global configuration value is used (3-layer resolution: config -> definition -> global).
+Configuration for the `hachimoku select` deterministic step.
+Selection is not an LLM agent — these fields configure its runtime limits.
+When `model`, `timeout`, or `max_turns` is `None`, the global configuration value is used.
 
 | Item | Type | Default | Constraint | Description |
 |------|------|---------|------------|-------------|
@@ -77,12 +78,14 @@ When `model`, `timeout`, or `max_turns` is `None`, the selector definition value
 | `timeout` | `int \| None` | `None` | Positive value | Timeout (seconds) |
 | `max_turns` | `int \| None` | `None` | Positive value | Maximum turns |
 | `referenced_content_max_chars` | `int` | `5000` | Positive value | Maximum characters per referenced_content item. Truncated content gets a truncation marker appended |
-| `convention_files` | `tuple[str, ...]` | `("CLAUDE.md", ".hachimoku/config.toml")` | Each element non-empty | File paths to include as convention context for the selector agent |
+| `convention_files` | `tuple[str, ...]` | `("CLAUDE.md", ".hachimoku/config.toml")` | Each element non-empty | File paths to include as convention context for the select step |
 
 ### AggregationConfig
 
-Aggregation agent settings. Same pattern as SelectorConfig, plus `enabled` to toggle aggregation on/off.
-When `model`, `timeout`, or `max_turns` is `None`, the aggregation agent definition value is used; if that is also `None`, the global configuration value is used (3-layer resolution: config -> definition -> global).
+Configuration for the `hachimoku aggregate` deterministic step.
+Aggregation is not an LLM agent — these fields configure its runtime limits.
+Same pattern as SelectorConfig, plus `enabled` to toggle aggregation on/off.
+When `model`, `timeout`, or `max_turns` is `None`, the global configuration value is used.
 
 | Item | Type | Default | Constraint | Description |
 |------|------|---------|------------|-------------|

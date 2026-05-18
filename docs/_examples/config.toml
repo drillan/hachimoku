@@ -14,14 +14,14 @@ show_cost = false
 max_files_per_review = 100
 # file_extensions = [".py", ".rst"]  # Filter by extension (empty = all files)
 
-# Selector agent settings
+# Selector step settings (hachimoku select — deterministic, no LLM budget consumed)
 [selector]
-model = "claudecode:claude-haiku-4-5"
-timeout = 600
-max_turns = 20
+# model = "claudecode:claude-haiku-4-5"
+# timeout = 600
+# max_turns = 20
 referenced_content_max_chars = 5000
 
-# Aggregation agent settings
+# Aggregation step settings (hachimoku aggregate — deterministic, no LLM budget consumed)
 [aggregation]
 enabled = true
 # model = "claudecode:claude-opus-4-7"
