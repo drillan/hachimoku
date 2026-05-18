@@ -1,232 +1,26 @@
-"""CliApp — Typer アプリケーション定義。
+"""CliApp — Typer アプリケーション定義（薄い CLI）。
 
-FR-CLI-001: デュアルコマンド名。
-FR-CLI-002: 位置引数からの入力モード判定。
-FR-CLI-003: 終了コード。
-FR-CLI-004: stdout/stderr ストリーム分離。
-FR-CLI-005: 出力形式選択（--format）。
-FR-CLI-006: CLI オプション対応表。
-FR-CLI-009: ファイル・ディレクトリ・glob パターンの展開。
-FR-CLI-011: max_files_per_review 超過時の確認プロンプト。
-FR-CLI-012: agents サブコマンド。
-FR-CLI-013: --help 対応。
-FR-CLI-014: エラーメッセージに解決方法を含む。
-FR-CLI-015: --version フラグ。
+レビュー実行は Claude Code プラグイン（オーケストレーター skill + サブエージェント）
+へ移行した。本 CLI は非課金のローカル操作（init / agents 等）のみを担う。
 """
 
 from __future__ import annotations
 
-import asyncio
 import importlib.metadata
-import subprocess
 import sys
-import tomllib
 from pathlib import Path
-from typing import Annotated, assert_never
+from typing import Annotated
 
-import click
 import typer
-from pydantic import ValidationError
-from typer.core import TyperGroup
 
 from hachimoku.agents import LoadResult, load_agents, load_builtin_agents
-from hachimoku.cli._file_resolver import FileResolutionError, resolve_files
 from hachimoku.cli._init_handler import InitError, run_init
-from hachimoku.cli._markdown_formatter import format_markdown
-from hachimoku.cli._input_resolver import (
-    DiffInput,
-    FileInput,
-    InputError,
-    PRInput,
-    ResolvedInput,
-    resolve_input,
-)
-from hachimoku.config import find_project_root, resolve_config
-from hachimoku.engine import run_review
-from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
-from hachimoku.models.config import HachimokuConfig, OutputFormat
+from hachimoku.config import find_project_root
 from hachimoku.models.exit_code import ExitCode
-from hachimoku.models.report import ReviewReport
-
-_REVIEW_ARGS_KEY = "_review_args"
-
-
-_GIT_CHECK_TIMEOUT_SECONDS = 5
-
-
-def _is_git_repository() -> bool:
-    """カレントディレクトリが Git リポジトリ内かどうか判定する。
-
-    サブディレクトリや worktree 環境でも正しく動作するよう
-    ``git rev-parse --git-dir`` を使用する。
-    """
-    try:
-        subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            capture_output=True,
-            check=True,
-            timeout=_GIT_CHECK_TIMEOUT_SECONDS,
-        )
-        return True
-    except (
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-    ):
-        return False
-
-
-def _is_interactive() -> bool:
-    """stdin が TTY（インタラクティブ端末）かどうかを返す。
-
-    テストで差し替え可能にするため独立した関数として定義する。
-    """
-    return sys.stdin.isatty()
-
-
-def _prompt_missing_project(config_overrides: dict[str, object]) -> None:
-    """.hachimoku/ 未検出時にユーザーへ選択肢を提示する。
-
-    FR-INIT-001: レビュー前チェック。
-    FR-INIT-002: 3 択プロンプト（init / 続行 / キャンセル）。
-    FR-INIT-003: 非インタラクティブ環境ではエラー終了。
-    FR-INIT-004: init 失敗時はエラー終了。
-    """
-    if not _is_interactive():
-        print(
-            "Error: .hachimoku/ directory not found. Run '8moku init' to initialize.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR)
-
-    print(
-        ".hachimoku/ directory not found.\n\n"
-        "  [1] Run 8moku init (recommended)\n"
-        "  [2] Continue without saving reviews\n"
-        "  [3] Cancel\n",
-        file=sys.stderr,
-    )
-
-    while True:
-        try:
-            choice = click.prompt("Select [1/2/3]", type=str, err=True)
-        except (EOFError, click.Abort):
-            raise typer.Exit(code=ExitCode.SUCCESS) from None
-
-        if choice == "1":
-            try:
-                result = run_init(Path.cwd())
-            except InitError as e:
-                print(f"Error: Initialization failed: {e}", file=sys.stderr)
-                raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None
-            for path in result.created:
-                print(f"  Created: {path}", file=sys.stderr)
-            for path in result.skipped:
-                print(f"  Skipped (already exists): {path}", file=sys.stderr)
-            return
-
-        if choice == "2":
-            config_overrides["save_reviews"] = False
-            return
-
-        if choice == "3":
-            raise typer.Exit(code=ExitCode.SUCCESS)
-
-        click.echo(
-            f"Error: Invalid choice '{choice}'. Please enter 1, 2, or 3.",
-            err=True,
-        )
-
-
-class _ReviewGroup(TyperGroup):
-    """Typer Group のサブコマンド解決をオーバーライドし、位置引数との共存を実現する。
-
-    Click の Group はサブコマンド名にマッチしない引数を UsageError にするが、
-    hachimoku CLI ではサブコマンドでない引数を InputResolver に渡す必要がある。
-    このクラスは resolve_command が失敗した場合に callback へ引数を渡す。
-    """
-
-    # click.Group.invoke の戻り値型が object であり、オーバーライドのため合わせている
-    def invoke(self, ctx: click.Context) -> object:
-        if not ctx._protected_args:
-            if self.invoke_without_command:
-                with ctx:
-                    return click.Command.invoke(self, ctx)
-            ctx.fail("Missing command.")
-
-        args = [*ctx._protected_args, *ctx.args]
-        ctx.args = []
-        ctx._protected_args = []
-
-        is_review_args = False
-        try:
-            cmd_name, cmd, remaining = self.resolve_command(ctx, args)
-        except click.UsageError as exc:
-            if "No such command" not in str(exc):
-                raise
-            is_review_args = True
-
-        if is_review_args:
-            positional = self._reparse_interspersed_options(ctx, args)
-            ctx.ensure_object(dict)
-            ctx.obj[_REVIEW_ARGS_KEY] = positional
-            ctx.invoked_subcommand = None
-            with ctx:
-                return click.Command.invoke(self, ctx)
-
-        if cmd is None:
-            ctx.fail(f"Could not resolve command: {args}")
-        with ctx:
-            ctx.invoked_subcommand = cmd_name
-            click.Command.invoke(self, ctx)
-            sub_ctx = cmd.make_context(
-                cmd_name,  # type: ignore[arg-type]
-                remaining,
-                parent=ctx,
-            )
-            with sub_ctx:
-                return sub_ctx.command.invoke(sub_ctx)
-
-    def _reparse_interspersed_options(
-        self, ctx: click.Context, args: list[str]
-    ) -> list[str]:
-        """位置引数とオプションが混在する args を再解析し、オプションを ctx.params に反映する。
-
-        Click Group の allow_interspersed_args=False では位置引数以降の
-        オプション（--ext 等）が未解析のまま残る。このメソッドは
-        allow_interspersed_args=True で再解析し、オプションを抽出する。
-
-        Note:
-            Click 8.3 の handle_parse_result は ctx.params に既に値がある場合
-            上書きをスキップするため、type_cast_value で変換後に直接代入する。
-        """
-        parser = self.make_parser(ctx)
-        parser.allow_interspersed_args = True
-        try:
-            opts, positional, param_order = parser.parse_args(args=list(args))
-        except click.UsageError:
-            return list(args)
-        for param in self.get_params(ctx):
-            if param.name and param.name in opts:
-                value = param.type_cast_value(ctx, opts[param.name])
-                existing = ctx.params.get(param.name)
-                if param.multiple and existing:
-                    value = (*existing, *value)
-                ctx.params[param.name] = value
-        return positional
-
 
 app = typer.Typer(
     name="8moku",
-    cls=_ReviewGroup,
-    help=(
-        "Multi-agent code review CLI tool.\n\n"
-        "Review modes (determined by arguments):\n\n"
-        "  (no args)          diff mode   - review current branch changes\n\n"
-        "  <integer>          PR mode     - review specified GitHub PR\n\n"
-        "  <path...>          file mode   - review specified files/directories\n\n"
-        "  --commit <ref>     commit mode - review diff from/between commits"
-    ),
+    help="Multi-agent code review — thin CLI (review runs in the Claude Code plugin).",
     add_completion=False,
     invoke_without_command=True,
 )
@@ -240,17 +34,13 @@ def _version_callback(value: bool) -> None:
 
 
 def main() -> None:
-    """CLI エントリポイント。pyproject.toml の [project.scripts] から呼び出される。
-
-    8moku と hachimoku の両方で同一の関数が呼ばれる。
-    """
+    """CLI エントリポイント。8moku / hachimoku 両方から呼ばれる。"""
     app()
 
 
 @app.callback()
-def review_callback(
+def main_callback(
     ctx: typer.Context,
-    # --version（FR-CLI-015 相当）
     version: Annotated[
         bool | None,
         typer.Option(
@@ -260,220 +50,18 @@ def review_callback(
             is_eager=True,
         ),
     ] = None,
-    # 設定上書きオプション（FR-CLI-006）
-    model: Annotated[str | None, typer.Option(help="LLM model name.")] = None,
-    timeout: Annotated[
-        int | None, typer.Option(help="Timeout in seconds (positive integer).", min=1)
-    ] = None,
-    max_turns: Annotated[
-        int | None,
-        typer.Option("--max-turns", help="Max agent turns (positive integer).", min=1),
-    ] = None,
-    parallel: Annotated[
-        bool | None,
-        typer.Option(
-            "--parallel/--no-parallel", help="Enable/disable parallel execution."
-        ),
-    ] = None,
-    base_branch: Annotated[
-        str | None, typer.Option("--base-branch", help="Base branch for diff mode.")
-    ] = None,
-    output_format: Annotated[
-        OutputFormat | None,
-        typer.Option("--format", help="Output format: markdown or json."),
-    ] = None,
-    save_reviews: Annotated[
-        bool | None,
-        typer.Option("--save-reviews/--no-save-reviews", help="Save review results."),
-    ] = None,
-    show_cost: Annotated[
-        bool | None,
-        typer.Option("--show-cost/--no-show-cost", help="Show cost information."),
-    ] = None,
-    max_files: Annotated[
-        int | None,
-        typer.Option(
-            "--max-files", help="Max files per review (positive integer).", min=1
-        ),
-    ] = None,
-    ext: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--ext",
-            help="File extension filter (repeatable, e.g. --ext .py --ext .rst).",
-        ),
-    ] = None,
-    # per-invocation オプション
-    commit: Annotated[
-        str | None,
-        typer.Option(
-            "--commit",
-            help="Commit ref or range (SHA, SHA1..SHA2). "
-            "Reviews diff from commit to HEAD, or between two commits.",
-        ),
-    ] = None,
-    issue: Annotated[
-        int | None,
-        typer.Option("--issue", help="GitHub Issue number for context.", min=1),
-    ] = None,
-    # FR-CLI-011: max_files_per_review 超過時の確認スキップ
-    no_confirm: Annotated[
-        bool, typer.Option("--no-confirm", help="Skip confirmation prompts.")
-    ] = False,
 ) -> None:
-    """Execute a code review (default command).
-
-    Without arguments: diff mode (review current branch changes).
-    With an integer: PR mode (review specified PR).
-    With file paths: file mode (review specified files).
-    """
+    """hachimoku — multi-agent code review for Claude Code."""
     if ctx.invoked_subcommand is not None:
         return
-
-    # 0. 入力モード判定
-    obj = ctx.ensure_object(dict)
-    raw_args: list[str] = obj.get(_REVIEW_ARGS_KEY, [])
-
-    if commit is not None:
-        commit_target = _resolve_commit_mode(commit, raw_args, base_branch, issue)
-    else:
-        try:
-            resolved = resolve_input(raw_args or None)
-        except InputError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
-
-    # 2. config_overrides 辞書構築
-    config_overrides = _build_config_overrides(
-        model=model,
-        timeout=timeout,
-        max_turns=max_turns,
-        parallel=parallel,
-        base_branch=base_branch,
-        output_format=output_format,
-        save_reviews=save_reviews,
-        show_cost=show_cost,
-        max_files=max_files,
-        ext=ext,
+    print(
+        "hachimoku review is migrating to the Claude Code plugin model.\n"
+        "  Design: docs/superpowers/specs/2026-05-18-skill-migration-design.md\n"
+        "  Available subcommands: init, agents\n"
+        "  Run '8moku --help' for details.",
+        file=sys.stderr,
     )
-
-    # 2.5. .hachimoku/ 存在チェック（FR-INIT-001）
-    if find_project_root(Path.cwd()) is None:
-        _prompt_missing_project(config_overrides)
-
-    # 3. config 解決（DiffTarget の base_branch 取得用）
-    try:
-        config = resolve_config(cli_overrides=config_overrides)
-    except (ValidationError, tomllib.TOMLDecodeError, TypeError) as e:
-        print(
-            f"Error: Invalid configuration: {e}\n"
-            "Check .hachimoku/config.toml for syntax errors or invalid values.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
-    except PermissionError as e:
-        print(
-            f"Error: Cannot read configuration file: {e}\n"
-            "Check file permissions for .hachimoku/config.toml.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
-
-    # 3.5. diff/PR/commit モード: Git リポジトリチェック
-    git_mode_name: str | None = None
-    if commit is not None:
-        git_mode_name = "commit"
-    elif isinstance(resolved, DiffInput):
-        git_mode_name = "diff"
-    elif isinstance(resolved, PRInput):
-        git_mode_name = "PR"
-
-    if git_mode_name is not None and not _is_git_repository():
-        print(
-            f"Error: {git_mode_name} mode requires a Git repository.\n"
-            "Run 'git init' to initialize a Git repository, "
-            "or use file mode to review specific files.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR)
-
-    # 3.6. file モード: ファイル解決と確認プロンプト（FR-CLI-009, FR-CLI-011）
-    if commit is None and isinstance(resolved, FileInput):
-        try:
-            resolved_files, file_warnings = resolve_files(
-                resolved.paths,
-                filter_extensions=config.file_extensions,
-            )
-        except FileResolutionError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
-
-        for warning in file_warnings:
-            print(f"Warning: {warning}", file=sys.stderr)
-
-        if resolved_files is None:
-            print(
-                "No files found matching the specified paths.",
-                file=sys.stderr,
-            )
-            raise typer.Exit(code=ExitCode.SUCCESS)
-
-        file_count = len(resolved_files.paths)
-        if file_count > config.max_files_per_review and not no_confirm:
-            confirmed = typer.confirm(
-                f"{file_count} files found, exceeding limit of "
-                f"{config.max_files_per_review}. Continue?",
-                abort=False,
-                err=True,
-            )
-            if not confirmed:
-                raise typer.Exit(code=ExitCode.SUCCESS)
-
-        resolved = FileInput(paths=resolved_files.paths)
-
-    # 4. ReviewTarget 構築
-    target: DiffTarget | PRTarget | FileTarget | CommitTarget
-    if commit is not None:
-        target = commit_target
-    else:
-        target = _build_target(resolved, config, issue)
-
-    # 4.5. カスタムエージェントディレクトリ解決
-    project_root = find_project_root(Path.cwd())
-    custom_agents_dir = (
-        (project_root / ".hachimoku" / "agents") if project_root else None
-    )
-
-    # 5. run_review() 呼び出し
-    try:
-        result = asyncio.run(
-            run_review(
-                target=target,
-                config_overrides=config_overrides,
-                custom_agents_dir=custom_agents_dir,
-                project_root=project_root,
-            )
-        )
-    except (KeyboardInterrupt, SystemExit):
-        raise
-    except Exception as e:
-        print(
-            f"Error: Review execution failed: {e}\n"
-            "Check your configuration and network connection. Use --help for options.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from e
-
-    # 6. stdout にレポート出力
-    report_text = _format_report(result.report, config.output_format)
-    print(report_text)
-
-    # 6.5. JSONL 蓄積 (FR-025)
-    if config.save_reviews:
-        _save_review_result(target, result.report)
-
-    # 7. 終了コード
-    raise typer.Exit(code=result.exit_code)
+    raise typer.Exit(code=ExitCode.SUCCESS)
 
 
 @app.command()
@@ -505,14 +93,12 @@ def init(
             print(f"  Skipped (customized): {path}", file=sys.stderr)
         for path in result.skipped_up_to_date:
             print(f"  Skipped (up to date): {path}", file=sys.stderr)
-
         total_changed = len(result.created) + len(result.updated)
         total_skipped = len(result.skipped_customized) + len(result.skipped_up_to_date)
         if total_changed:
             print(
                 f"\nUpgraded: {len(result.created)} added, "
-                f"{len(result.updated)} updated, "
-                f"{total_skipped} skipped.",
+                f"{len(result.updated)} updated, {total_skipped} skipped.",
                 file=sys.stderr,
             )
         else:
@@ -525,7 +111,6 @@ def init(
             print(f"  Created: {path}", file=sys.stderr)
         for path in result.skipped:
             print(f"  Skipped (already exists): {path}", file=sys.stderr)
-
         if result.created:
             print(
                 f"\nInitialized .hachimoku/ "
@@ -561,7 +146,6 @@ def agents(
         raise typer.Exit(code=ExitCode.EXECUTION_ERROR) from None
 
     builtin_names = {a.name for a in builtin_result.agents}
-
     for error in (*builtin_result.errors, *result.errors):
         print(
             f"Warning: Failed to load agent '{error.source}': {error.message}",
@@ -574,12 +158,9 @@ def agents(
         _print_agent_detail(name, result, builtin_names)
 
 
-# --- agents サブコマンド表示ヘルパー ---
-
 _LIST_NAME_WIDTH = 28
 _LIST_MODEL_WIDTH = 32
 _LIST_PHASE_WIDTH = 8
-
 _SYSTEM_PROMPT_SUMMARY_LINES = 3
 
 
@@ -593,16 +174,14 @@ def _print_agents_list(result: LoadResult, builtin_names: set[str]) -> None:
     )
     print(header)
     print("-" * len(header))
-
     for agent in sorted(result.agents, key=lambda a: a.name):
         custom_marker = "  [custom]" if agent.name not in builtin_names else ""
-        line = (
+        print(
             f"{agent.name:<{_LIST_NAME_WIDTH}}"
             f"{agent.model:<{_LIST_MODEL_WIDTH}}"
             f"{agent.phase.value:<{_LIST_PHASE_WIDTH}}"
             f"{agent.output_schema}{custom_marker}"
         )
-        print(line)
 
 
 def _print_agent_detail(name: str, result: LoadResult, builtin_names: set[str]) -> None:
@@ -642,189 +221,3 @@ def _print_agent_detail(name: str, result: LoadResult, builtin_names: set[str]) 
     if len(prompt_lines) > _SYSTEM_PROMPT_SUMMARY_LINES:
         summary += "\n..."
     print(f"System Prompt:\n{summary}")
-
-
-@app.command()
-def config() -> None:
-    """Manage configuration (not implemented in v0.1)."""
-    print(
-        "Error: 'config' subcommand is not implemented in v0.1. "
-        "Edit .hachimoku/config.toml directly to configure settings.",
-        file=sys.stderr,
-    )
-    raise typer.Exit(code=ExitCode.INPUT_ERROR)
-
-
-def _build_config_overrides(
-    *,
-    model: str | None,
-    timeout: int | None,
-    max_turns: int | None,
-    parallel: bool | None,
-    base_branch: str | None,
-    output_format: OutputFormat | None,
-    save_reviews: bool | None,
-    show_cost: bool | None,
-    max_files: int | None,
-    ext: list[str] | None,
-) -> dict[str, object]:
-    """CLI オプションから config_overrides 辞書を構築する。
-
-    None 値は「未指定」として除外する。
-    CLI オプション名 --max-files は config キー max_files_per_review に対応する。
-    CLI オプション名 --ext は config キー file_extensions に対応する。
-    """
-    raw: dict[str, object] = {
-        "model": model,
-        "timeout": timeout,
-        "max_turns": max_turns,
-        "parallel": parallel,
-        "base_branch": base_branch,
-        "output_format": output_format,
-        "save_reviews": save_reviews,
-        "show_cost": show_cost,
-        "max_files_per_review": max_files,
-        "file_extensions": tuple(ext) if ext is not None else None,
-    }
-    return {k: v for k, v in raw.items() if v is not None}
-
-
-def _build_target(
-    resolved: ResolvedInput,
-    config: HachimokuConfig,
-    issue: int | None,
-) -> DiffTarget | PRTarget | FileTarget:
-    """ResolvedInput と config から ReviewTarget を構築する。"""
-    if isinstance(resolved, DiffInput):
-        return DiffTarget(base_branch=config.base_branch, issue_number=issue)
-    if isinstance(resolved, PRInput):
-        return PRTarget(pr_number=resolved.pr_number, issue_number=issue)
-    if isinstance(resolved, FileInput):
-        return FileTarget(paths=resolved.paths, issue_number=issue)
-    assert_never(resolved)
-
-
-def _resolve_commit_mode(
-    commit: str,
-    raw_args: list[str],
-    base_branch: str | None,
-    issue: int | None,
-) -> CommitTarget:
-    """--commit オプションのバリデーションと CommitTarget 構築を行う。
-
-    排他制御（位置引数・--base-branch との併用禁止）、
-    commit ref のパース、CommitTarget の構築を1箇所に集約する。
-
-    Args:
-        commit: --commit オプションの値。
-        raw_args: 位置引数のリスト。
-        base_branch: --base-branch オプションの値。
-        issue: --issue オプションの値。
-
-    Returns:
-        構築された CommitTarget。
-
-    Raises:
-        typer.Exit: 排他制御違反またはパースエラー時。
-    """
-    if raw_args:
-        print(
-            "Error: --commit cannot be used with positional arguments.\n"
-            "Use --commit alone, or specify files/PR number without --commit.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR)
-    if base_branch is not None:
-        print(
-            "Error: --commit cannot be used with --base-branch.\n"
-            "--base-branch is for diff mode only.",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=ExitCode.INPUT_ERROR)
-
-    try:
-        from_ref, to_ref = _parse_commit_arg(commit)
-    except InputError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
-
-    return CommitTarget(from_ref=from_ref, to_ref=to_ref, issue_number=issue)
-
-
-def _parse_commit_arg(value: str) -> tuple[str, str]:
-    """--commit の値を (from_ref, to_ref) にパースする。
-
-    Args:
-        value: --commit オプションの値。"SHA" または "SHA1..SHA2" 形式。
-
-    Returns:
-        (from_ref, to_ref) のタプル。単一 ref の場合 to_ref は "HEAD"。
-
-    Raises:
-        InputError: フォーマット不正の場合。
-    """
-    if ".." not in value:
-        return value, "HEAD"
-
-    parts = value.split("..")
-    if len(parts) != 2:
-        raise InputError(
-            f"Invalid commit range format: '{value}'. Use SHA or SHA1..SHA2 format."
-        )
-    from_ref, to_ref = parts
-    if not from_ref:
-        raise InputError(
-            f"Invalid commit range: '{value}'. "
-            "Start commit cannot be empty. Use SHA1..SHA2 format."
-        )
-    if not to_ref:
-        raise InputError(
-            f"Invalid commit range: '{value}'. "
-            "End commit cannot be empty. Use SHA1..SHA2 format."
-        )
-    return from_ref, to_ref
-
-
-def _save_review_result(
-    target: DiffTarget | PRTarget | FileTarget | CommitTarget,
-    report: ReviewReport,
-) -> None:
-    """レビュー結果を JSONL に保存する。
-
-    FR-025: save_reviews=true のとき、レビュー完了後に呼び出される。
-    保存処理のエラーはレビュー結果の終了コードに影響しない。
-    """
-    from hachimoku.cli._history_writer import (
-        GitInfoError,
-        HistoryWriteError,
-        save_review_history,
-    )
-
-    try:
-        project_root = find_project_root(Path.cwd())
-        if project_root is None:
-            print(
-                "Warning: Cannot save review history: .hachimoku/ directory not found.",
-                file=sys.stderr,
-            )
-            return
-
-        reviews_dir = project_root / ".hachimoku" / "reviews"
-        saved_path = save_review_history(reviews_dir, target, report)
-        print(f"Review saved to {saved_path}", file=sys.stderr)
-    except (HistoryWriteError, GitInfoError) as e:
-        print(f"Warning: Failed to save review history: {e}", file=sys.stderr)
-    except Exception as e:
-        print(
-            f"Warning: Unexpected error saving review history: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-
-
-def _format_report(report: ReviewReport, output_format: OutputFormat) -> str:
-    """レポートを指定形式の文字列に変換する。"""
-    if output_format == OutputFormat.JSON:
-        return report.model_dump_json(indent=2)
-    if output_format == OutputFormat.MARKDOWN:
-        return format_markdown(report)
-    assert_never(output_format)

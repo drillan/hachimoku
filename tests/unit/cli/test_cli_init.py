@@ -3,14 +3,10 @@
 app インスタンスと main エントリポイントの基本動作を検証する。
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import typer
 from typer.testing import CliRunner
 
 from hachimoku.cli import app
-
-from .conftest import PATCH_RESOLVE_CONFIG, PATCH_RUN_REVIEW, setup_mocks
 
 runner = CliRunner()
 
@@ -36,12 +32,7 @@ class TestHelpOutput:
         result = runner.invoke(app, ["--help"])
         assert "Multi-agent code review" in result.output
 
-    @patch(PATCH_RUN_REVIEW, new_callable=AsyncMock)
-    @patch(PATCH_RESOLVE_CONFIG)
-    def test_no_args_exits_with_zero(
-        self, mock_config: MagicMock, mock_run_review: AsyncMock
-    ) -> None:
+    def test_no_args_exits_with_zero(self) -> None:
         """引数なしで実行してもエラーにならない。"""
-        setup_mocks(mock_config, mock_run_review)
         result = runner.invoke(app)
         assert result.exit_code == 0

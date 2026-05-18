@@ -3,68 +3,27 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from hachimoku.agents import AgentDefinition, LoadError, LoadResult
-from hachimoku.engine._engine import EngineResult
-from hachimoku.models.config import HachimokuConfig
-from hachimoku.models.exit_code import ExitCode
-from hachimoku.models.report import ReviewReport, ReviewSummary
 
-PATCH_RUN_REVIEW = "hachimoku.cli._app.run_review"
-PATCH_RESOLVE_CONFIG = "hachimoku.cli._app.resolve_config"
-PATCH_RESOLVE_FILES = "hachimoku.cli._app.resolve_files"
 PATCH_LOAD_AGENTS = "hachimoku.cli._app.load_agents"
 PATCH_LOAD_BUILTIN_AGENTS = "hachimoku.cli._app.load_builtin_agents"
 PATCH_FIND_PROJECT_ROOT = "hachimoku.cli._app.find_project_root"
-PATCH_SAVE_REVIEW_HISTORY = "hachimoku.cli._history_writer.save_review_history"
-
-
-@pytest.fixture(autouse=True)
-def _prevent_review_history_writes() -> Iterator[None]:
-    """テストが実ファイルシステムにレビュー履歴を書き込むことを防止する。"""
-    with patch(PATCH_SAVE_REVIEW_HISTORY, return_value=Path("/dev/null")):
-        yield
 
 
 @pytest.fixture(autouse=True)
 def _mock_project_root() -> Iterator[None]:
     """テスト環境に依存しないプロジェクトルートを提供する。
 
-    review_callback の .hachimoku/ 存在チェック（FR-INIT-001）が
+    agents コマンドの find_project_root() が
     テスト実行環境のファイルシステムに依存しないようにする。
     個別テストで @patch(PATCH_FIND_PROJECT_ROOT, return_value=None) でオーバーライド可能。
     """
-    with patch(PATCH_FIND_PROJECT_ROOT, return_value=Path("/mock/root")):
+    with patch(PATCH_FIND_PROJECT_ROOT, return_value=None):
         yield
-
-
-def make_engine_result(exit_code: ExitCode = ExitCode.SUCCESS) -> EngineResult:
-    """テスト用の最小 EngineResult を生成する。"""
-    return EngineResult(
-        report=ReviewReport(
-            results=[],
-            summary=ReviewSummary(
-                total_issues=0,
-                max_severity=None,
-                total_elapsed_time=0.0,
-            ),
-        ),
-        exit_code=exit_code,
-    )
-
-
-def setup_mocks(
-    mock_config: MagicMock,
-    mock_run_review: AsyncMock,
-    exit_code: ExitCode = ExitCode.SUCCESS,
-) -> None:
-    """共通のモックセットアップ。"""
-    mock_config.return_value = HachimokuConfig()
-    mock_run_review.return_value = make_engine_result(exit_code)
 
 
 def make_agent_definition(
