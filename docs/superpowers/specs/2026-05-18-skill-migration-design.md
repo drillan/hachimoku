@@ -254,7 +254,26 @@ severity / status のみ使用）ため、動作互換は保たれる。
   （`diff` / `log` / `show` / `status` / `merge-base` / `rev-parse` / `branch` / `ls-files`、
   `gh pr view` / `gh pr diff` / `gh issue view` / `gh api`（GET）など）。
 - パイプ・サブシェル・`bash -c` ラップ・`git -c ...` などは deny する。
-- 許可リストは既存 `engine/_tools/_git.py` / `_gh.py` の読み取り専用サブコマンド定義を流用する。
+- 許可リストは `security/readonly_allowlist.py` の読み取り専用サブコマンド定義
+  （`ALLOWED_GIT_SUBCOMMANDS` / `ALLOWED_GH_PATTERNS` / `IMPLICIT_POST_FLAGS`）と一致させ、
+  bash スクリプト側の drift はテストで検出する。
+
+#### Limitations（捕捉しないもの）
+
+`block-git-mutations.sh` は PreToolUse hook として渡されたコマンド「文字列」を検査するが、
+シェルは実行前にクォート除去・展開・再パースを行う。スクリプトはこの再パースを完全には
+モデル化できないため、**安全側に倒す方針**で以下を一律 deny する:
+
+- クォート／展開メタ文字（`'` `"` `\` `` ` `` `$` `{` `}`）を含むコマンド。
+- 改行・復帰、`&` / `|` / `<` / `>`（バックグラウンド・パイプ・リダイレクト・プロセス置換）。
+- 第 1 トークンがシェルランチャ（`sh` / `bash` / `zsh` / `ksh` / `dash` / `eval` / `source` / `.`）、
+  パス指定バイナリ（`/` を含む）、または環境変数プレフィックス（`VAR=val`）のもの。
+- 第 1 トークンが `git`/`gh` 以外でも、後続トークンに `git`/`gh` が現れるもの（ランチャ経由）。
+
+これにより `gh api` のクエリ文字列付き呼び出しなど一部の正当な読み取り専用コマンドも
+deny されるが、許容済みの偽陽性とする。一方、この hook は **unicode 空白の異体字・
+端末エスケープでエンコードされたペイロード・将来のシェル構文**は捕捉できない。
+これは多層防御の一層であり、完全な強制機構ではない。
 
 ### 確認済みの不確実性
 
