@@ -22,6 +22,7 @@ from hachimoku.cli._input_resolver import (
     PRInput,
     resolve_input,
 )
+from hachimoku.cli._aggregate import aggregate_command
 from hachimoku.cli._select import select_command
 from hachimoku.config import find_project_root
 from hachimoku.models.exit_code import ExitCode
@@ -194,6 +195,31 @@ def select(
     """Select review agents for a target and emit a dispatch plan (JSON)."""
     target = _resolve_select_target(args, commit, base_branch)
     select_command(target, manifest)
+
+
+@app.command()
+def aggregate(
+    run_dir: Annotated[
+        Path, typer.Option("--run-dir", help="Run directory created by 'select'.")
+    ],
+    manifest: Annotated[
+        Path, typer.Option("--manifest", help="Path to the manifest JSON file.")
+    ],
+    args: Annotated[
+        list[str] | None,
+        typer.Argument(help="PR number or file paths (omit for diff mode)."),
+    ] = None,
+    commit: Annotated[
+        str | None,
+        typer.Option("--commit", help="Commit ref or range (SHA or SHA1..SHA2)."),
+    ] = None,
+    base_branch: Annotated[
+        str, typer.Option("--base-branch", help="Base branch for diff mode.")
+    ] = "main",
+) -> None:
+    """Aggregate subagent findings into a review report."""
+    target = _resolve_select_target(args, commit, base_branch)
+    aggregate_command(run_dir, manifest, target)
 
 
 def _resolve_select_target(
