@@ -57,6 +57,7 @@ hachimoku は「`claude -p` をオーケストレーションする CLI」から
               ▼
 ┌─ 薄い CLI (hachimoku, Python・LLM なし) ────────────┐
 │  hachimoku init       .hachimoku/ 雛形生成           │
+│  hachimoku agents     エージェント定義の確認         │
 │  hachimoku build      TOML → サブエージェント.md +    │
 │                       manifest.json 変換             │
 │  hachimoku select     diff + manifest → 起動リスト    │
@@ -69,7 +70,7 @@ v1 の対象は Claude Code のみ。Codex / Copilot は v2 で APM 配布とし
 
 ### CLI エントリポイント名
 
-薄い CLI のうちユーザーが直接タイプするのは `init` と `build` のみ。
+薄い CLI のユーザー向けサブコマンドは `init` / `agents` / `build`。
 `select` / `aggregate` はオーケストレーター skill が内部呼び出しするものであり
 ユーザーは打たない。
 
