@@ -15,8 +15,23 @@ import typer
 
 from hachimoku.agents import LoadResult, load_agents, load_builtin_agents
 from hachimoku.cli._init_handler import InitError, run_init
+from hachimoku.cli._input_resolver import (
+    DiffInput,
+    FileInput,
+    InputError,
+    PRInput,
+    resolve_input,
+)
+from hachimoku.cli._select import select_command
 from hachimoku.config import find_project_root
 from hachimoku.models.exit_code import ExitCode
+from hachimoku.review.target import (
+    CommitTarget,
+    DiffTarget,
+    FileTarget,
+    PRTarget,
+    ReviewTarget,
+)
 
 app = typer.Typer(
     name="8moku",
@@ -156,6 +171,70 @@ def agents(
         _print_agents_list(result, builtin_names)
     else:
         _print_agent_detail(name, result, builtin_names)
+
+
+@app.command()
+def select(
+    manifest: Annotated[
+        Path,
+        typer.Option("--manifest", help="Path to the manifest JSON file."),
+    ],
+    args: Annotated[
+        list[str] | None,
+        typer.Argument(help="PR number or file paths (omit for diff mode)."),
+    ] = None,
+    commit: Annotated[
+        str | None,
+        typer.Option("--commit", help="Commit ref or range (SHA or SHA1..SHA2)."),
+    ] = None,
+    base_branch: Annotated[
+        str, typer.Option("--base-branch", help="Base branch for diff mode.")
+    ] = "main",
+) -> None:
+    """Select review agents for a target and emit a dispatch plan (JSON)."""
+    target = _resolve_select_target(args, commit, base_branch)
+    select_command(target, manifest)
+
+
+def _resolve_select_target(
+    args: list[str] | None, commit: str | None, base_branch: str
+) -> ReviewTarget:
+    """select の引数からレビュー対象を構築する。
+
+    commit モードは位置引数と排他。それ以外は resolve_input でモード判定する。
+    """
+    if commit is not None:
+        if args:
+            print(
+                "Error: --commit cannot be used with positional arguments.",
+                file=sys.stderr,
+            )
+            raise typer.Exit(code=ExitCode.INPUT_ERROR)
+        if ".." in commit:
+            from_ref, _, to_ref = commit.partition("..")
+            if not from_ref or not to_ref:
+                print(
+                    f"Error: Invalid commit range: '{commit}'. Use SHA1..SHA2.",
+                    file=sys.stderr,
+                )
+                raise typer.Exit(code=ExitCode.INPUT_ERROR)
+            return CommitTarget(from_ref=from_ref, to_ref=to_ref)
+        return CommitTarget(from_ref=commit, to_ref="HEAD")
+
+    try:
+        resolved = resolve_input(args or None)
+    except InputError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise typer.Exit(code=ExitCode.INPUT_ERROR) from None
+
+    if isinstance(resolved, DiffInput):
+        return DiffTarget(base_branch=base_branch)
+    if isinstance(resolved, PRInput):
+        return PRTarget(pr_number=resolved.pr_number)
+    if isinstance(resolved, FileInput):
+        return FileTarget(paths=resolved.paths)
+    msg = f"Unexpected resolved input: {resolved!r}"
+    raise AssertionError(msg)
 
 
 _LIST_NAME_WIDTH = 28
