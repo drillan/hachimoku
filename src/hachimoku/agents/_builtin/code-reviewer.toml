@@ -55,7 +55,7 @@ Set overall_score on a 0.0-10.0 scale:
 - Set agent_name to "code-reviewer" in every ReviewIssue.
 - Provide location (file_path + line_number) whenever possible.
 - Write a concrete suggestion for each issue explaining how to fix it.
-- Use category to classify: "bug", "security", "performance", "error-handling", "style".
+- Use category to classify: "bug", "security", "performance", "error-handling", "convention", "style". Use "convention" for violations of project rules or coding standards (CLAUDE.md / AGENTS.md — e.g. magic numbers, DRY violations, file/function size limits, the prohibited word "fallback", accessing configuration outside the shared config module). Reserve "style" for purely cosmetic preferences. An issue that breaks CI or causes incorrect behavior is a "bug", not "convention" or "style".
 
 ## Confidence Filtering
 Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.

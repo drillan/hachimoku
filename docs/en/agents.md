@@ -15,14 +15,18 @@ The following agents are included in the package.
 
 | Agent Name | Description | Output Schema | Phase | Applicability |
 |------------|-------------|---------------|-------|---------------|
+| architecture-reviewer | Detection of architecture and design pattern issues (SOLID principles, layer violations, circular dependencies, coupling) | severity_classified | main | content_patterns |
 | breaking-change-detector | Detection of breaking changes in public APIs, data models, CLI interfaces, and configuration formats | severity_classified | main | content_patterns |
 | code-reviewer | Code quality and bug detection | scored_issues | main | Always applied |
 | dependency-auditor | Dependency security and health auditing | severity_classified | main | content_patterns |
-| silent-failure-hunter | Detection of silent failures | severity_classified | main | content_patterns |
+| performance-analyzer | Detection of performance issues (complexity, memory efficiency, I/O, resource leaks) | severity_classified | main | content_patterns |
+| plan-reviewer | Quality review of implementation plan documents and consistency against the linked Issue/ADR/spec | scored_issues | main | file_patterns + content_patterns |
 | pr-test-analyzer | Test coverage assessment | test_gap_assessment | main | file_patterns |
+| security-analyzer | Detection of security vulnerabilities (injection, authentication flaws, secret leakage, OWASP Top 10) | severity_classified | main | content_patterns |
+| silent-failure-hunter | Detection of silent failures | severity_classified | main | content_patterns |
 | type-design-analyzer | Practical analysis of type annotations and type safety | multi_dimensional_analysis | main | file_patterns + content_patterns |
-| comment-analyzer | Comment accuracy analysis | category_classification | final | content_patterns |
 | code-simplifier | Code simplification suggestions | improvement_suggestions | final | Always applied |
+| comment-analyzer | Comment accuracy analysis | category_classification | final | content_patterns |
 
 See [Output Schemas](output-schemas) for details on output schemas.
 
@@ -142,14 +146,18 @@ Condition evaluation logic:
 
 | Agent | Condition | Patterns |
 |-------|-----------|----------|
+| architecture-reviewer | content_patterns | `class\s+\w+\(`, `def\s+__init__`, `@abstractmethod`, `@overload`, `ABC\)`, `Protocol\)`, `trait\s+\w+`, `impl\s+\w+\s+for`, `interface\s+\w+`, `extends\s+\w+`, etc. |
 | breaking-change-detector | content_patterns | `def\s+\w+\s*\(`, `class\s+\w+`, `async\s+def\s+\w+`, `__all__\s*=`, `app\.command`, `typer\.Option`, `typer\.Argument`, `BaseModel`, `\[tool\.`, `\[project\]` |
 | code-reviewer | `always = true` | - |
 | dependency-auditor | content_patterns | `\[dependencies\]`, `\[project\.dependencies\]`, `\[project\.optional-dependencies\]`, `\[tool\.uv`, `uv\.lock`, `requirements`, `\[build-system\]`, `"dependencies"\s*:`, `"devDependencies"\s*:`, `\[dependencies\.\w+\]`, `\[dev-dependencies\]` |
-| silent-failure-hunter | content_patterns | `try\s*:`, `except\s`, `catch\s*\(`, `\.catch\s*\(` |
+| performance-analyzer | content_patterns | `\.execute\(`, `query\(`, `\.fetchall\(`, `\.read\(`, `\.write\(`, `sleep\(`, `Lock\(`, `async\s+def`, `await\s+`, `Mutex`, `batch`, etc. |
+| plan-reviewer | file_patterns + content_patterns | Files: `*.md` / Content: `^#\s+Issue\s+#\d+`, `受入条件\|Acceptance Criteria`, `実装ステップ\|Implementation Steps?` |
 | pr-test-analyzer | file_patterns | `test_*.py`, `*_test.py`, `*.test.ts`, `*.test.js`, `*.spec.ts`, `*.spec.js` |
+| security-analyzer | content_patterns | `subprocess`, `os\.system`, `eval\(`, `exec\(`, `password`, `secret`, `token`, `api_key`, `hashlib`, `encrypt`, `\.execute\(`, `sqlx::query`, etc. |
+| silent-failure-hunter | content_patterns | `try\s*:`, `except\s`, `catch\s*\(`, `\.catch\s*\(` |
 | type-design-analyzer | file_patterns + content_patterns | Files: `*.py`, `*.ts`, `*.tsx` / Content: `class\s+\w+`, `interface\s+\w+`, `type\s+\w+\s*=` |
-| comment-analyzer | content_patterns | `"""`, `'''`, `/\*\*`, `//\s*TODO`, `#\s*TODO` |
 | code-simplifier | `always = true` | - |
+| comment-analyzer | content_patterns | `"""`, `'''`, `/\*\*`, `//\s*TODO`, `#\s*TODO` |
 
 (load-error)=
 ## LoadError

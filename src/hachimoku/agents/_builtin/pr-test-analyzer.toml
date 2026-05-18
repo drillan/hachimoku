@@ -72,6 +72,7 @@ Set risk_level based on overall test adequacy:
 - Use coverage_gaps for source files/functions lacking test coverage (file_path, description, priority).
 - Set risk_level to the overall assessment of test coverage adequacy.
 - Provide location (file_path + line_number) for test quality issues.
+- Set category on every ReviewIssue in issues to exactly one of: "weak-assertion", "coverage-gap", "test-isolation", "flaky-pattern". Use these exact strings verbatim; do not invent variants or alternate spellings.
 
 ## Confidence Filtering
 Before reporting each finding, assign it an internal confidence score (0-100) representing how certain you are that it is a genuine, actionable issue.
