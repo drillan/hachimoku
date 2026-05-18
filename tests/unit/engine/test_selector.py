@@ -1395,7 +1395,7 @@ class TestRunSelectorBuiltinTools:
     async def test_builtin_tools_passed_to_agent(
         self, mock_agent_cls: MagicMock, mock_run_safe: AsyncMock, _: MagicMock
     ) -> None:
-        """resolve_tools の builtin_tools が Agent(builtin_tools=...) に渡される。"""
+        """resolve_tools の builtin_tools が Agent(capabilities=...) に渡される。"""
         mock_run_safe.return_value = _make_mock_run_safe_result()
 
         await run_selector(
@@ -1411,7 +1411,7 @@ class TestRunSelectorBuiltinTools:
 
         call_kwargs = mock_agent_cls.call_args.kwargs
         # デフォルトの allowed_tools には web_fetch を含まないため空リスト
-        assert call_kwargs["builtin_tools"] == []
+        assert call_kwargs["capabilities"] == []
 
     @patch("hachimoku.engine._selector.resolve_model")
     @patch("hachimoku.engine._selector.run_agent_safe")

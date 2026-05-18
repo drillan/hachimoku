@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from pydantic_ai import Tool
-from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
+from pydantic_ai.native_tools import AbstractNativeTool, WebFetchTool
 
 from hachimoku.engine._catalog import (
     BUILTIN_TOOL_CATALOG,
@@ -214,7 +214,7 @@ class TestResolveTools:
         resolved = resolve_tools(("web_fetch",))
         assert resolved.tools == ()
         assert len(resolved.builtin_tools) == 1
-        assert isinstance(resolved.builtin_tools[0], AbstractBuiltinTool)
+        assert isinstance(resolved.builtin_tools[0], AbstractNativeTool)
         assert resolved.claudecode_builtin_names == ("WebFetch",)
 
     def test_resolves_mixed_regular_and_builtin(self) -> None:

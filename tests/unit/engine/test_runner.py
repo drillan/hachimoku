@@ -308,7 +308,7 @@ class TestRunAgentResolveModel:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 8.5
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
@@ -331,7 +331,7 @@ class TestRunAgentResolveModel:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
@@ -353,7 +353,7 @@ class TestRunAgentResolveModel:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
@@ -377,7 +377,7 @@ class TestRunAgentResolveModel:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
         mock_instance = mock_agent_cls.return_value
 
@@ -396,7 +396,7 @@ class TestRunAgentResolveModel:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
@@ -422,7 +422,7 @@ class TestRunAgentModelSettings:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context(max_turns=10)
@@ -441,7 +441,7 @@ class TestRunAgentModelSettings:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context(timeout_seconds=600)
@@ -554,7 +554,7 @@ class TestRunAgentErrorLogging:
 
 
 class TestRunAgentBuiltinTools:
-    """run_agent が builtin_tools を Agent に渡すテスト。Issue #222。"""
+    """run_agent が builtin_tools を capabilities として Agent に渡すテスト。Issue #222。"""
 
     @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
@@ -565,14 +565,15 @@ class TestRunAgentBuiltinTools:
         mock_resolve: MagicMock,
         mock_run_safe: AsyncMock,
     ) -> None:
-        """context.builtin_tools が Agent(builtin_tools=...) に渡される。"""
-        from pydantic_ai.builtin_tools import WebFetchTool
+        """context.builtin_tools が Agent(capabilities=[NativeTool(...)]) に渡される。"""
+        from pydantic_ai.capabilities import NativeTool
+        from pydantic_ai.native_tools import WebFetchTool
 
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         wft = WebFetchTool()
@@ -591,7 +592,7 @@ class TestRunAgentBuiltinTools:
         await run_agent(ctx)
 
         call_kwargs = mock_agent_cls.call_args.kwargs
-        assert call_kwargs["builtin_tools"] == [wft]
+        assert call_kwargs["capabilities"] == [NativeTool(wft)]
 
     @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
@@ -602,19 +603,19 @@ class TestRunAgentBuiltinTools:
         mock_resolve: MagicMock,
         mock_run_safe: AsyncMock,
     ) -> None:
-        """builtin_tools=() のとき空リストが Agent に渡される。"""
+        """builtin_tools=() のとき空の capabilities リストが Agent に渡される。"""
         mock_resolve.return_value = "resolved-model"
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = _make_context()
         await run_agent(ctx)
 
         call_kwargs = mock_agent_cls.call_args.kwargs
-        assert call_kwargs["builtin_tools"] == []
+        assert call_kwargs["capabilities"] == []
 
     @patch("hachimoku.engine._runner.run_agent_safe")
     @patch("hachimoku.engine._runner.resolve_model")
@@ -630,7 +631,7 @@ class TestRunAgentBuiltinTools:
         mock_result = MagicMock()
         mock_result.output.issues = []
         mock_result.output.overall_score = 5.0
-        mock_result.usage.return_value = MagicMock(input_tokens=0, output_tokens=0)
+        mock_result.usage = MagicMock(input_tokens=0, output_tokens=0)
         mock_run_safe.return_value = mock_result
 
         ctx = AgentExecutionContext(

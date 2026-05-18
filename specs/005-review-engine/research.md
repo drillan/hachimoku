@@ -208,9 +208,9 @@ class ReviewReport(HachimokuBaseModel):
 
 **背景**: AgentSuccess には `cost: CostInfo | None` フィールドがある。pydantic-ai からコスト情報を取得する方法の調査。
 
-**Decision**: `result.usage()` からトークン数を取得し、CostInfo に変換する
+**Decision**: `result.usage` からトークン数を取得し、CostInfo に変換する
 
-**Rationale**: pydantic-ai には `result.cost()` メソッドは存在しない。`result.usage()` で `RunUsage` オブジェクトを取得でき、`input_tokens`, `output_tokens`, `requests` 等のフィールドがある。CostInfo（002-domain-models で定義済み）への変換:
+**Rationale**: pydantic-ai には `result.cost` プロパティは存在しない。`result.usage` プロパティで `RunUsage` オブジェクトを取得でき、`input_tokens`, `output_tokens`, `requests` 等のフィールドがある。CostInfo（002-domain-models で定義済み）への変換:
 
 ```python
 CostInfo(

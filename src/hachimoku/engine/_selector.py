@@ -18,6 +18,7 @@ from claudecode_model import ClaudeCodeModel, ClaudeCodeModelSettings
 from claudecode_model.exceptions import CLIExecutionError
 from pydantic import Field
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.usage import UsageLimits
 
 from hachimoku.agents.models import AgentDefinition, SelectorDefinition
@@ -250,7 +251,7 @@ async def run_selector(
             # TODO(#195): ツールが ctx.deps を使い始めた場合は resolve_tools を
             # TypeVar でジェネリック化して型安全性を回復すること。
             tools=list(resolved_tools.tools),  # type: ignore[arg-type]
-            builtin_tools=list(resolved_tools.builtin_tools),
+            capabilities=[NativeTool(t) for t in resolved_tools.builtin_tools],
             system_prompt=selector_definition.system_prompt,
             deps_type=SelectorDeps,
             instructions=_prefetch_guardrail,

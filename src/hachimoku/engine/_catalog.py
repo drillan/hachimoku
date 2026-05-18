@@ -14,7 +14,7 @@ from types import MappingProxyType
 from typing import Final
 
 from pydantic_ai import Tool
-from pydantic_ai.builtin_tools import AbstractBuiltinTool, WebFetchTool
+from pydantic_ai.native_tools import AbstractNativeTool, WebFetchTool
 
 from hachimoku.engine._tools._file import list_directory, read_file, resolve_path
 from hachimoku.engine._tools._gh import run_gh
@@ -84,7 +84,7 @@ file_read カテゴリは project_root を動的に受け取るため、
 ここには含まない。resolve_tools() 内で create_file_tools() を使用する。
 """
 
-BUILTIN_TOOL_CATALOG: Final[Mapping[str, tuple[AbstractBuiltinTool, ...]]] = (
+BUILTIN_TOOL_CATALOG: Final[Mapping[str, tuple[AbstractNativeTool, ...]]] = (
     MappingProxyType(
         {
             "web_fetch": (WebFetchTool(),),
@@ -132,12 +132,12 @@ class ResolvedTools:
 
     Attributes:
         tools: pydantic-ai Tool[None] インスタンス（git_read, gh_read, file_read 用）。
-        builtin_tools: pydantic-ai AbstractBuiltinTool インスタンス（web_fetch 用の WebFetchTool 等）。
+        builtin_tools: pydantic-ai AbstractNativeTool インスタンス（web_fetch 用の WebFetchTool 等）。
         claudecode_builtin_names: claudecode: モデル使用時に allowed_tools に追加するツール名文字列。
     """
 
     tools: tuple[Tool[None], ...]
-    builtin_tools: tuple[AbstractBuiltinTool, ...]
+    builtin_tools: tuple[AbstractNativeTool, ...]
     claudecode_builtin_names: tuple[str, ...]
 
 
@@ -163,7 +163,7 @@ def resolve_tools(
         raise ValueError(f"Unknown tool categories: {', '.join(invalid)}")
 
     tools: list[Tool[None]] = []
-    builtin_tools: list[AbstractBuiltinTool] = []
+    builtin_tools: list[AbstractNativeTool] = []
     claudecode_names: list[str] = []
 
     for category in categories:
