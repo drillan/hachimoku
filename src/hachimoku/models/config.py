@@ -19,8 +19,7 @@ from pydantic import Field, StringConstraints, StrictBool, field_validator
 from hachimoku.agents.models import AGENT_NAME_PATTERN
 from hachimoku.models._base import HachimokuBaseModel
 
-# _prefetch.DEFAULT_CONVENTION_FILES と同値。
-# 循環インポート（config → engine._prefetch → engine/__init__ → _engine → config）を避けるためリテラル定義。
+# レビュー時に参照する規約ファイルのデフォルト一覧。
 _DEFAULT_CONVENTION_FILES: tuple[str, ...] = ("CLAUDE.md", ".hachimoku/config.toml")
 
 # 既存の AGENT_NAME_PATTERN (str) をコンパイル済み正規表現として使用
