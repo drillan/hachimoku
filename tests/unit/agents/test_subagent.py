@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from hachimoku.agents import load_builtin_agents
 from hachimoku.agents.manifest import ManifestEntry
 from hachimoku.agents.models import AgentDefinition
@@ -42,6 +44,10 @@ class TestToolsFrontmatterValue:
 
     def test_empty_returns_empty_string(self) -> None:
         assert tools_frontmatter_value(()) == ""
+
+    def test_unknown_category_raises_value_error(self) -> None:
+        with pytest.raises(ValueError):
+            tools_frontmatter_value(("unknown_category",))
 
 
 class TestToManifestEntry:
