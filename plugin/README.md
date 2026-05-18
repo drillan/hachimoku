@@ -7,7 +7,7 @@ A Claude Code plugin that integrates [hachimoku](https://github.com/drillan/hach
 The plugin provides two skills:
 
 - `/hachimoku:setup` — Generates hachimoku review subagents and a manifest into `.claude/` for the current project.
-- `/hachimoku:review` — Dispatches the generated subagents to perform a multi-agent code review.
+- `/hachimoku:review` — Dispatches the generated subagents to perform a multi-agent code review. Requires `/hachimoku:setup` to have been run first.
 
 Subagents are generated into `.claude/agents/` (rather than bundled) so that their `hooks` frontmatter is honoured by Claude Code. The bundled `block-git-mutations.sh` guard script is injected into each subagent's hooks at build time to prevent any review agent from mutating the git state.
 
@@ -20,7 +20,15 @@ Both tools must be installed and available on `PATH` before running `/hachimoku:
 
 ## Installation
 
-Install the plugin via the Claude Code plugin marketplace or by pointing to this repository.
+### Development / local use
+
+```bash
+claude --plugin-dir ./plugin
+```
+
+### Via marketplace
+
+*(To be published)*
 
 ## Usage
 
@@ -38,7 +46,7 @@ This runs `hachimoku build` via `uvx`, writing review subagent `.md` files and `
 /hachimoku:review
 ```
 
-Dispatches the generated subagents to review the current changeset and produces a structured report.
+Dispatches the generated subagents to review the current changeset and produces a structured report. `/hachimoku:setup` must have been run for this project beforehand so that the subagents exist under `.claude/agents/`.
 
 ## Pinning the hachimoku release (`<ref>`)
 

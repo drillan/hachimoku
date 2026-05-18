@@ -16,7 +16,7 @@ Generate hachimoku's review subagents and manifest into `.claude/` so that
 
 2. Run the build command, passing the absolute path of the bundled guard script:
 
-   ```
+   ```bash
    uvx --from git+https://github.com/drillan/hachimoku@<ref> hachimoku build \
      --output .claude \
      --hook-script "${CLAUDE_PLUGIN_ROOT}/scripts/block-git-mutations.sh"
