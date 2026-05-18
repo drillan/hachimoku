@@ -107,7 +107,7 @@ def _validate_tool_categories(
 ) -> tuple[str, ...] | list[str]:
     """allowed_tools の各値が ToolCategory に存在することを検証する。
 
-    AgentDefinition と SelectorDefinition の共通バリデーションロジック。
+    AgentDefinition のバリデーションロジック。
     個別ツール名が指定された場合は、所属カテゴリを案内する。
     """
     from hachimoku.models.tool_category import CATEGORY_TOOL_NAMES, ToolCategory
@@ -189,50 +189,6 @@ class AgentDefinition(HachimokuBaseModel):
         except SchemaNotFoundError as e:
             raise ValueError(str(e)) from None
         return data
-
-
-# =============================================================================
-# SelectorDefinition（セレクター定義）
-# =============================================================================
-
-
-class SelectorDefinition(HachimokuBaseModel):
-    """セレクターエージェントの定義。selector.toml から構築される。
-
-    AgentDefinition とは独立したモデル。セレクターは常に SelectorOutput を返し、
-    常に実行されるため、output_schema / resolved_schema / applicability / phase は不要。
-    """
-
-    name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
-    description: str = Field(min_length=1)
-    model: str | None = Field(default=None, min_length=1)
-    system_prompt: str = Field(min_length=1)
-    allowed_tools: _ValidatedTools = ()
-
-
-# =============================================================================
-# AggregatorDefinition（集約エージェント定義）
-# =============================================================================
-
-
-class AggregatorDefinition(HachimokuBaseModel):
-    """集約エージェントの定義。aggregator.toml から構築される。
-
-    SelectorDefinition と同じアーキテクチャパターンに従う。
-    セレクターとは異なり、allowed_tools を持たない（ツール不使用）。
-    出力は AggregatedReport に固定。
-
-    Attributes:
-        name: 集約エージェント名。
-        description: 集約エージェントの説明。
-        model: 使用する LLM モデル名（None の場合はグローバル設定を使用）。
-        system_prompt: 集約エージェントのシステムプロンプト。
-    """
-
-    name: str = Field(min_length=1, pattern=AGENT_NAME_PATTERN)
-    description: str = Field(min_length=1)
-    model: str | None = Field(default=None, min_length=1)
-    system_prompt: str = Field(min_length=1)
 
 
 # =============================================================================
