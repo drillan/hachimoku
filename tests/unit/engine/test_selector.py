@@ -33,7 +33,7 @@ from hachimoku.engine._selector import (
     run_selector,
 )
 
-from hachimoku.engine._target import DiffTarget
+from hachimoku.review.target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 

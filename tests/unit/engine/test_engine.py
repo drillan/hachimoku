@@ -44,7 +44,7 @@ from hachimoku.engine._selector import (
 )
 from hachimoku.engine._prefetch import PrefetchedContext
 from hachimoku.models.config import AggregationConfig
-from hachimoku.engine._target import DiffTarget
+from hachimoku.review.target import DiffTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import (
     AgentError,

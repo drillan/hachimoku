@@ -6,7 +6,7 @@ FR-RE-001: レビュー対象の入力情報モデル。
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from hachimoku.engine._target import (
+from hachimoku.review.target import (
     CommitTarget,
     DiffTarget,
     FileTarget,

@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hachimoku.engine._resolver import ContentResolveError, resolve_content
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 
 
 # =============================================================================

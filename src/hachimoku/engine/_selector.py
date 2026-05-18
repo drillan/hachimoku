@@ -27,7 +27,7 @@ from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import _resolve_with_agent_def
 from hachimoku.engine._instruction import build_selector_instruction
 from hachimoku.engine._model_resolver import resolve_model
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.config import SelectorConfig
 

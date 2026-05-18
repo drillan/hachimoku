@@ -16,8 +16,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Final, TypedDict
 
 from hachimoku.agents.models import AgentDefinition
-from hachimoku.engine._diff_filter import _DIFF_SECTION_RE, _FILE_PATH_RE
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.diff_filter import _DIFF_SECTION_RE, _FILE_PATH_RE
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import DEFAULT_REFERENCED_CONTENT_MAX_CHARS
 
 if TYPE_CHECKING:

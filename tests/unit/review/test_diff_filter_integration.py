@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from hachimoku.agents.models import AgentDefinition, ApplicabilityRule
 from hachimoku.engine._engine import _build_agent_user_message, _should_filter_diff
-from hachimoku.engine._target import DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import DiffTarget, FileTarget, PRTarget
 
 
 def _make_agent(

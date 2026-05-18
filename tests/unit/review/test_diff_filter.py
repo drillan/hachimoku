@@ -7,7 +7,7 @@ import logging
 
 import pytest
 
-from hachimoku.engine._diff_filter import filter_diff_by_file_patterns
+from hachimoku.review.diff_filter import filter_diff_by_file_patterns
 
 # =============================================================================
 # テスト用 diff フィクスチャ
@@ -361,7 +361,7 @@ class TestFilterDiffLogging:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """マッチなし時に warning ログが出力される。"""
-        with caplog.at_level(logging.WARNING, logger="hachimoku.engine._diff_filter"):
+        with caplog.at_level(logging.WARNING, logger="hachimoku.review.diff_filter"):
             filter_diff_by_file_patterns(_MULTI_FILE_DIFF, ("*.java",))
         assert any("No diff sections matched" in r.message for r in caplog.records)
         assert any("*.java" in r.message for r in caplog.records)
@@ -370,6 +370,6 @@ class TestFilterDiffLogging:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """マッチありの場合は warning ログなし。"""
-        with caplog.at_level(logging.WARNING, logger="hachimoku.engine._diff_filter"):
+        with caplog.at_level(logging.WARNING, logger="hachimoku.review.diff_filter"):
             filter_diff_by_file_patterns(_MULTI_FILE_DIFF, ("*.py",))
         assert not any("No diff sections matched" in r.message for r in caplog.records)

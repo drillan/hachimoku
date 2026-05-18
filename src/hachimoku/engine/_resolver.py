@@ -10,7 +10,7 @@ import asyncio
 from pathlib import Path
 from typing import Final
 
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 
 _SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 120
 """subprocess のタイムアウト秒数。既存 _tools/_git.py と同一。"""

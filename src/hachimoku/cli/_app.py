@@ -43,7 +43,7 @@ from hachimoku.cli._input_resolver import (
 )
 from hachimoku.config import find_project_root, resolve_config
 from hachimoku.engine import run_review
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig, OutputFormat
 from hachimoku.models.exit_code import ExitCode
 from hachimoku.models.report import ReviewReport

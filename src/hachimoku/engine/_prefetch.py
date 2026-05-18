@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import Final
 
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 
 logger = logging.getLogger(__name__)

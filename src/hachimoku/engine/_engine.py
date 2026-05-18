@@ -24,7 +24,7 @@ from hachimoku.agents.models import AgentDefinition, LoadError, LoadResult
 from hachimoku.config import resolve_config
 from hachimoku.engine._catalog import resolve_tools
 from hachimoku.engine._context import AgentExecutionContext, build_execution_context
-from hachimoku.engine._diff_filter import filter_diff_by_file_patterns
+from hachimoku.review.diff_filter import filter_diff_by_file_patterns
 from hachimoku.engine._executor import execute_parallel, execute_sequential
 from hachimoku.engine._instruction import (
     build_review_instruction,
@@ -42,7 +42,7 @@ from hachimoku.engine._progress import (
 )
 from hachimoku.engine._aggregator import AggregatorError, run_aggregator
 from hachimoku.engine._selector import SelectorError, run_selector
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models._base import HachimokuBaseModel
 from hachimoku.models.agent_result import (
     AgentError,

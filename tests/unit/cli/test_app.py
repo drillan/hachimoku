@@ -29,7 +29,7 @@ from typer.testing import CliRunner
 from hachimoku.cli._app import app
 from hachimoku.cli._file_resolver import FileResolutionError, ResolvedFiles
 from hachimoku.cli._init_handler import InitError, InitResult
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 from hachimoku.models.config import HachimokuConfig
 from hachimoku.models.exit_code import ExitCode
 from hachimoku.agents import LoadError

@@ -18,7 +18,7 @@ from hachimoku.engine._instruction import (
     build_selector_instruction,
 )
 from hachimoku.engine._selector import ReferencedContent
-from hachimoku.engine._target import CommitTarget, DiffTarget, FileTarget, PRTarget
+from hachimoku.review.target import CommitTarget, DiffTarget, FileTarget, PRTarget
 
 _SAMPLE_DIFF = "diff --git a/file.py b/file.py\n+added line"
 _SAMPLE_FILE_CONTENT = "--- src/main.py ---\nprint('hello')"

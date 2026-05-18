@@ -303,7 +303,7 @@ class TestPrefetchSelectorContext:
 
     async def test_diff_target_with_issue(self) -> None:
         from hachimoku.engine._prefetch import prefetch_selector_context
-        from hachimoku.engine._target import DiffTarget
+        from hachimoku.review.target import DiffTarget
 
         target = DiffTarget(base_branch="main", issue_number=187)
         with (
@@ -326,7 +326,7 @@ class TestPrefetchSelectorContext:
 
     async def test_pr_target_fetches_pr_metadata(self) -> None:
         from hachimoku.engine._prefetch import prefetch_selector_context
-        from hachimoku.engine._target import PRTarget
+        from hachimoku.review.target import PRTarget
 
         target = PRTarget(pr_number=185, issue_number=187)
         with (
@@ -344,7 +344,7 @@ class TestPrefetchSelectorContext:
 
     async def test_file_target_no_pr_metadata(self) -> None:
         from hachimoku.engine._prefetch import prefetch_selector_context
-        from hachimoku.engine._target import FileTarget
+        from hachimoku.review.target import FileTarget
 
         target = FileTarget(paths=("src/main.py",))
         with (
@@ -362,7 +362,7 @@ class TestPrefetchSelectorContext:
 
     async def test_no_issue_number_skips_issue_fetch(self) -> None:
         from hachimoku.engine._prefetch import prefetch_selector_context
-        from hachimoku.engine._target import DiffTarget
+        from hachimoku.review.target import DiffTarget
 
         target = DiffTarget(base_branch="main")
         with (
@@ -379,7 +379,7 @@ class TestPrefetchSelectorContext:
     async def test_convention_files_passed_to_reader(self) -> None:
         """convention_files が _read_project_conventions に渡されること。Issue #187."""
         from hachimoku.engine._prefetch import prefetch_selector_context
-        from hachimoku.engine._target import DiffTarget
+        from hachimoku.review.target import DiffTarget
 
         target = DiffTarget(base_branch="main")
         custom_files = ("README.md", "pyproject.toml")
@@ -399,7 +399,7 @@ class TestPrefetchSelectorContext:
     async def test_directory_tree_included(self) -> None:
         """directory_tree が prefetch 結果に含まれること。Issue #295."""
         from hachimoku.engine._prefetch import prefetch_selector_context
-        from hachimoku.engine._target import DiffTarget
+        from hachimoku.review.target import DiffTarget
 
         target = DiffTarget(base_branch="main")
         with (
