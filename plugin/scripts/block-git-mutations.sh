@@ -27,6 +27,16 @@ if [[ -z "$cmd" ]]; then
     exit 2
 fi
 
+# 先頭・末尾の空白（スペース・タブ）を除去する。
+# これを行わないと "  git push" や "\tgit push" が第1トークン判定をすり抜ける。
+cmd="${cmd#"${cmd%%[![:space:]]*}"}"  # 先頭の空白を除去
+cmd="${cmd%"${cmd##*[![:space:]]}"}"  # 末尾の空白を除去
+
+if [[ -z "$cmd" ]]; then
+    # 空白のみの場合は git/gh ではないため許可
+    exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # 3. シェル制御文字・複合コマンドの検出 → deny
 #    注意: この検査は git/gh ゲートより先に行うこと（"bash -c 'git push'" 対応）
@@ -43,16 +53,27 @@ if [[ "$cmd" == *";"* ]] \
 fi
 
 # ---------------------------------------------------------------------------
-# 4. git/gh 以外のコマンドはすべて許可
+# 4. 環境変数プレフィックスの検出 → deny
+#    `VAR=val git push` 形式は有効な mutating コマンド呼び出しであり、
+#    第1トークンが "git"/"gh" に一致しないため判定をすり抜ける。
+#    サブエージェントが env プレフィックス付き git/gh を使う正当な理由はないため一律 deny。
 # ---------------------------------------------------------------------------
 first_token="${cmd%% *}"  # 最初のスペース区切りトークン
 
+if [[ "$first_token" == *"="* ]]; then
+    echo "block-git-mutations: denied command with env-var prefix: $cmd" >&2
+    exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# 5. git/gh 以外のコマンドはすべて許可
+# ---------------------------------------------------------------------------
 if [[ "$first_token" != "git" && "$first_token" != "gh" ]]; then
     exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# 5. git の処理
+# 6. git の処理
 # ---------------------------------------------------------------------------
 
 # git 許可サブコマンドリスト（readonly_allowlist.py の ALLOWED_GIT_SUBCOMMANDS と同一集合）
@@ -153,7 +174,7 @@ if [[ "$first_token" == "git" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 6. gh の処理
+# 7. gh の処理
 # ---------------------------------------------------------------------------
 if [[ "$first_token" == "gh" ]]; then
     # トークン配列に分割
@@ -179,11 +200,19 @@ if [[ "$first_token" == "gh" ]]; then
     # ("pr", "view"), ("pr", "diff"), ("issue", "view"), ("api",)
     if [[ "$t0" == "api" ]]; then
         # gh api は GET のみ許可。POST 系フラグがあれば deny。
-        # IMPLICIT_POST_FLAGS: -f --field -F --raw-field --input
+        # IMPLICIT_POST_FLAGS（readonly_allowlist.py と同一）: -f --field -F --raw-field --input
+        #
+        # --method / -X は「明示的な HTTP メソッド指定」であり、readonly_allowlist.py の
+        # IMPLICIT_POST_FLAGS（暗黙的 POST フラグ）とは意味が異なるため Python 側には追加しない。
+        # 読み取り専用の gh api はメソッド指定が不要なため、--method / -X は一律 deny する。
         for tok in "${gh_tokens[@]}"; do
             case "$tok" in
                 -f|--field|-F|--raw-field|--input)
                     echo "block-git-mutations: denied gh api with mutating flag: $cmd" >&2
+                    exit 2
+                    ;;
+                --method|--method=*|-X|-X=*)
+                    echo "block-git-mutations: denied gh api with explicit HTTP method: $cmd" >&2
                     exit 2
                     ;;
             esac

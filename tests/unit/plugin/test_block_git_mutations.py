@@ -54,6 +54,10 @@ class TestBlockGitMutations:
             "git branch -D feature",
             "gh pr close 1",
             "gh pr merge 1",
+            "  git push",  # 先頭スペースで判定をすり抜けさせない
+            "\tgit push",  # 先頭タブも同様
+            "GIT_AUTHOR_NAME=x git commit -m y",  # env プレフィックスは deny
+            "gh api --method DELETE /endpoint",  # 任意 HTTP メソッドは deny
         ],
     )
     def test_denies_git_gh_mutations(self, command: str) -> None:
