@@ -49,7 +49,7 @@ hachimoku は「`claude -p` をオーケストレーションする CLI」から
 ┌─ Claude Code プラグイン (hachimoku) ───────────────┐
 │  commands/   /hachimoku:review  ← エントリポイント   │
 │  skills/     orchestrator SKILL.md                  │
-│  agents/     13 個の変換済みサブエージェント .md      │
+│  agents/     12 個の変換済みサブエージェント .md      │
 │  scripts/    block-git-mutations.sh                 │
 │  plugin.json                                        │
 └─────────────────────────────────────────────────────┘
@@ -122,7 +122,7 @@ uvx --from git+https://github.com/drillan/hachimoku@v<plugin版> hachimoku selec
 | コンポーネント | 役割 | LLM | 課金 |
 |---|---|---|---|
 | オーケストレーター skill | ホストに「diff 特定 → select → サブエージェント並列起動 → aggregate → 提示」の手順を指示 | 対話 | サブスク枠 |
-| サブエージェント .md ×13 | 各レビュー観点を実行。Bash で git/gh、Read/Grep/Glob。findings を JSON ファイルに書く | 対話（Task 委譲） | サブスク枠 |
+| サブエージェント .md ×12 | 各レビュー観点を実行。Bash で git/gh、Read/Grep/Glob。findings を JSON ファイルに書く | 対話（Task 委譲） | サブスク枠 |
 | `hachimoku build` | TOML（正）→ サブエージェント .md + manifest.json を機械生成 | なし | 無料 |
 | `hachimoku select` | diff と manifest の applicability から起動対象を決定 | なし | 無料 |
 | `hachimoku aggregate` | findings JSON を検証・重複排除・重要度分類・レポート化・JSONL 履歴追記 | なし | 無料 |
@@ -209,7 +209,7 @@ hooks:
 
 ### 配布
 
-- ビルトイン 13 本は hachimoku のパッケージビルド時に変換済みとし、プラグインに同梱する
+- ビルトイン 12 本は hachimoku のパッケージビルド時に変換済みとし、プラグインに同梱する
   （ユーザー環境での変換は不要）。
 - ユーザー定義 `.hachimoku/agents/*.toml` は、ユーザーが `hachimoku build` を実行して
   プロジェクトレベルのサブエージェント `.md` を生成する。
@@ -308,7 +308,7 @@ SP1 から順に進める。各サブプロジェクトは独立した `specs/NN
 |---|---|---|---|
 | SP1 | 薄い CLI 化 | エンジン（pydantic-ai / claudecode_model）削除、`select` / `aggregate` / `init` 実装、モデル再形成（`CostInfo` 削除・`AgentResult` 判別肢縮小・`elapsed_time` optional 化） | なし（基盤） |
 | SP2 | 変換パイプライン | `hachimoku build`: TOML → サブエージェント `.md` + `manifest.json`、ツール記法置換、Output Contract 生成 | SP1（再形成スキーマ） |
-| SP3 | Claude Code プラグイン | オーケストレーター skill、スラッシュコマンド、`block-git-mutations.sh`、frontmatter hook、`plugin.json`、ビルトイン 13 本同梱、薄い CLI の `uvx` 呼び出し配線 | SP2（変換成果物） |
+| SP3 | Claude Code プラグイン | オーケストレーター skill、スラッシュコマンド、`block-git-mutations.sh`、frontmatter hook、`plugin.json`、ビルトイン 12 本同梱、薄い CLI の `uvx` 呼び出し配線 | SP2（変換成果物） |
 
 ## 13. リリース戦略
 
