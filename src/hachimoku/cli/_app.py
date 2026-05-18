@@ -23,6 +23,7 @@ from hachimoku.cli._input_resolver import (
     resolve_input,
 )
 from hachimoku.cli._aggregate import aggregate_command
+from hachimoku.cli._build import build_command
 from hachimoku.cli._select import select_command
 from hachimoku.config import find_project_root
 from hachimoku.models.exit_code import ExitCode
@@ -172,6 +173,17 @@ def agents(
         _print_agents_list(result, builtin_names)
     else:
         _print_agent_detail(name, result, builtin_names)
+
+
+@app.command()
+def build(
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="Output directory for generated subagents."),
+    ] = Path(".hachimoku/build"),
+) -> None:
+    """Build Claude Code subagents and manifest.json from TOML agent definitions."""
+    build_command(output)
 
 
 @app.command()
