@@ -60,6 +60,9 @@ def load_manifest(manifest_path: Path) -> Manifest:
 def run_select(target: ReviewTarget, manifest_path: Path) -> DispatchPlan:
     """select の中核処理。ChangeSet 計算 → applicability 評価 → run_dir 作成。
 
+    DispatchPlan は戻り値であると同時に <run_dir>/dispatch-plan.json にも
+    書き出す（aggregate が期待エージェント集合を知るために参照する）。
+
     Raises:
         SelectError: manifest 読み込み失敗時。
         ChangeSetError: 変更内容計算失敗時。
@@ -70,7 +73,11 @@ def run_select(target: ReviewTarget, manifest_path: Path) -> DispatchPlan:
         manifest, changeset.changed_basenames, changeset.content
     )
     run_dir = tempfile.mkdtemp(prefix="hachimoku-run-")
-    return DispatchPlan(run_dir=run_dir, phases=phases)
+    plan = DispatchPlan(run_dir=run_dir, phases=phases)
+    (Path(run_dir) / "dispatch-plan.json").write_text(
+        plan.model_dump_json(indent=2), encoding="utf-8"
+    )
+    return plan
 
 
 def select_command(target: ReviewTarget, manifest_path: Path) -> None:

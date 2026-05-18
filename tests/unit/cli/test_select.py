@@ -136,3 +136,44 @@ class TestSelectCommand:
             ],
         )
         assert result.exit_code == 4
+
+    def test_writes_dispatch_plan_json_into_run_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _init_repo(tmp_path)
+        (tmp_path / "base.py").write_text("x = 1\n")
+        subprocess.run(
+            ["git", "add", "-A"], cwd=tmp_path, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "base"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "-b", "feature"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "feature.py").write_text("y = 2\n")
+        subprocess.run(
+            ["git", "add", "-A"], cwd=tmp_path, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "feature"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        manifest_path = _write_manifest(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(app, ["select", "--manifest", str(manifest_path)])
+
+        assert result.exit_code == 0
+        plan = json.loads(result.stdout)
+        plan_file = Path(plan["run_dir"]) / "dispatch-plan.json"
+        assert plan_file.is_file()
+        assert json.loads(plan_file.read_text()) == plan
