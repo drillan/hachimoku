@@ -67,6 +67,24 @@ hachimoku は「`claude -p` をオーケストレーションする CLI」から
 
 v1 の対象は Claude Code のみ。Codex / Copilot は v2 で APM 配布として別途設計する。
 
+### CLI エントリポイント名
+
+薄い CLI のうちユーザーが直接タイプするのは `init` と `build` のみ。
+`select` / `aggregate` はオーケストレーター skill が内部呼び出しするものであり
+ユーザーは打たない。入力負担軽減のため、`pyproject.toml` の `[project.scripts]` に
+正規名と短縮エイリアスの 2 エントリポイント（同一 Typer アプリを指す）を定義する。
+
+```toml
+[project.scripts]
+hachimoku = "hachimoku.cli:app"   # 正規名（パッケージ名・ドキュメントと一致）
+8moku     = "hachimoku.cli:app"   # 短縮エイリアス（八目の「八＝8」）
+```
+
+オーケストレーター skill が生成・実行する内部呼び出しは可読性のため正規名
+`hachimoku` を使う。`8moku` は人間の入力支援が目的。
+console script 名が数字始まりでも実行ファイル名・entry-point 名として問題ないが、
+実装時に `8moku` の起動とシェル補完を検証項目に含める。
+
 ## 4. コンポーネント
 
 | コンポーネント | 役割 | LLM | 課金 |
@@ -275,6 +293,7 @@ SP1 から順に進める。各サブプロジェクトは独立した `specs/NN
 | `hachimoku aggregate` | findings JSON fixture（破損・欠落・スキーマ不適合を含む）→ 期待レポート + 終了コード + JSONL レコード |
 | `block-git-mutations.sh` | コマンド文字列 fixture → allow/deny マトリクス（パイプ・サブシェル・`bash -c`・`git -c`） |
 | モデル再形成 | `CostInfo` 削除・`elapsed_time` optional 化に伴う既存テスト調整 |
+| CLI エイリアス | `8moku` / `hachimoku` 両エントリポイントの起動・シェル補完の検証 |
 | frontmatter hook 隔離 | 手動検証ステップ（§8 の不確実性の実地確認） |
 | E2E | サンプル diff で 1 回通しのスモークテスト |
 
