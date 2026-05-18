@@ -4,6 +4,12 @@
 # 許可リストは src/hachimoku/security/readonly_allowlist.py の
 # ALLOWED_GIT_SUBCOMMANDS / ALLOWED_GH_PATTERNS と一致させること。
 # ドリフトは tests/unit/plugin/test_block_git_mutations.py::test_allowlist_matches_python_definition が検出する。
+#
+# Limitations (best-effort guard, not a complete sandbox):
+#   Does NOT catch: unicode whitespace variants, terminal-escape-encoded
+#   payloads, or future shell syntax. Quoting/expansion metacharacters are
+#   denied wholesale precisely because this script cannot model shell
+#   re-parsing. See design doc threat-model section.
 
 set -euo pipefail
 
@@ -40,7 +46,7 @@ fi
 # ---------------------------------------------------------------------------
 # 3. シェル制御文字・複合コマンドの検出 → deny
 #    注意: この検査は git/gh ゲートより先に、かつ正規化前の生 $cmd に対して
-#    行うこと（"bash -c 'git push'" 対応、および改行/復帰を消さないため）。
+#    行うこと（改行/復帰を消さないため、およびクォート除去前の判定のため）。
 #    - 改行 \n / 復帰 \r: コマンド区切り
 #    - & : バックグラウンド実行（"&&" もこれで巻き込まれる）
 #    - | : パイプ（"||" もこれで巻き込まれる）
@@ -52,11 +58,29 @@ if [[ "$cmd" == *";"* ]] \
     || [[ "$cmd" == *"<"* ]] \
     || [[ "$cmd" == *">"* ]] \
     || [[ "$cmd" == *$'\n'* ]] \
-    || [[ "$cmd" == *$'\r'* ]] \
-    || [[ "$cmd" == *'`'* ]] \
-    || [[ "$cmd" == *'$('* ]] \
-    || [[ "$cmd" == *"bash -c"* ]]; then
+    || [[ "$cmd" == *$'\r'* ]]; then
     echo "block-git-mutations: denied compound/shell command: $cmd" >&2
+    exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# 3b. クォート/展開メタ文字の検出 → deny
+#     シェルは実行前にクォート除去・展開・再パースを行うため、これらの文字を
+#     含むコマンドはフックが素朴にトークン化しても実体と一致しない
+#     （例: '"git" push'・'g\it push'・'git${IFS}push'）。
+#     フックはシェル再パースをモデル化できないため、これらを一律 deny する。
+#     レビュー用の読取専用コマンド（git diff / git log / gh pr diff N /
+#     gh api /repos/o/r/pulls）はこれらの文字を必要としない。
+#     注: バッククォート ` と $( は本検査の $ ・ ` で巻き込まれる。
+# ---------------------------------------------------------------------------
+if [[ "$cmd" == *"'"* ]] \
+    || [[ "$cmd" == *'"'* ]] \
+    || [[ "$cmd" == *'\'* ]] \
+    || [[ "$cmd" == *'`'* ]] \
+    || [[ "$cmd" == *'$'* ]] \
+    || [[ "$cmd" == *'{'* ]] \
+    || [[ "$cmd" == *'}'* ]]; then
+    echo "block-git-mutations: denied quoting/expansion metacharacter: $cmd" >&2
     exit 2
 fi
 
@@ -98,6 +122,18 @@ if [[ "$first_token" == *"/"* ]]; then
     echo "block-git-mutations: denied path-qualified binary: $cmd" >&2
     exit 2
 fi
+
+# シェルランチャの検出 → deny
+#   `sh -c "git push"`・`eval "git push"` 等はサブシェルで任意コマンドを
+#   実行する。第1トークン（正規化後）が既知のシェル/評価ランチャに完全一致
+#   すれば、後続引数に関わらず一律 deny する。部分文字列マッチではなく
+#   トークン完全一致で判定する（旧 `*"bash -c"*` 部分文字列チェックを置換）。
+case "$first_token" in
+    sh|bash|zsh|ksh|dash|eval|source|.)
+        echo "block-git-mutations: denied shell launcher: $cmd" >&2
+        exit 2
+        ;;
+esac
 
 # ---------------------------------------------------------------------------
 # 6. git/gh 以外のコマンドの処理

@@ -36,7 +36,9 @@ class TestBlockGitMutations:
             "gh pr view 123",
             "gh pr diff 123",
             "gh api /repos/o/r",  # 読み取り専用 gh api は許可
+            "gh pr view 1",
             "git -c x=y log",  # -c オプション付き git は許可
+            "git diff HEAD~1",  # ~ は deny リストに入れない
             "ls -la",  # git/gh 以外はすべて許可
             "cat file.py",
         ],
@@ -82,6 +84,24 @@ class TestBlockGitMutations:
         ],
     )
     def test_denies_compound_commands(self, command: str) -> None:
+        assert _run_hook(command) == 2
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # クォート/エスケープによる argv0 偽装
+            '"git" push',  # ダブルクォート
+            "g\\it push",  # バックスラッシュ（bash では git push）
+            "git${IFS}push",  # IFS 展開（$ と { を含む）
+            # bash -c 以外のサブシェルランチャ
+            'sh -c "git push"',
+            'eval "git push"',
+            'bash\t-c "git push"',  # タブ区切りランチャ
+            "bash  -c 'git push'",  # ダブルスペース区切りランチャ
+            "sh -lc git",  # クォートなしランチャ（第1トークン完全一致で deny）
+        ],
+    )
+    def test_denies_quoting_and_launchers(self, command: str) -> None:
         assert _run_hook(command) == 2
 
     def test_allowlist_matches_python_definition(self) -> None:
